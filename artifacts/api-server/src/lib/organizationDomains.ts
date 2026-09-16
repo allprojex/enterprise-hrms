@@ -1,5 +1,5 @@
 import { and, eq, ne } from "drizzle-orm";
-import { db, organizationDomainsTable, organizationsTable, type OrganizationDomain } from "@workspace/db";
+import { db, organizationDomainsTable, organizationsTable, type Organization, type OrganizationDomain } from "@workspace/db";
 import { generateToken } from "./auth";
 import { isUniqueViolation } from "./dbErrors";
 import { getNamespaceConfig } from "../services/organizationConfig";
@@ -230,14 +230,32 @@ export async function setPrimaryDomain(organizationId: number, domainId: number)
 }
 
 /**
- * Resolves a normalized hostname to the organization it belongs to, or null
- * for every disqualifying condition alike (no such domain, domain disabled
- * or still pending, organization suspended) — callers must treat all of
- * these the same way, exactly like resolvePublicOrganization in
- * publicCareers.ts does for slugs. Purely informational: the caller decides
- * what (if anything) to enforce with the result.
+ * The tenant a hostname is bound to. `status` is the organization's own
+ * lifecycle status, reported alongside the identity rather than folded into
+ * it.
  */
-export async function resolveTenantByHostname(hostname: string): Promise<{ organizationId: number } | null> {
+export interface ResolvedTenantHost {
+  organizationId: number;
+  status: Organization["status"];
+}
+
+/**
+ * Resolves a normalized hostname to the organization it is bound to, or null
+ * when no tenant is bound to it at all (no such domain, or the domain is
+ * disabled or still pending).
+ *
+ * IDENTITY, NOT AVAILABILITY. A suspended organization's active hostname
+ * still resolves — with `status: "suspended"` — because this result is what
+ * hostname pinning (hostnameOrganizationMismatch, the /auth/login and
+ * /auth/switch-organization tenant checks) is keyed on. Returning null for a
+ * suspended tenant would make its hostname indistinguishable from the
+ * platform's own tenant-neutral host and silently switch pinning off exactly
+ * while the tenant is unavailable. Whether the organization is operational is
+ * a separate question every caller must answer from `status` (or its own
+ * check, as getPublicTenantContext does) — a non-null result is never
+ * permission to serve the tenant.
+ */
+export async function resolveTenantByHostname(hostname: string): Promise<ResolvedTenantHost | null> {
   let normalized: string;
   try {
     normalized = normalizeHostname(hostname);
@@ -276,8 +294,8 @@ export async function resolveTenantByHostname(hostname: string): Promise<{ organ
     .where(and(eq(domainsTable.hostname, normalized), eq(domainsTable.status, "active")))
     .limit(1);
 
-  if (!row || row.orgStatus === "suspended") return null;
-  return { organizationId: row.organizationId };
+  if (!row) return null;
+  return { organizationId: row.organizationId, status: row.orgStatus };
 }
 
 export interface PublicTenantTheme {

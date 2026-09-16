@@ -193,7 +193,12 @@ const { requireMembership } = await import("../middlewares/requireMembership");
 function buildMinimalTenantApp() {
   const minimalApp = express();
   minimalApp.use((req, _res, next) => {
+    // Mirrors what requireAuth always attaches: the id and the user row. An
+    // ordinary (non-super_admin) account, so requireMembership's break-glass
+    // branch is evaluated exactly as in production rather than dereferencing
+    // an undefined user.
     (req as { userId?: number }).userId = 1;
+    (req as { user?: { id: number; role: string } }).user = { id: 1, role: "employee" };
     next();
   });
   minimalApp.use(resolveTenantHost as any);
@@ -202,6 +207,12 @@ function buildMinimalTenantApp() {
     requireMembership("organizationId") as any,
     (_req, res) => res.json({ ok: true }),
   );
+  // Echoes what resolveTenantHost bound to the request, so tests can assert
+  // the internal identity/status split directly.
+  minimalApp.get("/host-binding", (req, res) => {
+    const r = req as { resolvedTenantOrganizationId?: number | null; resolvedTenantStatus?: string | null };
+    res.json({ organizationId: r.resolvedTenantOrganizationId, status: r.resolvedTenantStatus });
+  });
   return minimalApp;
 }
 
@@ -411,6 +422,114 @@ describe("POST /api/auth/switch-organization — hostname/organization consisten
       .send({ organizationId: 4 });
 
     expect(res.status).toBe(200);
+  });
+});
+
+// Suspending an organization must not turn its hostname into an unpinned,
+// tenant-neutral host. Before this fix the resolver returned null for a
+// suspended tenant, so every assertion below except the tenant-context ones
+// would have observed the permissive "no tenant resolved" behaviour instead.
+describe("Suspended tenant hostname stays pinned — identity, not availability", () => {
+  const SUSPENDED_WWM_DOMAIN = { hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "suspended" };
+
+  it("binds the suspended organization's id and status to the request (never the tenant-neutral null)", async () => {
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+
+    const res = await request(buildMinimalTenantApp()).get("/host-binding").set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ organizationId: 3, status: "suspended" });
+  });
+
+  it("binds active and trial organizations with their status, and nothing for an unmapped host", async () => {
+    fixtures.domainRows = [{ hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "active" }];
+    const active = await request(buildMinimalTenantApp()).get("/host-binding").set("X-Tenant-Hostname", "wwm.localhost");
+    expect(active.body).toEqual({ organizationId: 3, status: "active" });
+
+    fixtures.domainRows = [{ hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "trial" }];
+    const trial = await request(buildMinimalTenantApp()).get("/host-binding").set("X-Tenant-Hostname", "wwm.localhost");
+    expect(trial.body).toEqual({ organizationId: 3, status: "trial" });
+
+    fixtures.domainRows = [];
+    const unmapped = await request(buildMinimalTenantApp()).get("/host-binding").set("X-Tenant-Hostname", "nobody.localhost");
+    expect(unmapped.body).toEqual({ organizationId: null, status: null });
+  });
+
+  it("denies an authenticated member of another organization reaching their own organization through the suspended tenant's hostname", async () => {
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    // Caller is a genuine, active member of org 4 only.
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 4, status: "active" }];
+
+    const res = await request(buildMinimalTenantApp())
+      .get("/organizations/4/probe")
+      .set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("denies a member of another organization reaching the suspended organization's resources (no membership there)", async () => {
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 4, status: "active" }];
+
+    const res = await request(buildMinimalTenantApp())
+      .get("/organizations/3/probe")
+      .set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /tenant-context still reports resolved:false with no branding for the suspended tenant", async () => {
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    fixtures.orgRows = [{ id: 3, name: "Worldwide Word Ministries", slug: "wwm", type: "church", status: "suspended", logoUrl: "https://x/logo.png" }];
+    fixtures.settingsRows = [{ organizationId: 3, namespace: "branding", settings: { systemDisplayName: "Suspended HR" } }];
+
+    const res = await request(app).get("/api/tenant-context").set("X-Tenant-Hostname", "wwm.localhost");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ resolved: false });
+  });
+
+  it("denies login to a non-member, non-super_admin account through the suspended tenant's hostname", async () => {
+    fixtures.userRows = [user({ organizationId: 4 })];
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 4, status: "active" }]; // none in org 3
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/does not have access/i);
+    expect(fixtures.insertedSessions).toHaveLength(0);
+  });
+
+  it("keeps the existing super_admin login exemption on the suspended tenant's hostname", async () => {
+    fixtures.userRows = [user({ role: "super_admin", organizationId: 1 })];
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    fixtures.membershipRows = [];
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("denies switching into another organization while browsing the suspended tenant's hostname", async () => {
+    mockSession({ organizationId: 3 });
+    fixtures.domainRows = [SUSPENDED_WWM_DOMAIN];
+    fixtures.membershipRows = [{ applicationUserId: 1, organizationId: 4, status: "active" }];
+
+    const res = await request(app)
+      .post("/api/auth/switch-organization")
+      .set("Authorization", "Bearer valid-token")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ organizationId: 4 });
+
+    expect(res.status).toBe(403);
+    expect(fixtures.updatedSessions).toHaveLength(0);
   });
 });
 
