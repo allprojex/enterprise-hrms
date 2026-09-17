@@ -47,6 +47,7 @@ import {
   FormStageAuthorityError,
   FormSubmissionFinalizedError,
   FormSubjectNotFoundError,
+  FormDecisionReasonRequiredError,
   type FormActor,
 } from "../lib/formEngine/submissions";
 import { FormAnswersError } from "../lib/formEngine/answers";
@@ -83,6 +84,10 @@ function handleError(err: unknown, res: import("express").Response): boolean {
   }
   if (err instanceof FormAnswersError) {
     res.status(400).json({ error: err.message, issues: err.issues });
+    return true;
+  }
+  if (err instanceof FormDecisionReasonRequiredError) {
+    res.status(400).json({ error: err.message });
     return true;
   }
   if (err instanceof FormStageAuthorityError) {
