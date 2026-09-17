@@ -41,8 +41,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const EMPTY = '__any__';
+
+type StatusTarget = { id: number; name: string; status: string };
 
 function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number; leaveTypeId: number }) {
   const queryClient = useQueryClient();
@@ -95,9 +98,11 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListLeavePoliciesQueryKey(organizationId, leaveTypeId) });
 
+  const [policyStatusTarget, setPolicyStatusTarget] = useState<StatusTarget | null>(null);
+
   const handleToggleStatus = (policy: { id: number; status: string }) => {
     const mutation = policy.status === 'inactive' ? reactivateMutation : archiveMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, leaveTypeId, policyId: policy.id },
       {
         onSuccess: () => {
@@ -400,7 +405,7 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
                 <Button
                   size="sm"
                   variant={policy.status === 'inactive' ? 'default' : 'destructive'}
-                  onClick={() => handleToggleStatus(policy)}
+                  onClick={() => setPolicyStatusTarget(policy)}
                   data-testid={`button-toggle-policy-status-${policy.id}`}
                 >
                   {policy.status === 'inactive' ? 'Reactivate' : 'Archive'}
@@ -410,6 +415,28 @@ function PoliciesPanel({ organizationId, leaveTypeId }: { organizationId: number
           ))}
         </ul>
       )}
+
+      <ConfirmActionDialog
+        open={policyStatusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setPolicyStatusTarget(null);
+        }}
+        title={policyStatusTarget?.status === 'inactive' ? 'Reactivate leave policy?' : 'Archive leave policy?'}
+        description={
+          policyStatusTarget?.status === 'inactive' ? (
+            <p>“{policyStatusTarget?.name}” will be marked active again and will once more be applied to eligible employees' new leave requests.</p>
+          ) : (
+            <p>
+              “{policyStatusTarget?.name}” will be archived (marked inactive) and will no longer be applied to new leave requests. Existing requests
+              are preserved, and the policy can be reactivated later.
+            </p>
+          )
+        }
+        confirmLabel={policyStatusTarget?.status === 'inactive' ? 'Reactivate Policy' : 'Archive Policy'}
+        tone={policyStatusTarget?.status === 'inactive' ? 'default' : 'destructive'}
+        onConfirm={() => (policyStatusTarget ? handleToggleStatus(policyStatusTarget) : undefined)}
+        testId={`dialog-policy-status-${leaveTypeId}`}
+      />
     </div>
   );
 }
@@ -470,9 +497,11 @@ export default function LeaveTypes() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<StatusTarget | null>(null);
+
   const handleToggleStatus = (leaveType: { id: number; status: string }) => {
     const mutation = leaveType.status === 'inactive' ? reactivateMutation : archiveMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, id: leaveType.id },
       {
         onSuccess: () => {
@@ -606,7 +635,7 @@ export default function LeaveTypes() {
                         <Button
                           size="sm"
                           variant={leaveType.status === 'inactive' ? 'default' : 'destructive'}
-                          onClick={() => handleToggleStatus(leaveType)}
+                          onClick={() => setStatusTarget(leaveType)}
                           data-testid={`button-toggle-leave-type-status-${leaveType.id}`}
                         >
                           {leaveType.status === 'inactive' ? 'Reactivate' : 'Archive'}
@@ -627,6 +656,28 @@ export default function LeaveTypes() {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.status === 'inactive' ? 'Reactivate leave type?' : 'Archive leave type?'}
+        description={
+          statusTarget?.status === 'inactive' ? (
+            <p>“{statusTarget?.name}” will be marked active again and can be used for new leave requests.</p>
+          ) : (
+            <p>
+              “{statusTarget?.name}” will be archived (marked inactive) and can no longer be used for new leave requests. Existing requests,
+              balances and policies are preserved, and the leave type can be reactivated later.
+            </p>
+          )
+        }
+        confirmLabel={statusTarget?.status === 'inactive' ? 'Reactivate Leave Type' : 'Archive Leave Type'}
+        tone={statusTarget?.status === 'inactive' ? 'default' : 'destructive'}
+        onConfirm={() => (statusTarget ? handleToggleStatus(statusTarget) : undefined)}
+        testId="dialog-leave-type-status"
+      />
 
       <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent>

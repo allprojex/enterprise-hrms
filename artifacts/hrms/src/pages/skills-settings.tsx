@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -85,6 +86,8 @@ export default function SkillsSettings() {
 
   const [relabelId, setRelabelId] = useState<number | null>(null);
   const [relabelValue, setRelabelValue] = useState('');
+
+  const [toggleTarget, setToggleTarget] = useState<{ id: number; name: string; active: boolean } | null>(null);
 
   const skills = useListSkills(organizationId, undefined, {
     query: { queryKey: getListSkillsQueryKey(organizationId), enabled },
@@ -345,9 +348,7 @@ export default function SkillsSettings() {
                       variant="outline"
                       size="sm"
                       disabled={updateSkill.isPending}
-                      onClick={() =>
-                        updateSkill.mutate({ organizationId, skillId: s.id, data: { active: !s.active } })
-                      }
+                      onClick={() => setToggleTarget({ id: s.id, name: s.name, active: s.active })}
                       data-testid={`button-toggle-skill-${s.id}`}
                     >
                       {s.active ? 'Retire' : 'Reinstate'}
@@ -357,6 +358,28 @@ export default function SkillsSettings() {
               ))}
             </div>
           )}
+          {/* Retiring only sets active=false; the hook's own onSuccess/onError
+              toast and refresh the catalogue. */}
+          <ConfirmActionDialog
+            open={toggleTarget !== null}
+            onOpenChange={(o) => {
+              if (!o) setToggleTarget(null);
+            }}
+            title={toggleTarget?.active === false ? 'Reinstate skill?' : 'Retire skill?'}
+            description={
+              toggleTarget?.active === false
+                ? `“${toggleTarget?.name}” will be active again and can be recorded for employees.`
+                : `“${toggleTarget?.name}” will be retired and can no longer be recorded as a new skill for employees. Records and position requirements that already use it are kept, and it can be reinstated later.`
+            }
+            confirmLabel={toggleTarget?.active === false ? 'Reinstate Skill' : 'Retire Skill'}
+            tone={toggleTarget?.active === false ? 'default' : 'destructive'}
+            onConfirm={() =>
+              toggleTarget
+                ? updateSkill.mutateAsync({ organizationId, skillId: toggleTarget.id, data: { active: !toggleTarget.active } })
+                : undefined
+            }
+            testId="dialog-toggle-skill"
+          />
         </TabsContent>
 
         <TabsContent value="scale" className="mt-4 space-y-4">

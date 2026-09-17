@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -102,8 +103,11 @@ function SessionsPanel({ organizationId, courseId, deliveryMode }: { organizatio
     );
   };
 
+  const [completeTarget, setCompleteTarget] = useState<LearningCourseSession | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<LearningCourseSession | null>(null);
+
   const handleTransition = (session: LearningCourseSession, status: 'completed' | 'cancelled') => {
-    updateMutation.mutate(
+    return updateMutation.mutateAsync(
       { organizationId, id: session.id, data: { status } },
       {
         onSuccess: () => {
@@ -198,10 +202,10 @@ function SessionsPanel({ organizationId, courseId, deliveryMode }: { organizatio
                 </Badge>
                 {session.status === 'scheduled' && (
                   <>
-                    <Button size="sm" variant="outline" onClick={() => handleTransition(session, 'completed')} disabled={updateMutation.isPending} data-testid={`button-complete-session-${session.id}`}>
+                    <Button size="sm" variant="outline" onClick={() => setCompleteTarget(session)} disabled={updateMutation.isPending} data-testid={`button-complete-session-${session.id}`}>
                       Complete
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => handleTransition(session, 'cancelled')} disabled={updateMutation.isPending} data-testid={`button-cancel-session-${session.id}`}>
+                    <Button size="sm" variant="destructive" onClick={() => setCancelTarget(session)} disabled={updateMutation.isPending} data-testid={`button-cancel-session-${session.id}`}>
                       Cancel
                     </Button>
                   </>
@@ -211,6 +215,43 @@ function SessionsPanel({ organizationId, courseId, deliveryMode }: { organizatio
           ))}
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={completeTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setCompleteTarget(null);
+        }}
+        title="Complete learning session?"
+        description={
+          <p>
+            The session on {completeTarget ? new Date(completeTarget.scheduledAt).toLocaleString() : ''} will be marked completed. A completed
+            session cannot be edited, cancelled or reopened. Attendance and completion for enrolled employees are recorded separately.
+          </p>
+        }
+        confirmLabel="Complete Session"
+        tone="default"
+        onConfirm={() => (completeTarget ? handleTransition(completeTarget, 'completed') : undefined)}
+        testId="dialog-complete-session"
+      />
+
+      <ConfirmActionDialog
+        open={cancelTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setCancelTarget(null);
+        }}
+        title="Cancel learning session?"
+        description={
+          <p>
+            Are you sure you want to cancel the learning session on {cancelTarget ? new Date(cancelTarget.scheduledAt).toLocaleString() : ''}? A
+            cancelled session cannot be edited or reopened — schedule a new session instead. Enrollments for this session are not
+            cancelled automatically.
+          </p>
+        }
+        confirmLabel="Cancel Session"
+        cancelLabel="Keep Session"
+        onConfirm={() => (cancelTarget ? handleTransition(cancelTarget, 'cancelled') : undefined)}
+        testId="dialog-cancel-session"
+      />
     </div>
   );
 }

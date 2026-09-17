@@ -4,7 +4,7 @@
  * network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PerformanceCycles from '@/pages/performance-cycles';
@@ -23,6 +23,8 @@ const { state } = vi.hoisted(() => ({
     createMutate: vi.fn() as (...args: unknown[]) => void,
     updateMutate: vi.fn() as (...args: unknown[]) => void,
     generateMutate: vi.fn() as (...args: unknown[]) => void,
+    updateMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
+    generateMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
   },
 }));
 
@@ -40,8 +42,8 @@ vi.mock('@workspace/api-client-react', () => ({
   useListPerformanceRatingScales: () => ({ data: state.ratingScales }),
   getListPerformanceRatingScalesQueryKey: () => ['scales'],
   useCreatePerformanceCycle: () => ({ mutate: state.createMutate, isPending: false }),
-  useUpdatePerformanceCycle: () => ({ mutate: state.updateMutate, isPending: false }),
-  useGeneratePerformanceReviews: () => ({ mutate: state.generateMutate, isPending: false }),
+  useUpdatePerformanceCycle: () => ({ mutate: state.updateMutate, mutateAsync: state.updateMutateAsync, isPending: false }),
+  useGeneratePerformanceReviews: () => ({ mutate: state.generateMutate, mutateAsync: state.generateMutateAsync, isPending: false }),
 }));
 
 function membership(roles: string[]): MembershipSummary {
@@ -76,8 +78,29 @@ function cycle(overrides: Partial<PerformanceCycle> = {}): PerformanceCycle {
   };
 }
 
+let lastQueryClient: QueryClient | null = null;
+
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.({ reviewsCreated: 3 });
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastQueryClient = queryClient;
   return render(
     <QueryClientProvider client={queryClient}>
       <PerformanceCycles />
@@ -97,6 +120,8 @@ function resetState() {
   state.createMutate = vi.fn();
   state.updateMutate = vi.fn();
   state.generateMutate = vi.fn();
+  state.updateMutateAsync = resolvingMutateAsync();
+  state.generateMutateAsync = resolvingMutateAsync();
 }
 
 describe('Performance Cycles page', () => {
@@ -192,10 +217,62 @@ describe('Performance Cycles page', () => {
     renderPage();
     await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
     await userEvent.click(screen.getByTestId('button-generate-reviews'));
-    expect(state.generateMutate).toHaveBeenCalledWith(
+    expect(screen.getByTestId('dialog-generate-reviews')).toHaveTextContent('2026 Annual Cycle');
+    expect(state.generateMutateAsync).not.toHaveBeenCalled();
+    expect(state.generateMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-generate-reviews-confirm'));
+    expect(state.generateMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.generateMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 10, id: 1, data: {} }),
       expect.anything(),
     );
+    await waitFor(() => expect(screen.queryByTestId('dialog-generate-reviews')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['cycles'] });
+  });
+
+  it('cancelling the generate reviews confirmation generates nothing', async () => {
+    resetState();
+    state.cycles = [cycle()];
+    state.detail = cycle();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
+    await userEvent.click(screen.getByTestId('button-generate-reviews'));
+    await userEvent.click(screen.getByTestId('dialog-generate-reviews-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-generate-reviews')).not.toBeInTheDocument());
+    expect(state.generateMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('archiving a draft cycle requires confirmation and stays open when the server refuses', async () => {
+    resetState();
+    state.cycles = [cycle()];
+    state.detail = cycle();
+    state.updateMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
+    await userEvent.click(screen.getByTestId('button-archive-cycle'));
+    expect(screen.getByTestId('dialog-archive-cycle')).toHaveTextContent('Archive draft cycle?');
+    expect(state.updateMutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('dialog-archive-cycle-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.updateMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { status: 'archived' } }, expect.anything());
+    await waitFor(() => expect(screen.getByTestId('dialog-archive-cycle-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-archive-cycle')).toBeInTheDocument();
+    expect(screen.getByTestId('row-cycle-1')).toBeInTheDocument();
+  });
+
+  it('archiving a closed cycle goes through the confirmation', async () => {
+    resetState();
+    state.cycles = [cycle({ status: 'closed' })];
+    state.detail = cycle({ status: 'closed' });
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
+    await userEvent.click(screen.getByTestId('button-archive-closed-cycle'));
+    expect(screen.getByTestId('dialog-archive-cycle')).toHaveTextContent('Archive performance cycle?');
+    await userEvent.click(screen.getByTestId('dialog-archive-cycle-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { status: 'archived' } }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-archive-cycle')).not.toBeInTheDocument());
   });
 
   it('requires employeeIds before enabling Generate Reviews for a manual-scope cycle', async () => {
@@ -217,5 +294,25 @@ describe('Performance Cycles page', () => {
     await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
     expect(screen.queryByTestId('button-generate-reviews')).not.toBeInTheDocument();
     expect(screen.getByTestId('button-close-cycle')).toBeInTheDocument();
+  });
+
+  it('closing an open cycle requires confirmation; cancel closes nothing, confirm closes once', async () => {
+    resetState();
+    state.cycles = [cycle({ status: 'open' })];
+    state.detail = cycle({ status: 'open' });
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-cycle-1'));
+    await userEvent.click(screen.getByTestId('button-close-cycle'));
+    expect(screen.getByTestId('dialog-close-cycle')).toHaveTextContent('Close performance cycle?');
+    expect(state.updateMutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('dialog-close-cycle-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-close-cycle')).not.toBeInTheDocument());
+    expect(state.updateMutateAsync).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId('button-close-cycle'));
+    await userEvent.click(screen.getByTestId('dialog-close-cycle-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.updateMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { status: 'closed' } }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-close-cycle')).not.toBeInTheDocument());
   });
 });

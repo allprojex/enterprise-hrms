@@ -11,12 +11,13 @@ import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 
 const { state, spies } = vi.hoisted(() => ({
-  state: { detail: null as Record<string, unknown> | null, error: null as unknown, signatures: [] as unknown[] },
+  state: { detail: null as Record<string, unknown> | null, error: null as unknown, signatures: [] as unknown[], failMutations: false },
   spies: {
     saveDraft: vi.fn(),
     submit: vi.fn(),
     stage: vi.fn(),
     finalize: vi.fn(),
+    archive: vi.fn(),
     downloadDoc: vi.fn(async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
     downloadBlank: vi.fn(async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
   },
@@ -28,6 +29,16 @@ function mutation(spy: (vars: unknown) => unknown) {
     mutate: (vars: unknown, opts: { onSuccess?: (d: unknown) => void; onError?: (e: unknown) => void }) => {
       spy(vars);
       opts.onSuccess?.(state.detail);
+    },
+    mutateAsync: async (vars: unknown, opts?: { onSuccess?: (d: unknown) => void; onError?: (e: unknown) => void }) => {
+      spy(vars);
+      if (state.failMutations) {
+        const err = { data: { error: 'Form state changed; reload and try again' } };
+        opts?.onError?.(err);
+        throw err;
+      }
+      opts?.onSuccess?.(state.detail);
+      return state.detail;
     },
   });
 }
@@ -44,7 +55,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useSubmitFormSubmission: mutation(spies.submit),
   useActOnFormSubmissionStage: mutation(spies.stage),
   useFinalizeFormSubmission: mutation(spies.finalize),
-  useArchiveFormSubmission: mutation(vi.fn()),
+  useArchiveFormSubmission: mutation(spies.archive),
   downloadFormSubmissionDocument: spies.downloadDoc,
   downloadFormTemplateBlank: spies.downloadBlank,
 }));
@@ -88,6 +99,7 @@ beforeEach(() => {
   state.detail = detailFor();
   state.error = null;
   state.signatures = [];
+  state.failMutations = false;
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
@@ -226,6 +238,60 @@ describe('FormSubmissionPage', () => {
     await waitFor(() => expect(spies.downloadDoc).toHaveBeenCalledWith(10, 7, { kind: 'approved' }));
     await user.click(screen.getByTestId('button-download-blank'));
     await waitFor(() => expect(spies.downloadBlank).toHaveBeenCalledWith(10, 2));
+  });
+
+  describe('archive confirmation', () => {
+    const archiveViewer = { canEdit: false, editableSectionKeys: [], canSubmit: false, availableActions: [], canFinalize: false, canArchive: true, isSubject: false };
+    const finalizedDetail = (viewer: Record<string, unknown> = archiveViewer) =>
+      detailFor({ submission: { ...detailFor().submission, status: 'finalized' }, viewer });
+
+    it('opens a confirmation naming the form instead of archiving on click, and Cancel archives nothing', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      const dialog = screen.getByTestId('dialog-archive-form');
+      expect(dialog).toHaveTextContent('Archive form?');
+      expect(dialog).toHaveTextContent('“Employee Leave Application Form” for Ama Boateng');
+      expect(dialog).toHaveTextContent('cannot be restored');
+      expect(screen.getByTestId('dialog-archive-form-confirm')).toHaveTextContent('Archive Form');
+      expect(spies.archive).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-archive-form-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-form')).not.toBeInTheDocument());
+      expect(spies.archive).not.toHaveBeenCalled();
+    });
+
+    it('archives exactly once on confirm and closes the dialog', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      await user.click(screen.getByTestId('dialog-archive-form-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-form')).not.toBeInTheDocument());
+      expect(spies.archive).toHaveBeenCalledTimes(1);
+      expect(spies.archive).toHaveBeenCalledWith({ organizationId: 10, submissionId: 7 });
+    });
+
+    it('keeps the dialog open and the form in place when archiving fails', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      state.failMutations = true;
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      await user.click(screen.getByTestId('dialog-archive-form-confirm'));
+      await waitFor(() => expect(spies.archive).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByTestId('dialog-archive-form-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-archive-form')).toBeInTheDocument();
+      expect(screen.getByTestId('button-archive')).toBeInTheDocument();
+    });
+
+    it('does not offer Archive when the server says the viewer cannot archive', async () => {
+      state.detail = finalizedDetail({ ...archiveViewer, canArchive: false });
+      renderPage();
+      expect(await screen.findByText('Employee Leave Application Form')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-archive')).not.toBeInTheDocument();
+    });
   });
 
   it('shows a not-found state instead of a form when the server hides the submission', async () => {

@@ -59,6 +59,7 @@ import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { getStoredToken } from '@/lib/auth';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 export function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -688,11 +689,11 @@ function ScheduleMaintenanceDialog({ organizationId, assetId, onChanged }: { org
   );
 }
 
-function MaintenanceRow({ organizationId, record, onChanged }: { organizationId: number; record: AssetMaintenance; onChanged: () => void }) {
+function MaintenanceRow({ organizationId, record, onChanged, onRequestCancel }: { organizationId: number; record: AssetMaintenance; onChanged: () => void; onRequestCancel: (record: AssetMaintenance) => void }) {
   const { toast } = useToast();
   const mutation = useUpdateAssetMaintenance();
 
-  const transition = (action: 'start' | 'complete' | 'cancel', successTitle: string) => {
+  const transition = (action: 'start' | 'complete', successTitle: string) => {
     mutation.mutate(
       { organizationId, id: record.id, data: { action } },
       {
@@ -737,7 +738,7 @@ function MaintenanceRow({ organizationId, record, onChanged }: { organizationId:
               Complete
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => transition('cancel', 'Maintenance cancelled')} disabled={mutation.isPending} data-testid={`button-cancel-maintenance-${record.id}`}>
+          <Button size="sm" variant="outline" onClick={() => onRequestCancel(record)} disabled={mutation.isPending} data-testid={`button-cancel-maintenance-${record.id}`}>
             <Ban className="h-3.5 w-3.5" aria-hidden="true" />
             Cancel
           </Button>
@@ -749,14 +750,29 @@ function MaintenanceRow({ organizationId, record, onChanged }: { organizationId:
 
 function AssetMaintenancePanel({ organizationId, assetId }: { organizationId: number; assetId: number }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: records, isLoading, error, refetch } = useListAssetMaintenance(organizationId, assetId, {
     query: { queryKey: getListAssetMaintenanceQueryKey(organizationId, assetId), enabled: organizationId > 0 },
   });
+  const cancelMutation = useUpdateAssetMaintenance();
+  const [cancelTarget, setCancelTarget] = useState<AssetMaintenance | null>(null);
 
   const handleChanged = () => {
     queryClient.invalidateQueries({ queryKey: getListAssetMaintenanceQueryKey(organizationId, assetId) });
     refetch();
   };
+
+  const handleCancelMaintenance = (record: AssetMaintenance) =>
+    cancelMutation.mutateAsync(
+      { organizationId, id: record.id, data: { action: 'cancel' } },
+      {
+        onSuccess: () => {
+          handleChanged();
+          toast({ title: 'Maintenance cancelled' });
+        },
+        onError: (err) => toast({ title: 'Could not update this maintenance record', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
 
   return (
     <div className="space-y-3 border-t border-border pt-4">
@@ -774,10 +790,27 @@ function AssetMaintenancePanel({ organizationId, assetId }: { organizationId: nu
       ) : (
         <div className="space-y-2">
           {records.map((record) => (
-            <MaintenanceRow key={record.id} organizationId={organizationId} record={record} onChanged={handleChanged} />
+            <MaintenanceRow key={record.id} organizationId={organizationId} record={record} onChanged={handleChanged} onRequestCancel={setCancelTarget} />
           ))}
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={cancelTarget !== null}
+        onOpenChange={(o) => { if (!o) setCancelTarget(null); }}
+        title="Cancel maintenance?"
+        description={
+          <p>
+            Are you sure you want to cancel “{cancelTarget?.maintenanceType}”? The record will be marked cancelled and cannot be reopened — a further
+            service need requires a new maintenance record.
+            {cancelTarget?.status === 'in_progress' && ' The asset will leave maintenance and return to assigned or available, depending on whether it is still held.'}
+          </p>
+        }
+        confirmLabel="Cancel Maintenance"
+        cancelLabel="Keep Maintenance"
+        onConfirm={() => (cancelTarget ? handleCancelMaintenance(cancelTarget) : undefined)}
+        testId="dialog-cancel-maintenance"
+      />
     </div>
   );
 }

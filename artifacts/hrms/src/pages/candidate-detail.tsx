@@ -24,6 +24,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -60,6 +61,7 @@ export default function CandidateDetail() {
 
   const [noteText, setNoteText] = useState('');
   const [newTag, setNewTag] = useState('');
+  const [removeTagTarget, setRemoveTagTarget] = useState<{ id: number; tag: string } | null>(null);
 
   const invalidateNotes = () => queryClient.invalidateQueries({ queryKey: getListCandidateNotesQueryKey(organizationId, candidateId) });
   const invalidateTags = () => queryClient.invalidateQueries({ queryKey: getListCandidateTagsQueryKey(organizationId, candidateId) });
@@ -88,15 +90,14 @@ export default function CandidateDetail() {
     );
   };
 
-  const handleRemoveTag = (tagId: number) => {
-    removeTagMutation.mutate(
+  const handleRemoveTag = (tagId: number) =>
+    removeTagMutation.mutateAsync(
       { organizationId, id: candidateId, tagId },
       {
         onSuccess: () => { invalidateTags(); toast({ title: 'Tag removed' }); },
         onError: (err) => toast({ title: 'Could not remove tag', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   if (error) {
     return (
@@ -163,7 +164,7 @@ export default function CandidateDetail() {
               {(tags ?? []).map((t) => (
                 <Badge key={t.id} variant="secondary" className="flex items-center gap-1" data-testid={`badge-tag-${t.id}`}>
                   {t.tag}
-                  <button type="button" onClick={() => handleRemoveTag(t.id)} aria-label={`Remove tag ${t.tag}`} data-testid={`button-remove-tag-${t.id}`}>
+                  <button type="button" onClick={() => setRemoveTagTarget({ id: t.id, tag: t.tag })} aria-label={`Remove tag ${t.tag}`} data-testid={`button-remove-tag-${t.id}`}>
                     <X className="h-3 w-3" aria-hidden="true" />
                   </button>
                 </Badge>
@@ -215,6 +216,16 @@ export default function CandidateDetail() {
           </form>
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={removeTagTarget !== null}
+        onOpenChange={(o) => { if (!o) setRemoveTagTarget(null); }}
+        title="Remove tag?"
+        description={<p>Are you sure you want to remove the tag “{removeTagTarget?.tag}” from {candidate.firstName} {candidate.lastName}? You can add it again later.</p>}
+        confirmLabel="Remove Tag"
+        onConfirm={() => (removeTagTarget ? handleRemoveTag(removeTagTarget.id) : undefined)}
+        testId="dialog-remove-candidate-tag"
+      />
     </div>
   );
 }

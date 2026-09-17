@@ -17,11 +17,13 @@ const { state, spies } = vi.hoisted(() => ({
     // /form-templates admin gate (same heuristic as the sidebar).
     roles: ['hr_manager'] as string[],
     rolesLoading: false,
+    failMutations: false,
   },
   spies: {
     createSubmission: vi.fn(),
     createTemplate: vi.fn(),
     publish: vi.fn(),
+    archiveTemplate: vi.fn(),
     downloadBlank: vi.fn(async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
   },
 }));
@@ -32,6 +34,17 @@ function mutation(spy: (vars: unknown) => unknown, result: () => unknown) {
     mutate: (vars: unknown, opts: { onSuccess?: (d: unknown) => void; onError?: (e: unknown) => void }) => {
       spy(vars);
       opts.onSuccess?.(result());
+    },
+    mutateAsync: async (vars: unknown, opts?: { onSuccess?: (d: unknown) => void; onError?: (e: unknown) => void }) => {
+      spy(vars);
+      if (state.failMutations) {
+        const err = { data: { error: 'Template is archived' } };
+        opts?.onError?.(err);
+        throw err;
+      }
+      const data = result();
+      opts?.onSuccess?.(data);
+      return data;
     },
   });
 }
@@ -49,7 +62,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useCreateFormTemplate: mutation(spies.createTemplate, () => ({})),
   useCreateFormTemplateVersion: mutation(vi.fn(), () => ({})),
   usePublishFormTemplateVersion: mutation(spies.publish, () => ({})),
-  useArchiveFormTemplate: mutation(vi.fn(), () => ({})),
+  useArchiveFormTemplate: mutation(spies.archiveTemplate, () => ({})),
   downloadFormTemplateBlank: spies.downloadBlank,
 }));
 
@@ -88,6 +101,7 @@ beforeEach(() => {
   state.submissions = [];
   state.roles = ['hr_manager'];
   state.rolesLoading = false;
+  state.failMutations = false;
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
@@ -154,6 +168,49 @@ describe('FormTemplatesPage', () => {
     expect(spies.publish).toHaveBeenCalledWith({ organizationId: 10, versionId: 3 });
     await user.click(screen.getByTestId('button-blank-2'));
     await waitFor(() => expect(spies.downloadBlank).toHaveBeenCalledWith(10, 2));
+  });
+
+  describe('archive confirmation', () => {
+    it('opens a confirmation naming the template instead of archiving on click, and Cancel archives nothing', async () => {
+      const user = userEvent.setup();
+      wrap(<FormTemplatesPage />, '/form-templates');
+      await user.click(await screen.findByTestId('button-archive-template-1'));
+      const dialog = screen.getByTestId('dialog-archive-template');
+      expect(dialog).toHaveTextContent('Archive form template?');
+      expect(dialog).toHaveTextContent('“Employee Leave Application Form” will no longer be available for new forms');
+      expect(dialog).toHaveTextContent('cannot be restored from here');
+      expect(screen.getByTestId('dialog-archive-template-confirm')).toHaveTextContent('Archive Template');
+      expect(spies.archiveTemplate).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-archive-template-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-template')).not.toBeInTheDocument());
+      expect(spies.archiveTemplate).not.toHaveBeenCalled();
+    });
+
+    it('archives exactly once on confirm, refreshes the list and closes', async () => {
+      const user = userEvent.setup();
+      const invalidate = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      wrap(<FormTemplatesPage />, '/form-templates');
+      await user.click(await screen.findByTestId('button-archive-template-1'));
+      await user.click(screen.getByTestId('dialog-archive-template-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-template')).not.toBeInTheDocument());
+      expect(spies.archiveTemplate).toHaveBeenCalledTimes(1);
+      expect(spies.archiveTemplate).toHaveBeenCalledWith({ organizationId: 10, templateId: 1 });
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ['formTemplates', 10] });
+      invalidate.mockRestore();
+    });
+
+    it('keeps the dialog open and the template listed when archiving fails', async () => {
+      const user = userEvent.setup();
+      state.failMutations = true;
+      wrap(<FormTemplatesPage />, '/form-templates');
+      await user.click(await screen.findByTestId('button-archive-template-1'));
+      await user.click(screen.getByTestId('dialog-archive-template-confirm'));
+      await waitFor(() => expect(spies.archiveTemplate).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByTestId('dialog-archive-template-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-archive-template')).toBeInTheDocument();
+      expect(screen.getByTestId('card-template-1')).toBeInTheDocument();
+    });
   });
 
   it('creates a template from JSON and rejects invalid JSON before any request', async () => {

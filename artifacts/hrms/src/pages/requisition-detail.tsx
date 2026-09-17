@@ -31,6 +31,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function isConflict(err: unknown): boolean {
   return !!err && typeof err === 'object' && 'status' in err && (err as { status: unknown }).status === 409;
@@ -95,6 +96,7 @@ export default function RequisitionDetail() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectComment, setRejectComment] = useState('');
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getGetJobRequisitionQueryKey(organizationId, requisitionId) });
@@ -175,15 +177,14 @@ export default function RequisitionDetail() {
     );
   };
 
-  const handleArchive = () => {
-    archiveMutation.mutate(
+  const handleArchive = () =>
+    archiveMutation.mutateAsync(
       { organizationId, id: requisitionId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Requisition archived' }); },
         onError: (err) => toast({ title: 'Could not archive requisition', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   if (error) {
     return (
@@ -282,7 +283,7 @@ export default function RequisitionDetail() {
             </Dialog>
           )}
           {canArchive && (
-            <Button variant="outline" onClick={handleArchive} disabled={archiveMutation.isPending} data-testid="button-archive-requisition">
+            <Button variant="outline" onClick={() => setArchiveConfirmOpen(true)} disabled={archiveMutation.isPending} data-testid="button-archive-requisition">
               {archiveMutation.isPending ? 'Archiving…' : 'Archive'}
             </Button>
           )}
@@ -354,6 +355,16 @@ export default function RequisitionDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={archiveConfirmOpen}
+        onOpenChange={setArchiveConfirmOpen}
+        title="Archive requisition?"
+        description={<p>“{requisition.title}” will be archived as closed. Its details and approval history are preserved, but an archived requisition cannot be reopened.</p>}
+        confirmLabel="Archive Requisition"
+        onConfirm={handleArchive}
+        testId="dialog-archive-requisition"
+      />
     </div>
   );
 }

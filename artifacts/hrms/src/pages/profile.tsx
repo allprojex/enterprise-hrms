@@ -21,6 +21,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 export default function Profile() {
   const queryClient = useQueryClient();
@@ -61,8 +62,10 @@ export default function Profile() {
     );
   };
 
-  const handleRemovePhoto = () => {
-    removePhotoMutation.mutate(undefined, {
+  const [isRemovePhotoConfirmOpen, setIsRemovePhotoConfirmOpen] = useState(false);
+
+  const handleRemovePhoto = () =>
+    removePhotoMutation.mutateAsync(undefined, {
       onSuccess: () => {
         invalidateEmployeeProfile();
         toast({ title: 'Profile picture removed' });
@@ -71,7 +74,6 @@ export default function Profile() {
         toast({ title: 'Could not remove photo', variant: 'destructive' });
       },
     });
-  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -221,7 +223,7 @@ export default function Profile() {
                         size="icon"
                         variant="secondary"
                         className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
-                        onClick={handleRemovePhoto}
+                        onClick={() => setIsRemovePhotoConfirmOpen(true)}
                         disabled={removePhotoMutation.isPending}
                         aria-label="Remove profile picture"
                         data-testid="button-remove-photo"
@@ -424,6 +426,17 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmActionDialog
+        open={isRemovePhotoConfirmOpen}
+        onOpenChange={setIsRemovePhotoConfirmOpen}
+        title="Remove profile picture?"
+        description="Your current profile picture will be permanently deleted and your initials will be shown instead. You can upload a new picture at any time."
+        confirmLabel="Remove Profile Picture"
+        tone="destructive"
+        onConfirm={handleRemovePhoto}
+        testId="dialog-remove-photo"
+      />
     </div>
   );
 }

@@ -32,10 +32,16 @@ const { state, mutations } = vi.hoisted(() => ({
     candidatesError: null as unknown,
     readiness: [] as unknown[],
     coverage: { coverage: [] as unknown[] },
+    updatePlanFails: false,
   },
   mutations: {
     createPlan: vi.fn(),
     updatePlan: vi.fn(),
+    // Closing a plan is confirmed first and awaited: resolves, or rejects when
+    // `updatePlanFails` is set (the hook's own onError toasts).
+    updatePlanAsync: vi.fn(() =>
+      state.updatePlanFails ? Promise.reject(new Error('Plan not found')) : Promise.resolve({}),
+    ),
     nominate: vi.fn(),
     setReadiness: vi.fn(),
     removeCandidate: vi.fn(),
@@ -73,7 +79,11 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getGetSuccessionPlanQueryKey: (o: number, p: number) => ['plan', o, p],
   useCreateSuccessionPlan: () => ({ mutate: mutations.createPlan, isPending: false }),
-  useUpdateSuccessionPlan: () => ({ mutate: mutations.updatePlan, isPending: false }),
+  useUpdateSuccessionPlan: () => ({
+    mutate: mutations.updatePlan,
+    mutateAsync: mutations.updatePlanAsync,
+    isPending: false,
+  }),
   useListSuccessionCandidates: () => ({
     data: state.candidates,
     isLoading: false,
@@ -115,7 +125,67 @@ describe('Succession workspace', () => {
       { id: 42, ordinal: 2, label: 'Ready in 1-2 years', active: true },
     ];
     state.coverage = { coverage: [] };
+    state.updatePlanFails = false;
     for (const m of Object.values(mutations)) m.mockClear();
+  });
+
+  it('asks before closing a plan, and Cancel leaves it open', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId('button-open-plan-30'));
+    await user.click(await screen.findByTestId('button-plan-status-closed'));
+
+    const dialog = screen.getByTestId('dialog-close-plan');
+    expect(dialog).toHaveTextContent('Close succession plan?');
+    expect(dialog).toHaveTextContent('The succession plan for “Ward Sister” will be closed');
+    expect(mutations.updatePlan).not.toHaveBeenCalled();
+    expect(mutations.updatePlanAsync).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('dialog-close-plan-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-close-plan')).toBeNull());
+    expect(mutations.updatePlan).not.toHaveBeenCalled();
+    expect(mutations.updatePlanAsync).not.toHaveBeenCalled();
+  });
+
+  it('closes the plan exactly once on confirm, and closes the dialog', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId('button-open-plan-30'));
+    await user.click(await screen.findByTestId('button-plan-status-closed'));
+    await user.click(screen.getByTestId('dialog-close-plan-confirm'));
+
+    await waitFor(() => expect(screen.queryByTestId('dialog-close-plan')).toBeNull());
+    expect(mutations.updatePlanAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.updatePlanAsync).toHaveBeenCalledWith({ organizationId: 10, planId: 30, data: { status: 'closed' } });
+  });
+
+  it('keeps the close dialog open and the plan listed when closing fails', async () => {
+    const user = userEvent.setup();
+    state.updatePlanFails = true;
+    renderPage();
+
+    await user.click(screen.getByTestId('button-open-plan-30'));
+    await user.click(await screen.findByTestId('button-plan-status-closed'));
+    await user.click(screen.getByTestId('dialog-close-plan-confirm'));
+
+    await waitFor(() => expect(mutations.updatePlanAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('dialog-close-plan-confirm')).toBeEnabled());
+    expect(screen.getByTestId('dialog-close-plan')).toBeInTheDocument();
+    expect(screen.getByTestId('row-plan-30')).toBeInTheDocument();
+  });
+
+  it('moves a plan between non-closing states without a confirmation', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByTestId('button-open-plan-30'));
+    await user.click(await screen.findByTestId('button-plan-status-under_review'));
+
+    expect(screen.queryByTestId('dialog-close-plan')).toBeNull();
+    await waitFor(() => expect(mutations.updatePlan).toHaveBeenCalledTimes(1));
+    expect(mutations.updatePlan.mock.calls[0]![0]).toEqual({ organizationId: 10, planId: 30, data: { status: 'under_review' } });
   });
 
   it('opens a plan for a position (§30.26 row 11)', async () => {

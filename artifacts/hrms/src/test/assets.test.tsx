@@ -4,7 +4,7 @@
  * network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Assets from '@/pages/assets';
@@ -40,6 +40,7 @@ const { state } = vi.hoisted(() => ({
     maintenanceError: undefined as unknown,
     createMaintenanceMutate: vi.fn(),
     updateMaintenanceMutate: vi.fn(),
+    updateMaintenanceMutateAsync: vi.fn() as (vars: unknown, opts?: unknown) => Promise<unknown>,
     evidenceItems: [] as AssetEvidence[],
     evidenceLoading: false,
     evidenceError: undefined as unknown,
@@ -84,7 +85,11 @@ vi.mock('@workspace/api-client-react', () => ({
   useListAssetMaintenance: () => ({ data: state.maintenanceRecords, isLoading: state.maintenanceLoading, error: state.maintenanceError, refetch: vi.fn() }),
   getListAssetMaintenanceQueryKey: () => ['assetMaintenance'],
   useCreateAssetMaintenance: () => ({ mutate: state.createMaintenanceMutate, isPending: false }),
-  useUpdateAssetMaintenance: () => ({ mutate: state.updateMaintenanceMutate, isPending: false }),
+  useUpdateAssetMaintenance: () => ({
+    mutate: state.updateMaintenanceMutate,
+    mutateAsync: (vars: unknown, opts?: unknown) => state.updateMaintenanceMutateAsync(vars, opts),
+    isPending: false,
+  }),
   useListAssetEvidence: () => ({ data: state.evidenceItems, isLoading: state.evidenceLoading, error: state.evidenceError, refetch: vi.fn() }),
   getListAssetEvidenceQueryKey: () => ['assetEvidence'],
   useAddAssetEvidence: () => ({ mutate: state.addEvidenceMutate, isPending: false }),
@@ -161,6 +166,7 @@ function resetState() {
   state.maintenanceError = undefined;
   state.createMaintenanceMutate = vi.fn();
   state.updateMaintenanceMutate = vi.fn();
+  state.updateMaintenanceMutateAsync = vi.fn(() => Promise.resolve());
   state.evidenceItems = [];
   state.evidenceLoading = false;
   state.evidenceError = undefined;
@@ -793,6 +799,69 @@ describe('Asset Register page', () => {
       state.myOrganizations = [membership(['employee'])];
       renderPage();
       expect(screen.queryByTestId('button-open-schedule-maintenance-1')).not.toBeInTheDocument();
+    });
+
+    describe('cancel confirmation', () => {
+      async function openCancel(status: AssetMaintenance['status'] = 'scheduled') {
+        resetState();
+        state.assets = { items: [asset()], total: 1, page: 1, pageSize: 20 };
+        state.detail = asset();
+        state.maintenanceRecords = [maintenance({ id: 1, status })];
+        renderPage();
+        await userEvent.click(screen.getByTestId('button-manage-asset-1'));
+        await userEvent.click(screen.getByTestId('button-cancel-maintenance-1'));
+      }
+
+      it('asks before cancelling, and Keep Maintenance cancels nothing', async () => {
+        await openCancel();
+        const dialog = screen.getByTestId('dialog-cancel-maintenance');
+        expect(dialog).toHaveTextContent('Cancel maintenance?');
+        expect(dialog).toHaveTextContent('cancel “Annual service”');
+        expect(dialog).not.toHaveTextContent('The asset will leave maintenance');
+        expect(state.updateMaintenanceMutateAsync).not.toHaveBeenCalled();
+        expect(state.updateMaintenanceMutate).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByTestId('dialog-cancel-maintenance-cancel'));
+        await waitFor(() => expect(screen.queryByTestId('dialog-cancel-maintenance')).not.toBeInTheDocument());
+        expect(state.updateMaintenanceMutateAsync).not.toHaveBeenCalled();
+        expect(state.updateMaintenanceMutate).not.toHaveBeenCalled();
+      });
+
+      it('mentions the asset leaving maintenance only when the record is in progress', async () => {
+        await openCancel('in_progress');
+        expect(screen.getByTestId('dialog-cancel-maintenance')).toHaveTextContent('The asset will leave maintenance');
+      });
+
+      it('sends exactly the cancel action once on confirm, invalidates the maintenance list, and closes', async () => {
+        const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+        await openCancel();
+        state.updateMaintenanceMutateAsync = vi.fn((_vars: unknown, opts?: unknown) => {
+          (opts as { onSuccess?: () => void } | undefined)?.onSuccess?.();
+          return Promise.resolve();
+        });
+        await userEvent.click(screen.getByTestId('dialog-cancel-maintenance-confirm'));
+
+        await waitFor(() => expect(screen.queryByTestId('dialog-cancel-maintenance')).not.toBeInTheDocument());
+        expect(state.updateMaintenanceMutateAsync).toHaveBeenCalledTimes(1);
+        expect(state.updateMaintenanceMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { action: 'cancel' } }, expect.anything());
+        expect(state.updateMaintenanceMutate).not.toHaveBeenCalled();
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['assetMaintenance'] });
+        invalidateSpy.mockRestore();
+      });
+
+      it('keeps the dialog open and the record rendered when cancelling fails', async () => {
+        await openCancel();
+        state.updateMaintenanceMutateAsync = vi.fn((_vars: unknown, opts?: unknown) => {
+          const err = { error: 'This asset is no longer in a maintenance state' };
+          (opts as { onError?: (e: unknown) => void } | undefined)?.onError?.(err);
+          return Promise.reject(err);
+        });
+        await userEvent.click(screen.getByTestId('dialog-cancel-maintenance-confirm'));
+
+        await waitFor(() => expect(state.updateMaintenanceMutateAsync).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId('dialog-cancel-maintenance')).toBeInTheDocument();
+        expect(screen.getByTestId('row-maintenance-1')).toBeInTheDocument();
+      });
     });
   });
 

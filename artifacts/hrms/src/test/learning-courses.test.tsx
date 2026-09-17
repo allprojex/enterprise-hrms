@@ -4,7 +4,7 @@
  * network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LearningCourses from '@/pages/learning-courses';
@@ -23,6 +23,7 @@ const { state } = vi.hoisted(() => ({
     updateCourseMutate: vi.fn() as (...args: unknown[]) => void,
     createSessionMutate: vi.fn() as (...args: unknown[]) => void,
     updateSessionMutate: vi.fn() as (...args: unknown[]) => void,
+    updateSessionMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
   },
 }));
 
@@ -40,7 +41,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListLearningCourseSessions: () => ({ data: state.sessions, isLoading: false, error: undefined, refetch: vi.fn() }),
   getListLearningCourseSessionsQueryKey: () => ['sessions'],
   useCreateLearningCourseSession: () => ({ mutate: state.createSessionMutate, isPending: false }),
-  useUpdateLearningCourseSession: () => ({ mutate: state.updateSessionMutate, isPending: false }),
+  useUpdateLearningCourseSession: () => ({ mutate: state.updateSessionMutate, mutateAsync: state.updateSessionMutateAsync, isPending: false }),
   CreateLearningCourseInputDeliveryMode: { self_paced: 'self_paced', instructor_led: 'instructor_led' },
 }));
 
@@ -58,8 +59,29 @@ function course(overrides: Partial<LearningCourse> = {}): LearningCourse {
   };
 }
 
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.();
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
+}
+
+let lastQueryClient: QueryClient | null = null;
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastQueryClient = queryClient;
   return render(
     <QueryClientProvider client={queryClient}>
       <LearningCourses />
@@ -79,6 +101,7 @@ function resetState() {
   state.updateCourseMutate = vi.fn();
   state.createSessionMutate = vi.fn();
   state.updateSessionMutate = vi.fn();
+  state.updateSessionMutateAsync = resolvingMutateAsync();
 }
 
 describe('Learning Courses page', () => {
@@ -228,10 +251,87 @@ describe('Learning Courses page', () => {
     renderPage();
     await userEvent.click(screen.getByTestId('button-manage-course-1'));
     await userEvent.click(screen.getByTestId('button-complete-session-1'));
-    expect(state.updateSessionMutate).toHaveBeenCalledWith(
+    expect(screen.getByTestId('dialog-complete-session')).toHaveTextContent('Complete learning session?');
+    expect(state.updateSessionMutateAsync).not.toHaveBeenCalled();
+    expect(state.updateSessionMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-complete-session-confirm'));
+    expect(state.updateSessionMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.updateSessionMutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ organizationId: 10, id: 1, data: { status: 'completed' } }),
       expect.anything(),
     );
+    await waitFor(() => expect(screen.queryByTestId('dialog-complete-session')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['sessions'] });
+  });
+
+  it('cancelling a session asks for confirmation; Keep Session cancels nothing', async () => {
+    resetState();
+    state.courses = [course({ deliveryMode: 'instructor_led' })];
+    state.detail = course({ deliveryMode: 'instructor_led' });
+    state.sessions = [
+      {
+        id: 1, organizationId: 10, courseId: 1, scheduledAt: '2026-09-01T09:00:00.000Z', durationMinutes: 60,
+        location: null, meetingLink: null, instructorEmployeeId: null, capacity: null, status: 'scheduled',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-course-1'));
+    await userEvent.click(screen.getByTestId('button-cancel-session-1'));
+    expect(screen.getByTestId('dialog-cancel-session')).toHaveTextContent('Cancel learning session?');
+    expect(screen.getByTestId('dialog-cancel-session-cancel')).toHaveTextContent('Keep Session');
+    expect(state.updateSessionMutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('dialog-cancel-session-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-cancel-session')).not.toBeInTheDocument());
+    expect(state.updateSessionMutateAsync).not.toHaveBeenCalled();
+    expect(state.updateSessionMutate).not.toHaveBeenCalled();
+  });
+
+  it('confirming Cancel Session cancels it once', async () => {
+    resetState();
+    state.courses = [course({ deliveryMode: 'instructor_led' })];
+    state.detail = course({ deliveryMode: 'instructor_led' });
+    state.sessions = [
+      {
+        id: 1, organizationId: 10, courseId: 1, scheduledAt: '2026-09-01T09:00:00.000Z', durationMinutes: 60,
+        location: null, meetingLink: null, instructorEmployeeId: null, capacity: null, status: 'scheduled',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      },
+    ];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-course-1'));
+    await userEvent.click(screen.getByTestId('button-cancel-session-1'));
+    await userEvent.click(screen.getByTestId('dialog-cancel-session-confirm'));
+    expect(state.updateSessionMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.updateSessionMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId: 10, id: 1, data: { status: 'cancelled' } }),
+      expect.anything(),
+    );
+    await waitFor(() => expect(screen.queryByTestId('dialog-cancel-session')).not.toBeInTheDocument());
+  });
+
+  it('a failed session cancel keeps the dialog open and the session listed', async () => {
+    resetState();
+    state.courses = [course({ deliveryMode: 'instructor_led' })];
+    state.detail = course({ deliveryMode: 'instructor_led' });
+    state.sessions = [
+      {
+        id: 1, organizationId: 10, courseId: 1, scheduledAt: '2026-09-01T09:00:00.000Z', durationMinutes: 60,
+        location: null, meetingLink: null, instructorEmployeeId: null, capacity: null, status: 'scheduled',
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      },
+    ];
+    state.updateSessionMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-course-1'));
+    await userEvent.click(screen.getByTestId('button-cancel-session-1'));
+    await userEvent.click(screen.getByTestId('dialog-cancel-session-confirm'));
+    expect(state.updateSessionMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-cancel-session-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-cancel-session')).toBeInTheDocument();
+    expect(screen.getByTestId('row-session-1')).toBeInTheDocument();
   });
 
   it('does not show complete/cancel controls for a session that already left scheduled', async () => {

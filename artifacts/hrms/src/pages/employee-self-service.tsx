@@ -12,6 +12,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { PerformanceEvidenceSection } from '@/components/performance-evidence';
 import { LearningEvidenceSection } from '@/components/learning-evidence';
+import { ConfirmActionDialog } from '@/components/foundation';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -1847,6 +1848,7 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [requestDialogCourse, setRequestDialogCourse] = useState<LearningCourse | null>(null);
+  const [enrollmentToCancel, setEnrollmentToCancel] = useState<LearningEnrollment | null>(null);
 
   const coursesQuery = useListLearningCourses(organizationId, {
     query: { queryKey: getListLearningCoursesQueryKey(organizationId), enabled: organizationId > 0 },
@@ -1910,15 +1912,14 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
     );
   };
 
-  const handleCancel = (enrollment: LearningEnrollment) => {
-    cancelMutation.mutate(
+  const handleCancel = (enrollment: LearningEnrollment) =>
+    cancelMutation.mutateAsync(
       { organizationId, id: enrollment.id },
       {
         onSuccess: () => { invalidateEnrollments(); toast({ title: 'Enrollment cancelled' }); },
         onError: (err) => toast({ title: 'Could not cancel this enrollment', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   const isMutating = progressMutation.isPending || cancelMutation.isPending;
 
@@ -2000,7 +2001,7 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
                   isMutating={isMutating}
                   onStart={() => handleStart(enrollment)}
                   onComplete={() => handleComplete(enrollment)}
-                  onCancel={() => handleCancel(enrollment)}
+                  onCancel={() => setEnrollmentToCancel(enrollment)}
                 />
               ))}
             </div>
@@ -2040,6 +2041,26 @@ function MyLearningTab({ organizationId }: { organizationId: number }) {
           isPending={requestMutation.isPending}
         />
       )}
+
+      <ConfirmActionDialog
+        open={enrollmentToCancel !== null}
+        onOpenChange={(open) => {
+          if (!open) setEnrollmentToCancel(null);
+        }}
+        title="Cancel enrollment?"
+        description={
+          <p>
+            Are you sure you want to cancel your enrollment in “{enrollmentToCancel?.courseTitleSnapshot}”? A cancelled
+            enrollment cannot be reopened, but you can request this training again while the course is open for
+            enrollment.
+          </p>
+        }
+        confirmLabel="Cancel Enrollment"
+        cancelLabel="Keep Enrollment"
+        tone="destructive"
+        onConfirm={() => (enrollmentToCancel ? handleCancel(enrollmentToCancel) : undefined)}
+        testId="dialog-cancel-enrollment"
+      />
     </div>
   );
 }

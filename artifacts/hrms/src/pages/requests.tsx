@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -98,6 +99,7 @@ export default function Requests() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [decisionNote, setDecisionNote] = useState('');
   const [assignedToMe, setAssignedToMe] = useState(false);
+  const [rejectServiceTarget, setRejectServiceTarget] = useState<{ id: number; subject: string } | null>(null);
 
   // Raise-for-employee form (action 4).
   const [raiseOpen, setRaiseOpen] = useState(false);
@@ -595,13 +597,7 @@ export default function Requests() {
                                     size="sm"
                                     variant="destructive"
                                     data-testid={`button-reject-service-${r.id}`}
-                                    onClick={() =>
-                                      rejectService.mutate({
-                                        organizationId,
-                                        requestId: r.id,
-                                        data: { reason: 'Not approved' },
-                                      })
-                                    }
+                                    onClick={() => setRejectServiceTarget({ id: r.id, subject: r.subject })}
                                   >
                                     Reject
                                   </Button>
@@ -684,6 +680,28 @@ export default function Requests() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Rejection is terminal on the server (approvalStatus rejected, status
+          closed; approve/fulfil then refuse) and the reason is shown to the employee. */}
+      <ConfirmActionDialog
+        open={rejectServiceTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejectServiceTarget(null);
+        }}
+        title="Reject service request?"
+        description={
+          <p>
+            Are you sure you want to reject “{rejectServiceTarget?.subject}”? The request will be closed as not approved, with the reason “Not
+            approved” shown to the employee. This cannot be undone.
+          </p>
+        }
+        confirmLabel="Reject Request"
+        onConfirm={() =>
+          rejectServiceTarget &&
+          rejectService.mutateAsync({ organizationId, requestId: rejectServiceTarget.id, data: { reason: 'Not approved' } })
+        }
+        testId="dialog-reject-service-request"
+      />
     </div>
   );
 }

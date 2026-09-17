@@ -5,10 +5,30 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Branches from '@/pages/branches';
 
 const mutateMock = vi.fn();
+
+// Archive/reactivate go through a confirmation dialog; mutateAsync runs the
+// page's per-call callbacks, then resolves or rejects like TanStack Query.
+const { spies, outcome, toastSpy } = vi.hoisted(() => {
+  const outcome = { fail: false };
+  const asyncMutation = () =>
+    vi.fn((_vars: unknown, opts?: { onSuccess?: () => void; onError?: (e: unknown) => void }) => {
+      if (outcome.fail) {
+        const err = { error: 'Branch still has dependents and cannot be archived' };
+        opts?.onError?.(err);
+        return Promise.reject(err);
+      }
+      opts?.onSuccess?.();
+      return Promise.resolve({});
+    });
+  return { outcome, toastSpy: vi.fn(), spies: { archive: asyncMutation(), reactivate: asyncMutation() } };
+});
+
+vi.mock('@/hooks/use-toast', () => ({ useToast: () => ({ toast: toastSpy }) }));
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { organizationId: 10 } }),
@@ -19,8 +39,8 @@ vi.mock('@workspace/api-client-react', () => ({
   getListBranchesQueryKey: (id: number) => ['branches', id],
   useCreateBranch: () => ({ mutate: mutateMock, isPending: false }),
   useUpdateBranch: () => ({ mutate: vi.fn(), isPending: false }),
-  useArchiveBranch: () => ({ mutate: vi.fn(), isPending: false }),
-  useReactivateBranch: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiveBranch: () => ({ mutate: vi.fn(), mutateAsync: spies.archive, isPending: false }),
+  useReactivateBranch: () => ({ mutate: vi.fn(), mutateAsync: spies.reactivate, isPending: false }),
 }));
 
 import { useListBranches, useListMyOrganizations } from '@workspace/api-client-react';
@@ -37,6 +57,10 @@ function renderWithClient() {
 describe('Branches page', () => {
   beforeEach(() => {
     mutateMock.mockReset();
+    outcome.fail = false;
+    toastSpy.mockClear();
+    spies.archive.mockClear();
+    spies.reactivate.mockClear();
     vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['org_admin'] }] } as never);
   });
 
@@ -118,5 +142,80 @@ describe('Branches page', () => {
     expect(screen.queryByTestId('button-add-branch')).not.toBeInTheDocument();
     expect(screen.queryByTestId('button-edit-branch-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('button-toggle-branch-status-1')).not.toBeInTheDocument();
+  });
+
+  describe('archive / reactivate confirmation', () => {
+    const DIALOG = 'dialog-branch-status';
+    const withBranches = () =>
+      vi.mocked(useListBranches).mockReturnValue({
+        data: [
+          { id: 1, organizationId: 10, name: 'Head Office', code: 'HQ', status: 'active', createdAt: '2026-01-01' },
+          { id: 2, organizationId: 10, name: 'Warehouse', code: 'WH', status: 'inactive', createdAt: '2026-01-02' },
+        ],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      } as never);
+
+    it('opens a confirmation instead of archiving, and Cancel runs nothing', async () => {
+      const user = userEvent.setup();
+      withBranches();
+      renderWithClient();
+
+      await user.click(screen.getByTestId('button-toggle-branch-status-1'));
+      const dialog = screen.getByTestId(DIALOG);
+      expect(dialog).toHaveTextContent('Archive branch?');
+      expect(dialog).toHaveTextContent('“Head Office” will be archived (marked inactive)');
+      expect(dialog.textContent ?? '').not.toMatch(/delete/i);
+      expect(spies.archive).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId(`${DIALOG}-cancel`));
+      await waitFor(() => expect(screen.queryByTestId(DIALOG)).not.toBeInTheDocument());
+      expect(spies.archive).not.toHaveBeenCalled();
+    });
+
+    it('archives exactly once on confirm, then closes and reports success', async () => {
+      const user = userEvent.setup();
+      withBranches();
+      renderWithClient();
+
+      await user.click(screen.getByTestId('button-toggle-branch-status-1'));
+      await user.click(screen.getByTestId(`${DIALOG}-confirm`));
+
+      await waitFor(() => expect(screen.queryByTestId(DIALOG)).not.toBeInTheDocument());
+      expect(spies.archive).toHaveBeenCalledTimes(1);
+      expect(spies.archive.mock.calls[0]![0]).toEqual({ organizationId: 10, id: 1 });
+      expect(toastSpy).toHaveBeenCalledWith({ title: 'Branch archived' });
+    });
+
+    it('stays open with the row still listed when the server refuses', async () => {
+      const user = userEvent.setup();
+      outcome.fail = true;
+      withBranches();
+      renderWithClient();
+
+      await user.click(screen.getByTestId('button-toggle-branch-status-1'));
+      await user.click(screen.getByTestId(`${DIALOG}-confirm`));
+
+      await waitFor(() =>
+        expect(toastSpy).toHaveBeenCalledWith(expect.objectContaining({ title: 'Could not update branch status', variant: 'destructive' })),
+      );
+      expect(screen.getByTestId(DIALOG)).toBeInTheDocument();
+      expect(screen.getByTestId('row-branch-1')).toBeInTheDocument();
+    });
+
+    it('confirms reactivation of an inactive branch with the reactivate mutation', async () => {
+      const user = userEvent.setup();
+      withBranches();
+      renderWithClient();
+
+      await user.click(screen.getByTestId('button-toggle-branch-status-2'));
+      expect(screen.getByTestId(DIALOG)).toHaveTextContent('Reactivate branch?');
+      await user.click(screen.getByTestId(`${DIALOG}-confirm`));
+
+      await waitFor(() => expect(spies.reactivate).toHaveBeenCalledTimes(1));
+      expect(spies.reactivate.mock.calls[0]![0]).toEqual({ organizationId: 10, id: 2 });
+      expect(spies.archive).not.toHaveBeenCalled();
+    });
   });
 });

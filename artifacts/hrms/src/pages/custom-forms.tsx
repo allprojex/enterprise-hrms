@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
@@ -68,6 +69,7 @@ export default function CustomForms() {
   const [selectedFormId, setSelectedFormId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingVersion, setEditingVersion] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; formKey: string; active: boolean } | null>(null);
 
   const [formKey, setFormKey] = useState('');
   const [formType, setFormType] = useState('internal_hr');
@@ -442,19 +444,7 @@ export default function CustomForms() {
               <Button
                 variant="outline"
                 disabled={archiveMutation.isPending}
-                onClick={() =>
-                  archiveMutation.mutate(
-                    { organizationId, formId: detail.form.id, data: { archived: detail.form.status === 'active' } },
-                    {
-                      onSuccess: () => {
-                        void formsQuery.refetch();
-                        void detailQuery.refetch();
-                        toast({ title: detail.form.status === 'active' ? 'Form archived' : 'Form restored' });
-                      },
-                      onError: (err) => toast({ title: 'Could not update', description: errorMessage(err, ''), variant: 'destructive' }),
-                    },
-                  )
-                }
+                onClick={() => setArchiveTarget({ id: detail.form.id, formKey: detail.form.formKey, active: detail.form.status === 'active' })}
               >
                 <Archive className="mr-2 h-4 w-4" aria-hidden="true" />
                 {detail.form.status === 'active' ? 'Archive' : 'Restore'}
@@ -549,6 +539,44 @@ export default function CustomForms() {
           </CardContent>
         </Card>
       )}
+
+      {/* Archiving refuses new submissions and new versions (lib/customFields/forms.ts);
+          captured submissions are kept and Restore reverses it. */}
+      <ConfirmActionDialog
+        open={archiveTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setArchiveTarget(null);
+        }}
+        title={archiveTarget?.active === false ? 'Restore form?' : 'Archive form?'}
+        description={
+          archiveTarget?.active === false ? (
+            <p>“{archiveTarget?.formKey}” will accept new submissions and new versions again.</p>
+          ) : (
+            <p>
+              “{archiveTarget?.formKey}” will no longer accept new submissions or new versions. Existing submissions are kept, and the form
+              can be restored later.
+            </p>
+          )
+        }
+        confirmLabel={archiveTarget?.active === false ? 'Restore Form' : 'Archive Form'}
+        tone={archiveTarget?.active === false ? 'default' : 'destructive'}
+        onConfirm={() => {
+          if (!archiveTarget) return;
+          const archiving = archiveTarget.active;
+          return archiveMutation.mutateAsync(
+            { organizationId, formId: archiveTarget.id, data: { archived: archiving } },
+            {
+              onSuccess: () => {
+                void formsQuery.refetch();
+                void detailQuery.refetch();
+                toast({ title: archiving ? 'Form archived' : 'Form restored' });
+              },
+              onError: (err) => toast({ title: 'Could not update', description: errorMessage(err, ''), variant: 'destructive' }),
+            },
+          );
+        }}
+        testId="dialog-archive-custom-form"
+      />
 
       <Dialog open={creating} onOpenChange={(o) => !o && setCreating(false)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
