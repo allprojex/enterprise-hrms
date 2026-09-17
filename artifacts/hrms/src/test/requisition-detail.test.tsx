@@ -4,9 +4,10 @@
  * requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Router } from 'wouter';
+import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import RequisitionDetail from '@/pages/requisition-detail';
 import type { JobRequisition, RequisitionApproval } from '@workspace/api-client-react';
@@ -19,8 +20,11 @@ const { state } = vi.hoisted(() => ({
     approvalHistory: undefined as RequisitionApproval[] | undefined,
     approveMutate: undefined as ((...args: unknown[]) => void) | undefined,
     rejectMutate: undefined as ((...args: unknown[]) => void) | undefined,
+    archiveAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
   },
 }));
+
+type MutateOpts = { onSuccess?: (data?: unknown) => void; onError?: (err: unknown) => void };
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
@@ -30,7 +34,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useUpdateJobRequisition: () => ({ mutate: vi.fn(), isPending: false }),
   useSubmitJobRequisition: () => ({ mutate: vi.fn(), isPending: false }),
   useCancelJobRequisition: () => ({ mutate: vi.fn(), isPending: false }),
-  useArchiveJobRequisition: () => ({ mutate: vi.fn(), isPending: false }),
+  useArchiveJobRequisition: () => ({ mutate: vi.fn(), mutateAsync: state.archiveAsync, isPending: false }),
   useListRequisitionApprovals: () => ({ data: state.approvalHistory }),
   getListRequisitionApprovalsQueryKey: (orgId: number, id: number) => ['requisitionApprovals', orgId, id],
   useApproveJobRequisition: () => ({ mutate: state.approveMutate ?? vi.fn(), isPending: false }),
@@ -74,7 +78,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <Router hook={hook}>
-        <RequisitionDetail />
+        <Route path="/requisitions/:id">{() => <RequisitionDetail />}</Route>
       </Router>
     </QueryClientProvider>,
   );
@@ -178,5 +182,61 @@ describe('Job Requisition detail page', () => {
     state.error = undefined;
     renderPage();
     expect(screen.getByText('Backend Engineer')).toBeInTheDocument();
+  });
+
+  describe('archive confirmation', () => {
+    it('asks before archiving, and Cancel archives nothing', async () => {
+      state.requisition = baseRequisition({ status: 'cancelled' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.archiveAsync = vi.fn(() => Promise.resolve());
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-archive-requisition'));
+      expect(screen.getByTestId('dialog-archive-requisition')).toHaveTextContent('Archive requisition?');
+      expect(screen.getByTestId('dialog-archive-requisition')).toHaveTextContent('“Software Engineer” will be archived as closed');
+      expect(state.archiveAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-archive-requisition-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-requisition')).not.toBeInTheDocument());
+      expect(state.archiveAsync).not.toHaveBeenCalled();
+    });
+
+    it('archives exactly once on confirm, invalidates the requisition, and closes', async () => {
+      state.requisition = baseRequisition({ status: 'draft' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.archiveAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        opts?.onSuccess?.();
+        return Promise.resolve();
+      });
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-archive-requisition'));
+      await userEvent.click(screen.getByTestId('dialog-archive-requisition-confirm'));
+
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-requisition')).not.toBeInTheDocument());
+      expect(state.archiveAsync).toHaveBeenCalledTimes(1);
+      expect(state.archiveAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['jobRequisition', 10, 1] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the dialog open when archiving fails', async () => {
+      state.requisition = baseRequisition({ status: 'draft' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.archiveAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        const err = { error: 'boom' };
+        opts?.onError?.(err);
+        return Promise.reject(err);
+      });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-archive-requisition'));
+      await userEvent.click(screen.getByTestId('dialog-archive-requisition-confirm'));
+
+      await waitFor(() => expect(state.archiveAsync).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('dialog-archive-requisition')).toBeInTheDocument();
+      expect(screen.getByTestId('button-archive-requisition')).toBeInTheDocument();
+    });
   });
 });

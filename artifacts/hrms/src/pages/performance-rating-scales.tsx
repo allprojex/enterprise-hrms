@@ -26,6 +26,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -141,10 +142,12 @@ export default function PerformanceRatingScales() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<{ name: string; archived: boolean } | null>(null);
+
   const handleToggleStatus = () => {
     if (manageId == null || !detail) return;
     const nextStatus = detail.scale.status === 'archived' ? 'active' : 'archived';
-    updateMutation.mutate(
+    return updateMutation.mutateAsync(
       { organizationId, id: manageId, data: { status: nextStatus } },
       {
         onSuccess: () => {
@@ -312,7 +315,7 @@ export default function PerformanceRatingScales() {
                   <Textarea id="edit-scale-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} data-testid="input-edit-scale-description" />
                 </div>
                 <div className="flex justify-between">
-                  <Button type="button" variant={detail.scale.status === 'archived' ? 'default' : 'destructive'} onClick={handleToggleStatus} disabled={updateMutation.isPending} data-testid="button-toggle-scale-status">
+                  <Button type="button" variant={detail.scale.status === 'archived' ? 'default' : 'destructive'} onClick={() => setStatusTarget({ name: detail.scale.name, archived: detail.scale.status === 'archived' })} disabled={updateMutation.isPending} data-testid="button-toggle-scale-status">
                     {detail.scale.status === 'archived' ? 'Reactivate' : 'Archive'}
                   </Button>
                   <Button type="submit" disabled={updateMutation.isPending} data-testid="button-save-scale-details">
@@ -405,6 +408,28 @@ export default function PerformanceRatingScales() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.archived ? 'Reactivate rating scale?' : 'Archive rating scale?'}
+        description={
+          statusTarget?.archived ? (
+            <p>“{statusTarget?.name}” will be set to active again and can be selected for new performance cycles.</p>
+          ) : (
+            <p>
+              “{statusTarget?.name}” will be archived and can no longer be selected for new performance cycles. Existing
+              templates, cycles and reviews that use it are not changed, and the scale can be reactivated later.
+            </p>
+          )
+        }
+        confirmLabel={statusTarget?.archived ? 'Reactivate Rating Scale' : 'Archive Rating Scale'}
+        tone={statusTarget?.archived ? 'default' : 'destructive'}
+        onConfirm={handleToggleStatus}
+        testId="dialog-scale-status"
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QueryError } from '@/components/query-error';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { ConfirmActionDialog } from '@/components/foundation';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -83,6 +84,7 @@ export default function MyRequests() {
   const [fieldKey, setFieldKey] = useState('');
   const [requestedValue, setRequestedValue] = useState('');
   const [dataReason, setDataReason] = useState('');
+  const [dataChangeToWithdraw, setDataChangeToWithdraw] = useState<{ id: number; fieldLabels: string } | null>(null);
 
   const [serviceFormOpen, setServiceFormOpen] = useState(false);
   const [typeId, setTypeId] = useState('');
@@ -288,7 +290,9 @@ export default function MyRequests() {
                           size="sm"
                           variant="outline"
                           data-testid={`button-withdraw-data-change-${r.id}`}
-                          onClick={() => withdrawData.mutate({ organizationId, requestId: r.id })}
+                          onClick={() =>
+                            setDataChangeToWithdraw({ id: r.id, fieldLabels: r.fields.map((f) => f.label).join(', ') })
+                          }
                         >
                           Withdraw
                         </Button>
@@ -441,6 +445,28 @@ export default function MyRequests() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ConfirmActionDialog
+        open={dataChangeToWithdraw !== null}
+        onOpenChange={(open) => {
+          if (!open) setDataChangeToWithdraw(null);
+        }}
+        title="Withdraw change request?"
+        description={
+          <p>
+            Are you sure you want to withdraw your request to change “{dataChangeToWithdraw?.fieldLabels}”? HR will no
+            longer act on it, and the requested change will not be made. To make this change later, raise a new request.
+          </p>
+        }
+        confirmLabel="Withdraw Request"
+        tone="destructive"
+        onConfirm={() =>
+          dataChangeToWithdraw
+            ? withdrawData.mutateAsync({ organizationId, requestId: dataChangeToWithdraw.id })
+            : undefined
+        }
+        testId="dialog-withdraw-data-change"
+      />
     </div>
   );
 }

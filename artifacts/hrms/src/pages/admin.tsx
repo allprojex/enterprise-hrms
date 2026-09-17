@@ -72,6 +72,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { resolveAdministrationAccess } from '@/lib/administration-access';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -185,17 +186,35 @@ function MembersTab({ organizationId }: { organizationId: number }) {
     );
   };
 
-  const handleRevokeRole = (membershipId: number, roleKey: string) => {
+  const [revokeRoleTarget, setRevokeRoleTarget] = useState<{
+    membershipId: number;
+    memberName: string;
+    roleId: number;
+    roleLabel: string;
+  } | null>(null);
+
+  // Opens the confirmation. A role this caller cannot delegate is not in
+  // `roles`, so — exactly as before — the click does nothing for it.
+  const requestRevokeRole = (member: { membershipId: number; firstName: string; lastName: string }, roleKey: string) => {
     const role = roles?.find((r) => r.key === roleKey);
     if (!role) return;
-    revokeRoleMutation.mutate(
-      { organizationId, membershipId, roleId: role.id },
+    setRevokeRoleTarget({
+      membershipId: member.membershipId,
+      memberName: `${member.firstName} ${member.lastName}`,
+      roleId: role.id,
+      roleLabel: role.label,
+    });
+  };
+
+  // Returned so the confirmation stays open (with the error toast) on failure.
+  const handleRevokeRole = (membershipId: number, roleId: number) =>
+    revokeRoleMutation.mutateAsync(
+      { organizationId, membershipId, roleId },
       {
         onSuccess: () => invalidateMembers(),
         onError: (err) => toast({ title: 'Could not revoke role', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   const handleRevokeMember = (membershipId: number) => {
     revokeMutation.mutate(
@@ -345,7 +364,7 @@ function MembersTab({ organizationId }: { organizationId: number }) {
                           {roleKey.replace('_', ' ')}
                           <button
                             type="button"
-                            onClick={() => handleRevokeRole(member.membershipId, roleKey)}
+                            onClick={() => requestRevokeRole(member, roleKey)}
                             aria-label={`Remove ${roleKey} role`}
                             data-testid={`button-revoke-role-${member.membershipId}-${roleKey}`}
                           >
@@ -419,6 +438,25 @@ function MembersTab({ organizationId }: { organizationId: number }) {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={revokeRoleTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setRevokeRoleTarget(null);
+        }}
+        title="Revoke role?"
+        description={
+          <p>
+            “{revokeRoleTarget?.memberName}” will no longer hold the “{revokeRoleTarget?.roleLabel}” role in this organisation and
+            will lose any permissions granted only through it. The role can be assigned again later.
+          </p>
+        }
+        confirmLabel="Revoke Role"
+        onConfirm={() =>
+          revokeRoleTarget ? handleRevokeRole(revokeRoleTarget.membershipId, revokeRoleTarget.roleId) : undefined
+        }
+        testId="dialog-revoke-role"
+      />
     </div>
   );
 }
@@ -628,8 +666,12 @@ function ModulesTab({ organizationId }: { organizationId: number }) {
   });
   const updateMutation = useUpdateOrganizationModule();
 
-  const handleToggle = (moduleKey: string, enabled: boolean) => {
-    updateMutation.mutate(
+  const [disableTarget, setDisableTarget] = useState<{ key: string; name: string } | null>(null);
+
+  // Returned so the disable confirmation stays open (with the error toast)
+  // when the server refuses, e.g. a module other enabled modules require.
+  const handleToggle = (moduleKey: string, enabled: boolean) =>
+    updateMutation.mutateAsync(
       { organizationId, moduleKey, data: { enabled } },
       {
         onSuccess: () => {
@@ -644,7 +686,6 @@ function ModulesTab({ organizationId }: { organizationId: number }) {
           }),
       },
     );
-  };
 
   return (
     <div className="space-y-6">
@@ -692,7 +733,15 @@ function ModulesTab({ organizationId }: { organizationId: number }) {
                         <Switch
                           checked={module.enabled}
                           disabled={!enableable || updateMutation.isPending}
-                          onCheckedChange={(checked) => handleToggle(module.key, checked)}
+                          onCheckedChange={(checked) => {
+                            // Enabling is ordinary configuration; turning a
+                            // module off withdraws it for everyone, so confirm.
+                            if (checked) {
+                              handleToggle(module.key, true).catch(() => undefined);
+                            } else {
+                              setDisableTarget({ key: module.key, name: module.name });
+                            }
+                          }}
                           aria-label={`Toggle ${module.name}`}
                           data-testid={`switch-module-${module.key}`}
                         />
@@ -705,6 +754,23 @@ function ModulesTab({ organizationId }: { organizationId: number }) {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={disableTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setDisableTarget(null);
+        }}
+        title="Disable module?"
+        description={
+          <p>
+            “{disableTarget?.name}” will be turned off for this organisation, and its features will no longer be available to
+            members. Its existing data is kept, and the module can be enabled again later.
+          </p>
+        }
+        confirmLabel="Disable Module"
+        onConfirm={() => (disableTarget ? handleToggle(disableTarget.key, false) : undefined)}
+        testId="dialog-disable-module"
+      />
     </div>
   );
 }
@@ -874,15 +940,22 @@ function RolesTab({ organizationId }: { organizationId: number }) {
     );
   };
 
-  const handleRevoke = (roleId: number, permissionId: number) => {
-    revokeMutation.mutate(
+  const [revokePermissionTarget, setRevokePermissionTarget] = useState<{
+    roleId: number;
+    roleLabel: string;
+    permissionId: number;
+    permissionKey: string;
+  } | null>(null);
+
+  // Returned so the confirmation stays open (with the error toast) on failure.
+  const handleRevoke = (roleId: number, permissionId: number) =>
+    revokeMutation.mutateAsync(
       { organizationId, roleId, permissionId },
       {
         onSuccess: () => invalidateRoles(),
         onError: (err) => toast({ title: 'Could not revoke permission', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   return (
     <div className="space-y-6">
@@ -935,7 +1008,14 @@ function RolesTab({ organizationId }: { organizationId: number }) {
                               {!role.isSystemRole && permission && (
                                 <button
                                   type="button"
-                                  onClick={() => handleRevoke(role.id, permission.id)}
+                                  onClick={() =>
+                                    setRevokePermissionTarget({
+                                      roleId: role.id,
+                                      roleLabel: role.label,
+                                      permissionId: permission.id,
+                                      permissionKey: key,
+                                    })
+                                  }
                                   aria-label={`Remove ${key} permission`}
                                   data-testid={`button-revoke-permission-${role.id}-${key}`}
                                 >
@@ -1025,6 +1105,28 @@ function RolesTab({ organizationId }: { organizationId: number }) {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={revokePermissionTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setRevokePermissionTarget(null);
+        }}
+        title="Revoke permission?"
+        description={
+          <p>
+            “{revokePermissionTarget?.permissionKey}” will be removed from the “{revokePermissionTarget?.roleLabel}” role. Every
+            member holding this role loses it, unless another of their roles also grants it. The permission can be granted again
+            later.
+          </p>
+        }
+        confirmLabel="Revoke Permission"
+        onConfirm={() =>
+          revokePermissionTarget
+            ? handleRevoke(revokePermissionTarget.roleId, revokePermissionTarget.permissionId)
+            : undefined
+        }
+        testId="dialog-revoke-permission"
+      />
     </div>
   );
 }

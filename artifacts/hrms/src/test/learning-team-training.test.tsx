@@ -4,7 +4,7 @@
  * network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LearningTeamTraining from '@/pages/learning-team-training';
@@ -22,8 +22,10 @@ const { state } = vi.hoisted(() => ({
     session: undefined as LearningCourseSession | undefined,
     approveMutate: vi.fn() as (...args: unknown[]) => void,
     rejectMutate: vi.fn() as (...args: unknown[]) => void,
+    rejectMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     assignMutate: vi.fn() as (...args: unknown[]) => void,
     attendanceMutate: vi.fn() as (...args: unknown[]) => void,
+    attendanceMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     completeMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
@@ -44,9 +46,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useGetLearningCourseSession: () => ({ data: state.session, isLoading: false }),
   getGetLearningCourseSessionQueryKey: () => ['learningCourseSession'],
   useApproveLearningEnrollment: () => ({ mutate: state.approveMutate, isPending: false }),
-  useRejectLearningEnrollment: () => ({ mutate: state.rejectMutate, isPending: false }),
+  useRejectLearningEnrollment: () => ({ mutate: state.rejectMutate, mutateAsync: state.rejectMutateAsync, isPending: false }),
   useAssignLearningEnrollments: () => ({ mutate: state.assignMutate, isPending: false }),
-  useMarkLearningEnrollmentAttendance: () => ({ mutate: state.attendanceMutate, isPending: false }),
+  useMarkLearningEnrollmentAttendance: () => ({ mutate: state.attendanceMutate, mutateAsync: state.attendanceMutateAsync, isPending: false }),
   useCompleteLearningEnrollment: () => ({ mutate: state.completeMutate, isPending: false }),
 }));
 
@@ -85,6 +87,26 @@ function session(overrides: Partial<LearningCourseSession> = {}): LearningCourse
   };
 }
 
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.();
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
+}
+
+let lastQueryClient: QueryClient | null = null;
+
 function resetState() {
   state.myEmployee = { linked: true, employee: { id: 200 } };
   state.teamEnrollments = [];
@@ -96,13 +118,16 @@ function resetState() {
   state.session = undefined;
   state.approveMutate = vi.fn();
   state.rejectMutate = vi.fn();
+  state.rejectMutateAsync = resolvingMutateAsync();
   state.assignMutate = vi.fn();
   state.attendanceMutate = vi.fn();
+  state.attendanceMutateAsync = resolvingMutateAsync();
   state.completeMutate = vi.fn();
 }
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastQueryClient = queryClient;
   return render(
     <QueryClientProvider client={queryClient}>
       <LearningTeamTraining />
@@ -138,7 +163,41 @@ describe('My Team Training page (W89)', () => {
     state.teamEnrollments = [enrollment({ id: 6, approvalStatus: 'pending' })];
     renderPage();
     await userEvent.click(screen.getByTestId('button-reject-6'));
-    expect(state.rejectMutate).toHaveBeenCalledWith({ organizationId: 10, id: 6 }, expect.anything());
+    expect(screen.getByTestId('dialog-reject-enrollment-6')).toHaveTextContent('Reject enrollment request?');
+    expect(screen.getByTestId('dialog-reject-enrollment-6')).toHaveTextContent('Fire Safety');
+    expect(state.rejectMutateAsync).not.toHaveBeenCalled();
+    expect(state.rejectMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-6-confirm'));
+    expect(state.rejectMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.rejectMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 6 }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-reject-enrollment-6')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['teamEnrollments'] });
+  });
+
+  it('cancelling the reject confirmation rejects nothing', async () => {
+    resetState();
+    state.teamEnrollments = [enrollment({ id: 6, approvalStatus: 'pending' })];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-reject-6'));
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-6-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-reject-enrollment-6')).not.toBeInTheDocument());
+    expect(state.rejectMutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId('row-team-enrollment-6')).toBeInTheDocument();
+  });
+
+  it('a failed reject keeps the confirmation open and the request listed', async () => {
+    resetState();
+    state.teamEnrollments = [enrollment({ id: 6, approvalStatus: 'pending' })];
+    state.rejectMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-reject-6'));
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-6-confirm'));
+    expect(state.rejectMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-reject-enrollment-6-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-reject-enrollment-6')).toBeInTheDocument();
+    expect(screen.getByTestId('row-team-enrollment-6')).toBeInTheDocument();
   });
 
   it('displays approvalStatus and status as two independent badges, never collapsed', () => {
@@ -196,10 +255,16 @@ describe('My Team Training page (W89)', () => {
     state.session = session({ instructorEmployeeId: 200 });
     renderPage();
     await userEvent.click(screen.getByTestId('button-mark-attended-10'));
-    expect(state.attendanceMutate).toHaveBeenCalledWith(
+    expect(screen.getByTestId('dialog-attendance-10')).toHaveTextContent('Mark employee attended?');
+    expect(state.attendanceMutateAsync).not.toHaveBeenCalled();
+    expect(state.attendanceMutate).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('dialog-attendance-10-confirm'));
+    expect(state.attendanceMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.attendanceMutateAsync).toHaveBeenCalledWith(
       { organizationId: 10, id: 10, data: { attended: true } },
       expect.anything(),
     );
+    await waitFor(() => expect(screen.queryByTestId('dialog-attendance-10')).not.toBeInTheDocument());
   });
 
   it('requires a pass/fail result before completing an assessed course, then submits it', async () => {

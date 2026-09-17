@@ -4,8 +4,8 @@
  * requests are made. MyLeave is embedded directly as the "My Leave" tab, so
  * its own hooks are stubbed here too rather than mocking the child component.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EmployeeSelfService from '@/pages/employee-self-service';
@@ -17,6 +17,9 @@ const { state } = vi.hoisted(() => ({
     myEmployeeLoading: false,
     myEmployeeError: undefined as unknown,
     modules: [] as OrganizationModule[],
+    // My Leave (embedded tab) — withdraw-confirmation tests drive these.
+    leaveRequests: [] as unknown[],
+    cancelLeaveMutateAsync: vi.fn(),
     documents: [] as unknown[],
     documentsLoading: false,
     documentsError: undefined as unknown,
@@ -63,6 +66,7 @@ const { state } = vi.hoisted(() => ({
     advanceProgressMutate: vi.fn() as (...args: unknown[]) => void,
     advanceProgressPending: false,
     cancelEnrollmentMutate: vi.fn() as (...args: unknown[]) => void,
+    cancelEnrollmentMutateAsync: vi.fn(),
     cancelEnrollmentPending: false,
     // My Certificates / Evidence (W90)
     myCertificates: [] as unknown[],
@@ -118,15 +122,15 @@ vi.mock('@workspace/api-client-react', () => ({
   getListOrganizationModulesQueryKey: (id: number) => ['organizationModules', id],
   useListEmployeeDocuments: () => ({ data: state.documents, isLoading: state.documentsLoading, error: state.documentsError, refetch: vi.fn() }),
   getListEmployeeDocumentsQueryKey: (orgId: number, empId: number) => ['employeeDocuments', orgId, empId],
-  // My Leave (embedded tab) — stubbed minimally, not under test here.
+  // My Leave (embedded tab) — stubbed minimally; only its withdraw confirmation is under test here.
   useListLeaveTypes: () => ({ data: [] }),
   getListLeaveTypesQueryKey: () => ['leaveTypes'],
-  useListLeaveRequests: () => ({ data: [], isLoading: false }),
+  useListLeaveRequests: () => ({ data: state.leaveRequests, isLoading: false }),
   getListLeaveRequestsQueryKey: () => ['leaveRequests'],
   useListLeaveBalances: () => ({ data: [] }),
   getListLeaveBalancesQueryKey: () => ['leaveBalances'],
   useCreateLeaveRequest: () => ({ mutate: vi.fn(), isPending: false }),
-  useCancelLeaveRequest: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelLeaveRequest: () => ({ mutate: vi.fn(), mutateAsync: state.cancelLeaveMutateAsync, isPending: false }),
   // Internal Vacancies / My Applications (W60)
   useListMyInternalVacancies: () => ({ data: state.internalVacancies, isLoading: false, error: state.internalVacanciesError, refetch: vi.fn() }),
   getListMyInternalVacanciesQueryKey: () => ['myInternalVacancies'],
@@ -182,7 +186,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListMyLearningEnrollmentsQueryKey: () => ['myLearningEnrollments'],
   useRequestLearningEnrollment: () => ({ mutate: state.requestEnrollmentMutate, isPending: state.requestEnrollmentPending }),
   useAdvanceLearningEnrollmentProgress: () => ({ mutate: state.advanceProgressMutate, isPending: state.advanceProgressPending }),
-  useCancelLearningEnrollment: () => ({ mutate: state.cancelEnrollmentMutate, isPending: state.cancelEnrollmentPending }),
+  useCancelLearningEnrollment: () => ({ mutate: state.cancelEnrollmentMutate, mutateAsync: state.cancelEnrollmentMutateAsync, isPending: state.cancelEnrollmentPending }),
   // My Certificates / Evidence (W90)
   useListMyLearningCertificates: () => ({ data: state.myCertificates, isLoading: state.myCertificatesLoading, error: state.myCertificatesError, refetch: vi.fn() }),
   getListMyLearningCertificatesQueryKey: () => ['myLearningCertificates'],
@@ -365,6 +369,97 @@ describe('Employee Self-Service page', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
+  });
+
+  describe('My Leave — withdrawing a leave request asks for confirmation', () => {
+    function pendingLeaveRequest(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 31, organizationId: 10, employeeId: 42, leaveTypeId: 1, leavePolicyId: 1,
+        startDate: '2026-10-05', endDate: '2026-10-07', daysRequested: '3', status: 'pending',
+        workflowStage: 'awaiting_department_head', reason: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        ...overrides,
+      };
+    }
+
+    function setUpLeave(mutateAsync: typeof state.cancelLeaveMutateAsync) {
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'leave', enabled: true })];
+      state.documents = [];
+      state.leaveRequests = [pendingLeaveRequest()];
+      state.cancelLeaveMutateAsync = mutateAsync;
+    }
+
+    afterEach(() => {
+      state.leaveRequests = [];
+      state.cancelLeaveMutateAsync = vi.fn();
+    });
+
+    it('opens the confirmation without withdrawing, and Cancel withdraws nothing', async () => {
+      setUpLeave(vi.fn().mockResolvedValue(undefined));
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-leave'));
+      await userEvent.click(screen.getByTestId('button-cancel-leave-request-31'));
+
+      const dialog = screen.getByTestId('dialog-withdraw-leave-request');
+      expect(within(dialog).getByText('Withdraw leave request?')).toBeInTheDocument();
+      expect(within(dialog).getByText(/no longer be considered for approval/)).toBeInTheDocument();
+      expect(state.cancelLeaveMutateAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-withdraw-leave-request-cancel'));
+      expect(screen.queryByTestId('dialog-withdraw-leave-request')).not.toBeInTheDocument();
+      expect(state.cancelLeaveMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('withdraws once when confirmed, then closes and refreshes the list', async () => {
+      setUpLeave(
+        vi.fn().mockImplementation((_vars: unknown, options?: { onSuccess?: () => void }) => {
+          options?.onSuccess?.();
+          return Promise.resolve(undefined);
+        }),
+      );
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-leave'));
+      await userEvent.click(screen.getByTestId('button-cancel-leave-request-31'));
+      await userEvent.click(screen.getByTestId('dialog-withdraw-leave-request-confirm'));
+
+      expect(state.cancelLeaveMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.cancelLeaveMutateAsync).toHaveBeenCalledWith({ organizationId: 10, employeeId: 42, id: 31 }, expect.anything());
+      await waitFor(() => expect(screen.queryByTestId('dialog-withdraw-leave-request')).not.toBeInTheDocument());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['leaveRequests'] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the confirmation open and the request listed when withdrawal fails', async () => {
+      setUpLeave(
+        vi.fn().mockImplementation((_vars: unknown, options?: { onError?: (err: unknown) => void }) => {
+          const err = { error: 'This leave request can no longer be withdrawn' };
+          options?.onError?.(err);
+          return Promise.reject(err);
+        }),
+      );
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-leave'));
+      await userEvent.click(screen.getByTestId('button-cancel-leave-request-31'));
+      await userEvent.click(screen.getByTestId('dialog-withdraw-leave-request-confirm'));
+
+      expect(state.cancelLeaveMutateAsync).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.getByTestId('dialog-withdraw-leave-request-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-withdraw-leave-request')).toBeInTheDocument();
+      expect(screen.getByTestId('row-leave-request-31')).toBeInTheDocument();
+    });
+
+    it('offers no withdraw action once a request has been decided', async () => {
+      setUpLeave(vi.fn());
+      state.leaveRequests = [pendingLeaveRequest({ status: 'approved', workflowStage: 'approved' })];
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-leave'));
+      expect(screen.getByTestId('row-leave-request-31')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-cancel-leave-request-31')).not.toBeInTheDocument();
+    });
   });
 
   it('handles a disabled Leave module cleanly instead of a broken page', async () => {
@@ -1027,6 +1122,10 @@ describe('Employee Self-Service page', () => {
       state.advanceProgressMutate = vi.fn();
       state.advanceProgressPending = false;
       state.cancelEnrollmentMutate = vi.fn();
+      state.cancelEnrollmentMutateAsync = vi.fn().mockImplementation((_vars: unknown, options?: { onSuccess?: () => void }) => {
+        options?.onSuccess?.();
+        return Promise.resolve(undefined);
+      });
       state.cancelEnrollmentPending = false;
       state.myCertificates = [];
       state.myCertificatesLoading = false;
@@ -1184,7 +1283,37 @@ describe('Employee Self-Service page', () => {
       expect(screen.queryByTestId('button-complete-enrollment-4')).not.toBeInTheDocument();
     });
 
-    it('allows cancelling a non-mandatory, not-yet-started enrollment', async () => {
+    it('allows cancelling a non-mandatory, not-yet-started enrollment once confirmed', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 6, status: 'assigned', mandatoryAtAssignment: false })];
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-cancel-enrollment-6'));
+
+      const dialog = screen.getByTestId('dialog-cancel-enrollment');
+      expect(within(dialog).getByText('Cancel enrollment?')).toBeInTheDocument();
+      expect(within(dialog).getByText(/cancel your enrollment in “Fire Safety”/)).toBeInTheDocument();
+      expect(screen.getByTestId('dialog-cancel-enrollment-cancel')).toHaveTextContent('Keep Enrollment');
+      expect(state.cancelEnrollmentMutateAsync).not.toHaveBeenCalled();
+      expect(state.cancelEnrollmentMutate).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-cancel-enrollment-confirm'));
+      expect(state.cancelEnrollmentMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.cancelEnrollmentMutateAsync).toHaveBeenCalledWith(
+        { organizationId: 10, id: 6 },
+        expect.anything(),
+      );
+      await waitFor(() => expect(screen.queryByTestId('dialog-cancel-enrollment')).not.toBeInTheDocument());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['myLearningEnrollments'] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the enrollment when the cancel confirmation is dismissed with Keep Enrollment', async () => {
       resetLearningState();
       state.myEmployeeLoading = false;
       state.myEmployeeError = undefined;
@@ -1194,10 +1323,34 @@ describe('Employee Self-Service page', () => {
       renderEss();
       await userEvent.click(screen.getByTestId('tab-my-learning'));
       await userEvent.click(screen.getByTestId('button-cancel-enrollment-6'));
-      expect(state.cancelEnrollmentMutate).toHaveBeenCalledWith(
-        { organizationId: 10, id: 6 },
-        expect.anything(),
-      );
+      await userEvent.click(screen.getByTestId('dialog-cancel-enrollment-cancel'));
+
+      expect(screen.queryByTestId('dialog-cancel-enrollment')).not.toBeInTheDocument();
+      expect(state.cancelEnrollmentMutateAsync).not.toHaveBeenCalled();
+      expect(state.cancelEnrollmentMutate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the confirmation open and the enrollment listed when cancelling fails', async () => {
+      resetLearningState();
+      state.myEmployeeLoading = false;
+      state.myEmployeeError = undefined;
+      state.myEmployee = { linked: true, employee: baseEmployee() };
+      state.modules = [mod({ key: 'learning', enabled: true })];
+      state.myEnrollments = [enrollment({ id: 6, status: 'assigned', mandatoryAtAssignment: false })];
+      state.cancelEnrollmentMutateAsync = vi.fn().mockImplementation((_vars: unknown, options?: { onError?: (err: unknown) => void }) => {
+        const err = { error: 'Training has already started' };
+        options?.onError?.(err);
+        return Promise.reject(err);
+      });
+      renderEss();
+      await userEvent.click(screen.getByTestId('tab-my-learning'));
+      await userEvent.click(screen.getByTestId('button-cancel-enrollment-6'));
+      await userEvent.click(screen.getByTestId('dialog-cancel-enrollment-confirm'));
+
+      expect(state.cancelEnrollmentMutateAsync).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.getByTestId('dialog-cancel-enrollment-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-cancel-enrollment')).toBeInTheDocument();
+      expect(screen.getByTestId('row-enrollment-6')).toBeInTheDocument();
     });
 
     it('never shows a cancel action for a mandatory enrollment', async () => {

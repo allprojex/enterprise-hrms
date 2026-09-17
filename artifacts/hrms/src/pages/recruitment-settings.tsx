@@ -42,6 +42,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -68,6 +69,8 @@ function StagesPanel({ organizationId, workflowId }: { organizationId: number; w
   const [category, setCategory] = useState<string>('applied');
   const [displayOrder, setDisplayOrder] = useState('0');
   const [isRequired, setIsRequired] = useState(false);
+  const [toggleTarget, setToggleTarget] = useState<RecruitmentStage | null>(null);
+  const archivingStage = toggleTarget?.isActive !== false;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListRecruitmentStagesQueryKey(organizationId, workflowId) });
 
@@ -110,9 +113,12 @@ function StagesPanel({ organizationId, workflowId }: { organizationId: number; w
 
   const handleToggle = (stage: RecruitmentStage) => {
     const mutation = stage.isActive ? archiveMutation : reactivateMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, workflowId, stageId: stage.id },
-      { onSuccess: () => { invalidate(); toast({ title: stage.isActive ? 'Stage archived' : 'Stage reactivated' }); } },
+      {
+        onSuccess: () => { invalidate(); toast({ title: stage.isActive ? 'Stage archived' : 'Stage reactivated' }); },
+        onError: (err: unknown) => toast({ title: stage.isActive ? 'Could not archive stage' : 'Could not reactivate stage', description: errorMessage(err), variant: 'destructive' }),
+      },
     );
   };
 
@@ -199,7 +205,7 @@ function StagesPanel({ organizationId, workflowId }: { organizationId: number; w
                   <Button size="icon" variant="ghost" aria-label={`Edit ${stage.name}`} onClick={() => openEdit(stage)} data-testid={`button-edit-stage-${stage.id}`}>
                     <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                   </Button>
-                  <Button size="sm" variant={stage.isActive ? 'destructive' : 'default'} onClick={() => handleToggle(stage)} data-testid={`button-toggle-stage-${stage.id}`}>
+                  <Button size="sm" variant={stage.isActive ? 'destructive' : 'default'} onClick={() => setToggleTarget(stage)} data-testid={`button-toggle-stage-${stage.id}`}>
                     {stage.isActive ? 'Archive' : 'Reactivate'}
                   </Button>
                 </TableCell>
@@ -208,6 +214,23 @@ function StagesPanel({ organizationId, workflowId }: { organizationId: number; w
           </TableBody>
         </Table>
       )}
+
+      <ConfirmActionDialog
+        open={toggleTarget !== null}
+        onOpenChange={(o) => { if (!o) setToggleTarget(null); }}
+        title={archivingStage ? 'Archive stage?' : 'Reactivate stage?'}
+        description={
+          archivingStage ? (
+            <p>“{toggleTarget?.name}” will be archived and will no longer be offered when moving an application to a new stage. Applications already at this stage and their history are unaffected, and you can reactivate the stage later.</p>
+          ) : (
+            <p>“{toggleTarget?.name}” will be active again and offered when moving an application to a new stage.</p>
+          )
+        }
+        confirmLabel={archivingStage ? 'Archive Stage' : 'Reactivate Stage'}
+        tone={archivingStage ? 'destructive' : 'default'}
+        onConfirm={() => (toggleTarget ? handleToggle(toggleTarget) : undefined)}
+        testId={archivingStage ? 'dialog-archive-stage' : 'dialog-reactivate-stage'}
+      />
     </div>
   );
 }
@@ -275,6 +298,8 @@ export default function RecruitmentSettings() {
   const [editingWorkflow, setEditingWorkflow] = useState<RecruitmentWorkflow | null>(null);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
+  const [toggleWorkflowTarget, setToggleWorkflowTarget] = useState<RecruitmentWorkflow | null>(null);
+  const archivingWorkflow = toggleWorkflowTarget?.isActive !== false;
 
   const invalidateWorkflows = () => queryClient.invalidateQueries({ queryKey: getListRecruitmentWorkflowsQueryKey(organizationId) });
 
@@ -341,9 +366,12 @@ export default function RecruitmentSettings() {
 
   const handleToggleWorkflow = (workflow: RecruitmentWorkflow) => {
     const mutation = workflow.isActive ? archiveWorkflowMutation : reactivateWorkflowMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, workflowId: workflow.id },
-      { onSuccess: () => { invalidateWorkflows(); toast({ title: workflow.isActive ? 'Workflow archived' : 'Workflow reactivated' }); } },
+      {
+        onSuccess: () => { invalidateWorkflows(); toast({ title: workflow.isActive ? 'Workflow archived' : 'Workflow reactivated' }); },
+        onError: (err: unknown) => toast({ title: workflow.isActive ? 'Could not archive workflow' : 'Could not reactivate workflow', description: errorMessage(err), variant: 'destructive' }),
+      },
     );
   };
 
@@ -541,7 +569,7 @@ export default function RecruitmentSettings() {
                           <Button size="icon" variant="ghost" aria-label={`Edit ${workflow.name}`} onClick={() => openEditWorkflow(workflow)} data-testid={`button-edit-workflow-${workflow.id}`}>
                             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
-                          <Button size="sm" variant={workflow.isActive ? 'destructive' : 'default'} onClick={() => handleToggleWorkflow(workflow)} data-testid={`button-toggle-workflow-${workflow.id}`}>
+                          <Button size="sm" variant={workflow.isActive ? 'destructive' : 'default'} onClick={() => setToggleWorkflowTarget(workflow)} data-testid={`button-toggle-workflow-${workflow.id}`}>
                             {workflow.isActive ? 'Archive' : 'Reactivate'}
                           </Button>
                         </TableCell>
@@ -561,6 +589,23 @@ export default function RecruitmentSettings() {
           </Card>
         )}
       </div>
+
+      <ConfirmActionDialog
+        open={toggleWorkflowTarget !== null}
+        onOpenChange={(o) => { if (!o) setToggleWorkflowTarget(null); }}
+        title={archivingWorkflow ? 'Archive workflow?' : 'Reactivate workflow?'}
+        description={
+          archivingWorkflow ? (
+            <p>“{toggleWorkflowTarget?.name}” will be marked archived. Its stage definitions and history are preserved, and you can reactivate it later.</p>
+          ) : (
+            <p>“{toggleWorkflowTarget?.name}” will be marked active again, with its existing stage definitions.</p>
+          )
+        }
+        confirmLabel={archivingWorkflow ? 'Archive Workflow' : 'Reactivate Workflow'}
+        tone={archivingWorkflow ? 'destructive' : 'default'}
+        onConfirm={() => (toggleWorkflowTarget ? handleToggleWorkflow(toggleWorkflowTarget) : undefined)}
+        testId={archivingWorkflow ? 'dialog-archive-workflow' : 'dialog-reactivate-workflow'}
+      />
     </div>
   );
 }

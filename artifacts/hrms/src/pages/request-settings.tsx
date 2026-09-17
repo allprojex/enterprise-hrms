@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -61,6 +62,7 @@ export default function RequestSettings() {
   const [newName, setNewName] = useState('');
   const [newApproval, setNewApproval] = useState(false);
   const [newDocument, setNewDocument] = useState(false);
+  const [activeTarget, setActiveTarget] = useState<{ id: number; name: string; activate: boolean } | null>(null);
 
   const fields = useListDataChangeFields(organizationId, {
     query: { queryKey: getListDataChangeFieldsQueryKey(organizationId), enabled },
@@ -294,9 +296,7 @@ export default function RequestSettings() {
                           <Switch
                             checked={t.active}
                             data-testid={`switch-type-active-${t.id}`}
-                            onCheckedChange={(checked) =>
-                              updateType.mutate({ organizationId, typeId: t.id, data: { active: checked === true } })
-                            }
+                            onCheckedChange={(checked) => setActiveTarget({ id: t.id, name: t.name, activate: checked === true })}
                           />
                         </TableCell>
                       </TableRow>
@@ -308,6 +308,33 @@ export default function RequestSettings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Deactivating is a lifecycle change applied immediately: the server then
+          refuses new requests of this type from ESS and HR alike
+          (serviceRequests.submitRequest). Requests already raised are untouched. */}
+      <ConfirmActionDialog
+        open={activeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setActiveTarget(null);
+        }}
+        title={activeTarget?.activate ? 'Reactivate request type?' : 'Deactivate request type?'}
+        description={
+          activeTarget?.activate ? (
+            <p>“{activeTarget?.name}” will be available for new requests again.</p>
+          ) : (
+            <p>
+              “{activeTarget?.name}” will no longer be available for new requests. Requests already raised are not affected, and the type can
+              be reactivated later.
+            </p>
+          )
+        }
+        confirmLabel={activeTarget?.activate ? 'Reactivate Request Type' : 'Deactivate Request Type'}
+        tone={activeTarget?.activate ? 'default' : 'destructive'}
+        onConfirm={() =>
+          activeTarget && updateType.mutateAsync({ organizationId, typeId: activeTarget.id, data: { active: activeTarget.activate } })
+        }
+        testId="dialog-toggle-request-type"
+      />
     </div>
   );
 }

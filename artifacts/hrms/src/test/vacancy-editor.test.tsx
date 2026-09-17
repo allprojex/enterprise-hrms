@@ -4,20 +4,40 @@
  * the hook level — no real network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Router } from 'wouter';
+import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import VacancyEditor from '@/pages/vacancy-editor';
 import type { Vacancy } from '@workspace/api-client-react';
+
+type MutateOpts = { onSuccess?: (data?: unknown) => void; onError?: (err: unknown) => void };
 
 const { state } = vi.hoisted(() => ({
   state: {
     vacancy: undefined as Vacancy | undefined,
     isLoading: false,
     error: undefined as unknown,
+    closeAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
+    archiveAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
   },
 }));
+
+function resolvingMutation() {
+  return vi.fn((_vars: unknown, opts?: MutateOpts) => {
+    opts?.onSuccess?.();
+    return Promise.resolve();
+  });
+}
+
+function rejectingMutation() {
+  return vi.fn((_vars: unknown, opts?: MutateOpts) => {
+    const err = { status: 409, error: 'No longer eligible' };
+    opts?.onError?.(err);
+    return Promise.reject(err);
+  });
+}
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
@@ -27,8 +47,8 @@ vi.mock('@workspace/api-client-react', () => ({
   useUpdateVacancy: () => ({ mutate: vi.fn(), isPending: false }),
   usePublishVacancy: () => ({ mutate: vi.fn(), isPending: false }),
   usePauseVacancy: () => ({ mutate: vi.fn(), isPending: false }),
-  useCloseVacancy: () => ({ mutate: vi.fn(), isPending: false }),
-  useArchiveVacancy: () => ({ mutate: vi.fn(), isPending: false }),
+  useCloseVacancy: () => ({ mutate: vi.fn(), mutateAsync: state.closeAsync, isPending: false }),
+  useArchiveVacancy: () => ({ mutate: vi.fn(), mutateAsync: state.archiveAsync, isPending: false }),
 }));
 
 function baseVacancy(overrides: Partial<Vacancy> = {}): Vacancy {
@@ -68,7 +88,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={queryClient}>
       <Router hook={hook}>
-        <VacancyEditor />
+        <Route path="/vacancies/:id/edit">{() => <VacancyEditor />}</Route>
       </Router>
     </QueryClientProvider>,
   );
@@ -164,5 +184,62 @@ describe('Vacancy editor page', () => {
     renderPage();
     expect(screen.getByText(/no locations added yet/i)).toBeInTheDocument();
     expect(screen.getByText(/no screening questions added yet/i)).toBeInTheDocument();
+  });
+
+  describe('close / archive confirmation', () => {
+    it('asks before closing, and Cancel closes nothing', async () => {
+      state.vacancy = baseVacancy({ status: 'published' });
+      state.closeAsync = resolvingMutation();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-close-vacancy'));
+      expect(screen.getByTestId('dialog-close-vacancy')).toHaveTextContent('Close vacancy?');
+      expect(screen.getByTestId('dialog-close-vacancy')).toHaveTextContent('close “Software Engineer”');
+      expect(state.closeAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-close-vacancy-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-close-vacancy')).not.toBeInTheDocument());
+      expect(state.closeAsync).not.toHaveBeenCalled();
+    });
+
+    it('closes exactly once on confirm, invalidates the vacancy, and dismisses the dialog', async () => {
+      state.vacancy = baseVacancy({ status: 'published' });
+      state.closeAsync = resolvingMutation();
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-close-vacancy'));
+      await userEvent.click(screen.getByTestId('dialog-close-vacancy-confirm'));
+
+      await waitFor(() => expect(screen.queryByTestId('dialog-close-vacancy')).not.toBeInTheDocument());
+      expect(state.closeAsync).toHaveBeenCalledTimes(1);
+      expect(state.closeAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['vacancy', 10, 1] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the dialog open when closing fails', async () => {
+      state.vacancy = baseVacancy({ status: 'published' });
+      state.closeAsync = rejectingMutation();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-close-vacancy'));
+      await userEvent.click(screen.getByTestId('dialog-close-vacancy-confirm'));
+
+      await waitFor(() => expect(state.closeAsync).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('dialog-close-vacancy')).toBeInTheDocument();
+      expect(screen.getByTestId('badge-vacancy-status')).toHaveTextContent('published');
+    });
+
+    it('asks before archiving a closed vacancy, then archives once', async () => {
+      state.vacancy = baseVacancy({ status: 'closed' });
+      state.archiveAsync = resolvingMutation();
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-archive-vacancy'));
+      expect(screen.getByTestId('dialog-archive-vacancy')).toHaveTextContent('Archive vacancy?');
+      expect(state.archiveAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-archive-vacancy-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-vacancy')).not.toBeInTheDocument());
+      expect(state.archiveAsync).toHaveBeenCalledTimes(1);
+      expect(state.archiveAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+    });
   });
 });

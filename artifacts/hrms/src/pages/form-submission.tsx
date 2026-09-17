@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PageContainer, PageHeader, StatusBadge, ErrorState, LoadingState } from '@/components/foundation';
+import { PageContainer, PageHeader, StatusBadge, ErrorState, LoadingState, ConfirmActionDialog } from '@/components/foundation';
 import { Badge } from '@/components/ui/badge';
 import { FormRenderer } from '@/components/forms/form-renderer';
 import { useListFormSubmissionSignatures, getListFormSubmissionSignaturesQueryKey } from '@workspace/api-client-react';
@@ -84,6 +84,7 @@ export default function FormSubmissionPage() {
   const [dirty, setDirty] = useState(false);
   const [notes, setNotes] = useState('');
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   // Seed local answers from the current revision when a NEW revision arrives
   // and nothing is being edited (adjusting state from props during render,
   // never in an effect).
@@ -161,8 +162,10 @@ export default function FormSubmissionPage() {
     );
   const handleFinalize = () =>
     finalizeMutation.mutate({ organizationId, submissionId }, { onSuccess: (d) => { applyDetail(d); toast({ title: 'Form finalized', description: 'The final document is stored and hashed.', variant: 'success' }); }, onError: fail('Not finalized') });
+  // Archiving has no way back (there is no unarchive endpoint), so it only runs
+  // from the confirmation dialog, which stays open if the server refuses.
   const handleArchive = () =>
-    archiveMutation.mutate({ organizationId, submissionId }, { onSuccess: (d) => { applyDetail(d); toast({ title: 'Form archived', variant: 'success' }); }, onError: fail('Not archived') });
+    archiveMutation.mutateAsync({ organizationId, submissionId }, { onSuccess: (d) => { applyDetail(d); toast({ title: 'Form archived', variant: 'success' }); }, onError: fail('Not archived') });
 
   const handleDownload = async (kind: FormDocumentKind | 'blank-template') => {
     if (!detail) return;
@@ -416,7 +419,7 @@ export default function FormSubmissionPage() {
                 </Button>
               )}
               {viewer.canArchive && (
-                <Button variant="outline" onClick={handleArchive} loading={archiveMutation.isPending} disabled={busy} data-testid="button-archive">
+                <Button variant="outline" onClick={() => setArchiveOpen(true)} loading={archiveMutation.isPending} disabled={busy} data-testid="button-archive">
                   <Archive aria-hidden="true" />
                   Archive
                 </Button>
@@ -452,6 +455,21 @@ export default function FormSubmissionPage() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        title="Archive form?"
+        description={
+          <p>
+            Are you sure you want to archive “{detail.template.title}” for {submission.subjectName}? Its history and documents are
+            preserved, but an archived form cannot be restored.
+          </p>
+        }
+        confirmLabel="Archive Form"
+        onConfirm={handleArchive}
+        testId="dialog-archive-form"
+      />
     </PageContainer>
   );
 }

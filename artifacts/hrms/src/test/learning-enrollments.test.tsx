@@ -9,7 +9,7 @@
  * arguments.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LearningEnrollments from '@/pages/learning-enrollments';
@@ -40,8 +40,10 @@ const { state } = vi.hoisted(() => ({
     positions: [] as Position[],
     approveMutate: vi.fn() as (...args: unknown[]) => void,
     rejectMutate: vi.fn() as (...args: unknown[]) => void,
+    rejectMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     cancelMutate: vi.fn() as (...args: unknown[]) => void,
     attendanceMutate: vi.fn() as (...args: unknown[]) => void,
+    attendanceMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     completeMutate: vi.fn() as (...args: unknown[]) => void,
     assignMutate: vi.fn() as (...args: unknown[]) => void,
     revokeMutate: vi.fn() as (...args: unknown[]) => void,
@@ -56,9 +58,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useListLearningEnrollments: () => ({ data: state.enrollments, isLoading: state.enrollmentsLoading, error: state.enrollmentsError, refetch: vi.fn() }),
   getListLearningEnrollmentsQueryKey: () => ['enrollments'],
   useApproveLearningEnrollment: () => ({ mutate: state.approveMutate, isPending: false }),
-  useRejectLearningEnrollment: () => ({ mutate: state.rejectMutate, isPending: false }),
+  useRejectLearningEnrollment: () => ({ mutate: state.rejectMutate, mutateAsync: state.rejectMutateAsync, isPending: false }),
   useCancelLearningEnrollment: () => ({ mutate: state.cancelMutate, isPending: false }),
-  useMarkLearningEnrollmentAttendance: () => ({ mutate: state.attendanceMutate, isPending: false }),
+  useMarkLearningEnrollmentAttendance: () => ({ mutate: state.attendanceMutate, mutateAsync: state.attendanceMutateAsync, isPending: false }),
   useCompleteLearningEnrollment: () => ({ mutate: state.completeMutate, isPending: false }),
   useAssignLearningEnrollments: () => ({ mutate: state.assignMutate, isPending: false }),
   useListLearningCertificates: () => ({ data: state.certificates, isLoading: state.certificatesLoading, error: state.certificatesError, refetch: vi.fn() }),
@@ -127,6 +129,24 @@ function employee(overrides: Partial<Employee> = {}): Employee {
   return { id: 42, firstName: 'Ada', lastName: 'Lovelace', employmentStatus: 'active', organizationId: 10, createdAt: '', updatedAt: '', ...overrides } as Employee;
 }
 
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.();
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
+}
+
 function resetState() {
   state.myOrganizations = [membership(['hr_manager'])];
   state.enrollments = { items: [], total: 0, page: 1, pageSize: 20 };
@@ -142,8 +162,10 @@ function resetState() {
   state.positions = [];
   state.approveMutate = vi.fn();
   state.rejectMutate = vi.fn();
+  state.rejectMutateAsync = resolvingMutateAsync();
   state.cancelMutate = vi.fn();
   state.attendanceMutate = vi.fn();
+  state.attendanceMutateAsync = resolvingMutateAsync();
   state.completeMutate = vi.fn();
   state.assignMutate = vi.fn();
   state.revokeMutate = vi.fn();
@@ -211,6 +233,49 @@ describe('Learning Enrollments (internal HR/L&D workspace) page', () => {
     expect(state.approveMutate).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
   });
 
+  it('rejecting an enrollment request asks for confirmation and only rejects on confirm', async () => {
+    resetState();
+    state.enrollments = { items: [enrollment({ approvalStatus: 'pending' })], total: 1, page: 1, pageSize: 20 };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-view-enrollment-1'));
+    await userEvent.click(screen.getByTestId('button-reject-1'));
+    expect(screen.getByTestId('dialog-reject-enrollment-1')).toHaveTextContent('Reject enrollment request?');
+    expect(screen.getByTestId('dialog-reject-enrollment-1')).toHaveTextContent('Code of Conduct');
+    expect(state.rejectMutateAsync).not.toHaveBeenCalled();
+    expect(state.rejectMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-1-confirm'));
+    expect(state.rejectMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.rejectMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-reject-enrollment-1')).not.toBeInTheDocument());
+  });
+
+  it('cancelling the reject confirmation rejects nothing', async () => {
+    resetState();
+    state.enrollments = { items: [enrollment({ approvalStatus: 'pending' })], total: 1, page: 1, pageSize: 20 };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-view-enrollment-1'));
+    await userEvent.click(screen.getByTestId('button-reject-1'));
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-1-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-reject-enrollment-1')).not.toBeInTheDocument());
+    expect(state.rejectMutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId('button-reject-1')).toBeInTheDocument();
+  });
+
+  it('a failed reject keeps the confirmation open and the request actionable', async () => {
+    resetState();
+    state.enrollments = { items: [enrollment({ approvalStatus: 'pending' })], total: 1, page: 1, pageSize: 20 };
+    state.rejectMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-view-enrollment-1'));
+    await userEvent.click(screen.getByTestId('button-reject-1'));
+    await userEvent.click(screen.getByTestId('dialog-reject-enrollment-1-confirm'));
+    expect(state.rejectMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-reject-enrollment-1-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-reject-enrollment-1')).toBeInTheDocument();
+    expect(screen.getByTestId('row-enrollment-1')).toBeInTheDocument();
+  });
+
   it('does not show approve/reject once a decision has already been made', async () => {
     resetState();
     state.enrollments = { items: [enrollment({ approvalStatus: 'approved' })], total: 1, page: 1, pageSize: 20 };
@@ -254,6 +319,29 @@ describe('Learning Enrollments (internal HR/L&D workspace) page', () => {
     await userEvent.click(screen.getByTestId('button-view-enrollment-1'));
     expect(screen.getByTestId('button-mark-attended-1')).toBeInTheDocument();
     expect(screen.getByTestId('button-mark-absent-1')).toBeInTheDocument();
+  });
+
+  it('marking an employee absent requires confirmation; cancel records nothing, confirm records once', async () => {
+    resetState();
+    state.enrollments = {
+      items: [enrollment({ deliveryModeSnapshot: 'instructor_led', sessionId: 3, approvalStatus: 'approved' })],
+      total: 1, page: 1, pageSize: 20,
+    };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-view-enrollment-1'));
+    await userEvent.click(screen.getByTestId('button-mark-absent-1'));
+    expect(screen.getByTestId('dialog-attendance-1')).toHaveTextContent('Mark employee absent?');
+    expect(state.attendanceMutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('dialog-attendance-1-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-attendance-1')).not.toBeInTheDocument());
+    expect(state.attendanceMutateAsync).not.toHaveBeenCalled();
+    expect(state.attendanceMutate).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId('button-mark-absent-1'));
+    await userEvent.click(screen.getByTestId('dialog-attendance-1-confirm'));
+    expect(state.attendanceMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.attendanceMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { attended: false } }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-attendance-1')).not.toBeInTheDocument());
   });
 
   it('does not offer attendance correction for a self-paced enrollment', async () => {

@@ -95,6 +95,7 @@ import { QueryError } from '@/components/query-error';
 import { EmploymentLifecyclePanel } from '@/components/employment/employment-lifecycle-panel';
 import { EmployeeRelationsPanel } from '@/components/employment/employee-relations-panel';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const NONE_PROBATION_REVIEW = '__none__';
 
@@ -288,6 +289,13 @@ export default function EmployeeDetail() {
   const [status, setStatus] = useState<UpdateEmployeeInputEmploymentStatus>('active');
   const [linkUserId, setLinkUserId] = useState('');
   const [isSeparateOpen, setIsSeparateOpen] = useState(false);
+  const [isSeparateConfirmOpen, setIsSeparateConfirmOpen] = useState(false);
+  const [isRehireConfirmOpen, setIsRehireConfirmOpen] = useState(false);
+  const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
+  const [documentToRemove, setDocumentToRemove] = useState<{ id: number; fileName: string } | null>(null);
+  const [skillToRemove, setSkillToRemove] = useState<{ id: number; label: string } | null>(null);
+  const [qualificationToRemove, setQualificationToRemove] = useState<{ id: number; label: string } | null>(null);
+  const [certificationToRemove, setCertificationToRemove] = useState<{ id: number; label: string } | null>(null);
   const [separationDate, setSeparationDate] = useState('');
   const [separationReason, setSeparationReason] = useState('');
   const [documentCategoryCode, setDocumentCategoryCode] = useState('');
@@ -463,8 +471,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleUnlink = () => {
-    unlinkMutation.mutate(
+  const handleUnlink = () =>
+    unlinkMutation.mutateAsync(
       { organizationId, employeeId },
       {
         onSuccess: () => {
@@ -478,7 +486,6 @@ export default function EmployeeDetail() {
         },
       },
     );
-  };
 
   const handleSeparate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -502,8 +509,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleRehire = () => {
-    rehireMutation.mutate(
+  const handleRehire = () =>
+    rehireMutation.mutateAsync(
       { organizationId, employeeId },
       {
         onSuccess: (updated) => {
@@ -517,7 +524,6 @@ export default function EmployeeDetail() {
         },
       },
     );
-  };
 
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -828,8 +834,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleRemoveDocument = (documentId: number) => {
-    removeDocumentMutation.mutate(
+  const handleRemoveDocument = (documentId: number) =>
+    removeDocumentMutation.mutateAsync(
       { organizationId, employeeId, documentId },
       {
         onSuccess: () => {
@@ -843,7 +849,6 @@ export default function EmployeeDetail() {
         },
       },
     );
-  };
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -872,8 +877,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleRemoveSkill = (skillId: number) => {
-    removeSkillMutation.mutate(
+  const handleRemoveSkill = (skillId: number) =>
+    removeSkillMutation.mutateAsync(
       { organizationId, employeeId, skillId },
       {
         onSuccess: () => {
@@ -883,7 +888,6 @@ export default function EmployeeDetail() {
         onError: genericErrorHandler('Could not remove skill'),
       },
     );
-  };
 
   const handleAddQualification = () => {
     if (!newQualificationCode) return;
@@ -901,8 +905,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleRemoveQualification = (qualificationId: number) => {
-    removeQualificationMutation.mutate(
+  const handleRemoveQualification = (qualificationId: number) =>
+    removeQualificationMutation.mutateAsync(
       { organizationId, employeeId, qualificationId },
       {
         onSuccess: () => {
@@ -912,7 +916,6 @@ export default function EmployeeDetail() {
         onError: genericErrorHandler('Could not remove qualification'),
       },
     );
-  };
 
   const handleAddCertification = () => {
     if (!newCertificationCode) return;
@@ -930,8 +933,8 @@ export default function EmployeeDetail() {
     );
   };
 
-  const handleRemoveCertification = (certificationId: number) => {
-    removeCertificationMutation.mutate(
+  const handleRemoveCertification = (certificationId: number) =>
+    removeCertificationMutation.mutateAsync(
       { organizationId, employeeId, certificationId },
       {
         onSuccess: () => {
@@ -941,7 +944,6 @@ export default function EmployeeDetail() {
         onError: genericErrorHandler('Could not remove certification'),
       },
     );
-  };
 
   if (isLoading) {
     return (
@@ -963,6 +965,14 @@ export default function EmployeeDetail() {
   if (!employee) return null;
 
   const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
+  const employeeFullName = `${employee.firstName} ${employee.lastName}`;
+  const linkedAccountMember =
+    employee.linkedApplicationUserId != null
+      ? (members ?? []).find((m) => m.applicationUserId === employee.linkedApplicationUserId)
+      : undefined;
+  const linkedAccountLabel = linkedAccountMember
+    ? `${linkedAccountMember.firstName} ${linkedAccountMember.lastName} (${linkedAccountMember.email})`
+    : `User #${employee.linkedApplicationUserId}`;
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -1037,7 +1047,7 @@ export default function EmployeeDetail() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={handleRehire}
+                    onClick={() => setIsRehireConfirmOpen(true)}
                     disabled={rehireMutation.isPending}
                     data-testid="button-rehire-employee"
                   >
@@ -1262,13 +1272,36 @@ export default function EmployeeDetail() {
                     </Dialog>
                   )}
 
+                  {/* The separation form is reached only through the confirmation
+                      below — the trigger opens that step, never the form directly. */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSeparateConfirmOpen(true)}
+                    data-testid="button-separate-employee"
+                  >
+                    <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Separate
+                  </Button>
+                  <ConfirmActionDialog
+                    open={isSeparateConfirmOpen}
+                    onOpenChange={setIsSeparateConfirmOpen}
+                    title="Separate employee?"
+                    description={
+                      <>
+                        <p>
+                          You are about to separate “{employee.firstName} {employee.lastName}” from the organization.
+                        </p>
+                        <p>The employee&apos;s historical HR record will be preserved.</p>
+                      </>
+                    }
+                    confirmLabel="Continue"
+                    tone="destructive"
+                    onConfirm={() => setIsSeparateOpen(true)}
+                    testId="dialog-confirm-separate-employee"
+                  />
                   <Dialog open={isSeparateOpen} onOpenChange={setIsSeparateOpen}>
-                    <DialogTrigger asChild>
-                      <Button type="button" variant="outline" size="sm" data-testid="button-separate-employee">
-                        <UserX className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Separate
-                      </Button>
-                    </DialogTrigger>
                     <DialogContent>
                       <form onSubmit={handleSeparate}>
                         <DialogHeader>
@@ -1388,7 +1421,7 @@ export default function EmployeeDetail() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={handleUnlink}
+                      onClick={() => setIsUnlinkConfirmOpen(true)}
                       disabled={unlinkMutation.isPending}
                       data-testid="button-unlink-user"
                     >
@@ -1628,7 +1661,7 @@ export default function EmployeeDetail() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemoveDocument(doc.id)}
+                        onClick={() => setDocumentToRemove({ id: doc.id, fileName: doc.fileName })}
                         disabled={removeDocumentMutation.isPending}
                         aria-label={`Remove ${doc.fileName}`}
                         data-testid={`button-remove-document-${doc.id}`}
@@ -1722,7 +1755,7 @@ export default function EmployeeDetail() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemoveSkill(skill.id)}
+                        onClick={() => setSkillToRemove({ id: skill.id, label })}
                         disabled={removeSkillMutation.isPending}
                         aria-label={`Remove ${label}`}
                         data-testid={`button-remove-skill-${skill.id}`}
@@ -1810,7 +1843,7 @@ export default function EmployeeDetail() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemoveQualification(qualification.id)}
+                        onClick={() => setQualificationToRemove({ id: qualification.id, label })}
                         disabled={removeQualificationMutation.isPending}
                         aria-label={`Remove ${label}`}
                         data-testid={`button-remove-qualification-${qualification.id}`}
@@ -1900,7 +1933,7 @@ export default function EmployeeDetail() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemoveCertification(certification.id)}
+                        onClick={() => setCertificationToRemove({ id: certification.id, label })}
                         disabled={removeCertificationMutation.isPending}
                         aria-label={`Remove ${label}`}
                         data-testid={`button-remove-certification-${certification.id}`}
@@ -2520,6 +2553,120 @@ export default function EmployeeDetail() {
           <CustomFieldValuesPanel organizationId={organizationId} scope="employee" entityId={employeeId} readOnly={!isHrCapable} />
         </div>
       </div>
+
+      <ConfirmActionDialog
+        open={isRehireConfirmOpen}
+        onOpenChange={setIsRehireConfirmOpen}
+        title="Rehire employee?"
+        description={
+          <>
+            <p>
+              “{employeeFullName}” will be returned to active status on this same record, and a rehire event will be
+              added to their employment history.
+            </p>
+            <p>
+              The current separation date and reason will be cleared from the employee record; they remain in the audit
+              trail.
+            </p>
+          </>
+        }
+        confirmLabel="Rehire Employee"
+        tone="default"
+        onConfirm={handleRehire}
+        testId="dialog-rehire-employee"
+      />
+
+      <ConfirmActionDialog
+        open={isUnlinkConfirmOpen}
+        onOpenChange={setIsUnlinkConfirmOpen}
+        title="Unlink login account?"
+        description={
+          <>
+            <p>
+              “{employeeFullName}” will no longer be linked to the login account {linkedAccountLabel}. Self-service
+              features that depend on a linked employee record, such as My Leave, will not be available to that account
+              until it is linked again.
+            </p>
+            <p>The user account and its organization membership are not changed. You can link an account again at any time.</p>
+          </>
+        }
+        confirmLabel="Unlink Login Account"
+        tone="destructive"
+        onConfirm={handleUnlink}
+        testId="dialog-unlink-user"
+      />
+
+      <ConfirmActionDialog
+        open={documentToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setDocumentToRemove(null);
+        }}
+        title="Remove document?"
+        description={
+          <p>
+            Are you sure you want to remove “{documentToRemove?.fileName}” from this employee&apos;s record? The stored
+            file will be permanently deleted. This cannot be undone.
+          </p>
+        }
+        confirmLabel="Remove Document"
+        tone="destructive"
+        onConfirm={() => (documentToRemove ? handleRemoveDocument(documentToRemove.id) : undefined)}
+        testId="dialog-remove-document"
+      />
+
+      <ConfirmActionDialog
+        open={skillToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setSkillToRemove(null);
+        }}
+        title="Remove skill?"
+        description={
+          <p>
+            Are you sure you want to remove “{skillToRemove?.label}” from this employee&apos;s record? The entry will be
+            permanently deleted.
+          </p>
+        }
+        confirmLabel="Remove Skill"
+        tone="destructive"
+        onConfirm={() => (skillToRemove ? handleRemoveSkill(skillToRemove.id) : undefined)}
+        testId="dialog-remove-skill"
+      />
+
+      <ConfirmActionDialog
+        open={qualificationToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setQualificationToRemove(null);
+        }}
+        title="Remove qualification?"
+        description={
+          <p>
+            Are you sure you want to remove “{qualificationToRemove?.label}” from this employee&apos;s record? The entry
+            will be permanently deleted.
+          </p>
+        }
+        confirmLabel="Remove Qualification"
+        tone="destructive"
+        onConfirm={() => (qualificationToRemove ? handleRemoveQualification(qualificationToRemove.id) : undefined)}
+        testId="dialog-remove-qualification"
+      />
+
+      <ConfirmActionDialog
+        open={certificationToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setCertificationToRemove(null);
+        }}
+        title="Remove certification?"
+        description={
+          <p>
+            Are you sure you want to remove “{certificationToRemove?.label}” from this employee&apos;s record? The entry
+            will be permanently deleted.
+          </p>
+        }
+        confirmLabel="Remove Certification"
+        tone="destructive"
+        onConfirm={() => (certificationToRemove ? handleRemoveCertification(certificationToRemove.id) : undefined)}
+        testId="dialog-remove-certification"
+      />
     </div>
   );
 }

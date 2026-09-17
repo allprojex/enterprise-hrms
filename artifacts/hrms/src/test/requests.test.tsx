@@ -33,6 +33,7 @@ const { state, mutations } = vi.hoisted(() => ({
     acknowledge: vi.fn(),
     approveService: vi.fn(),
     rejectService: vi.fn(),
+    rejectServiceAsync: vi.fn(),
     fulfil: vi.fn(),
   },
 }));
@@ -66,7 +67,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListServiceRequestsQueryKey: (o: number, p?: unknown) => ['srRequests', o, p],
   useAcknowledgeServiceRequest: () => ({ mutate: mutations.acknowledge, isPending: false }),
   useApproveServiceRequest: () => ({ mutate: mutations.approveService, isPending: false }),
-  useRejectServiceRequest: () => ({ mutate: mutations.rejectService, isPending: false }),
+  useRejectServiceRequest: () => ({ mutate: mutations.rejectService, mutateAsync: mutations.rejectServiceAsync, isPending: false }),
   useFulfilServiceRequest: () => ({ mutate: mutations.fulfil, isPending: false }),
 }));
 
@@ -246,6 +247,71 @@ describe('Requests & Approvals (HR)', () => {
     const payload = mutations.fulfil.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(payload.data.resolutionSummary).toBe('Letter issued');
     expect(payload.data.generatedDocumentId).toBe(77);
+  });
+
+  describe('rejecting a service request', () => {
+    const pendingService = {
+      id: 12,
+      typeId: 5,
+      employeeId: 42,
+      subject: 'Salary confirmation letter',
+      status: 'submitted',
+      approvalStatus: 'pending',
+      submittedAt: '2026-08-01T00:00:00.000Z',
+    };
+
+    async function openRejectDialog() {
+      const user = userEvent.setup();
+      state.serviceRequests = [pendingService];
+      renderPage();
+      await user.click(screen.getByRole('tab', { name: /Service requests/i }));
+      await user.click(await screen.findByTestId('button-reject-service-12'));
+      return user;
+    }
+
+    it('asks for confirmation instead of rejecting in one click, and Cancel rejects nothing', async () => {
+      const user = await openRejectDialog();
+      const dialog = screen.getByTestId('dialog-reject-service-request');
+      expect(dialog).toHaveTextContent('Reject service request?');
+      expect(dialog).toHaveTextContent('“Salary confirmation letter”');
+      expect(dialog).toHaveTextContent('This cannot be undone.');
+      expect(screen.getByTestId('dialog-reject-service-request-confirm')).toHaveTextContent('Reject Request');
+      expect(mutations.rejectService).not.toHaveBeenCalled();
+      expect(mutations.rejectServiceAsync).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-reject-service-request-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-reject-service-request')).toBeNull());
+      expect(mutations.rejectServiceAsync).not.toHaveBeenCalled();
+      expect(mutations.rejectService).not.toHaveBeenCalled();
+    });
+
+    it('rejects exactly once on confirm with the same payload as before, then closes', async () => {
+      mutations.rejectServiceAsync.mockResolvedValueOnce({});
+      const user = await openRejectDialog();
+      await user.click(screen.getByTestId('dialog-reject-service-request-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-reject-service-request')).toBeNull());
+      expect(mutations.rejectServiceAsync).toHaveBeenCalledTimes(1);
+      expect(mutations.rejectServiceAsync).toHaveBeenCalledWith({ organizationId: 10, requestId: 12, data: { reason: 'Not approved' } });
+    });
+
+    it('keeps the dialog open and the request listed when the server refuses', async () => {
+      mutations.rejectServiceAsync.mockRejectedValueOnce(new Error('This request is not awaiting approval.'));
+      const user = await openRejectDialog();
+      await user.click(screen.getByTestId('dialog-reject-service-request-confirm'));
+      await waitFor(() => expect(mutations.rejectServiceAsync).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByTestId('dialog-reject-service-request-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-reject-service-request')).toBeInTheDocument();
+      expect(screen.getByTestId('row-service-request-12')).toBeInTheDocument();
+    });
+
+    it('offers no Reject button once a request is no longer awaiting approval', async () => {
+      const user = userEvent.setup();
+      state.serviceRequests = [{ ...pendingService, approvalStatus: 'rejected', status: 'closed' }];
+      renderPage();
+      await user.click(screen.getByRole('tab', { name: /Service requests/i }));
+      expect(await screen.findByTestId('row-service-request-12')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-reject-service-12')).toBeNull();
+    });
   });
 
   it('hides the data-change surface entirely from a caller the server refuses', async () => {

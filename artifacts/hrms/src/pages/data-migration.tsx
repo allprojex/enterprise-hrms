@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
@@ -98,6 +99,7 @@ export default function DataMigration() {
   const [newName, setNewName] = useState('');
   const [uploadEntityType, setUploadEntityType] = useState('');
   const [pendingUpload, setPendingUpload] = useState<MigrationSourceUploadResult | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ id: number; name: string } | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -223,6 +225,23 @@ export default function DataMigration() {
         variant: 'destructive',
       });
     }
+  };
+
+  // Same toasts and refetch as runStep, but a refused cancel is re-thrown so the
+  // confirmation dialog stays open instead of looking as if it succeeded.
+  const handleCancelMigration = async (migrationId: number) => {
+    try {
+      await cancelMutation.mutateAsync({ organizationId, migrationId });
+    } catch (err) {
+      toast({
+        title: 'Migration cancelled failed',
+        description: err instanceof Error ? err.message : 'See the issues list for details.',
+        variant: 'destructive',
+      });
+      throw err;
+    }
+    await refetchAll();
+    toast({ title: 'Migration cancelled', description: 'No data was written.' });
   };
 
   if (isForbidden(listQuery.error)) {
@@ -544,13 +563,7 @@ export default function DataMigration() {
                 <Button
                   variant="outline"
                   disabled={!['draft', 'mapped', 'validated', 'approved'].includes(migration.status) || cancelMutation.isPending}
-                  onClick={() =>
-                    runStep(
-                      'Migration cancelled',
-                      () => cancelMutation.mutateAsync({ organizationId, migrationId: migration.id }),
-                      () => 'No data was written.',
-                    )
-                  }
+                  onClick={() => setCancelTarget({ id: migration.id, name: migration.name })}
                 >
                   <Ban className="mr-2 h-4 w-4" aria-hidden="true" />
                   Cancel
@@ -629,6 +642,26 @@ export default function DataMigration() {
           </Card>
         </>
       )}
+
+      {/* "cancelled" is terminal in the batch state machine and only reachable
+          before execution, so nothing has been written and nothing can resume. */}
+      <ConfirmActionDialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancelTarget(null);
+        }}
+        title="Cancel migration?"
+        description={
+          <p>
+            Are you sure you want to cancel “{cancelTarget?.name}”? No data has been imported, so nothing will be written. A cancelled
+            migration cannot be resumed.
+          </p>
+        }
+        confirmLabel="Cancel Migration"
+        cancelLabel="Keep Migration"
+        onConfirm={() => cancelTarget && handleCancelMigration(cancelTarget.id)}
+        testId="dialog-cancel-migration"
+      />
     </div>
   );
 }

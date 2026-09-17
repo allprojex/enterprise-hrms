@@ -4,18 +4,22 @@
  * real network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import InterviewDetail from '@/pages/interview-detail';
 import type { Interview } from '@workspace/api-client-react';
 
+type MutateOpts = { onSuccess?: (data?: unknown) => void; onError?: (err: unknown) => void };
+
 const { state } = vi.hoisted(() => ({
   state: {
     interview: undefined as Interview | undefined,
     isLoading: false,
     error: undefined as unknown,
+    cancelAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
   },
 }));
 
@@ -24,7 +28,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getGetMeQueryKey: () => ['getMe'],
   useGetInterview: () => ({ data: state.interview, isLoading: state.isLoading, error: state.error, refetch: vi.fn() }),
   getGetInterviewQueryKey: (orgId: number, id: number) => ['interview', orgId, id],
-  useCancelInterview: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelInterview: () => ({ mutate: vi.fn(), mutateAsync: state.cancelAsync, isPending: false }),
   useUpdateInterview: () => ({ mutate: vi.fn(), isPending: false }),
   useListMembers: () => ({ data: [{ membershipId: 5, applicationUserId: 1, email: 'lead@example.com', firstName: 'Lead', lastName: 'Interviewer', status: 'active', roles: [], isPrimaryHr: false }] }),
   getListMembersQueryKey: (orgId: number) => ['members', orgId],
@@ -132,5 +136,62 @@ describe('Interview detail page', () => {
     expect(screen.getByTestId('row-panel-member-1')).toHaveTextContent('Lead Interviewer');
     expect(screen.getByTestId('row-panel-member-2')).toHaveTextContent('External Panelist');
     expect(screen.getByTestId('row-panel-member-2')).toHaveTextContent('Conflict declared');
+  });
+
+  describe('cancel confirmation', () => {
+    it('asks before cancelling, and Keep Interview cancels nothing', async () => {
+      state.interview = baseInterview();
+      state.isLoading = false;
+      state.error = undefined;
+      state.cancelAsync = vi.fn(() => Promise.resolve());
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-cancel-interview'));
+      const dialog = screen.getByTestId('dialog-cancel-interview');
+      expect(dialog).toHaveTextContent('Cancel interview?');
+      expect(dialog).toHaveTextContent('cancel the interview for Application #500');
+      expect(state.cancelAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-cancel-interview-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-cancel-interview')).not.toBeInTheDocument());
+      expect(state.cancelAsync).not.toHaveBeenCalled();
+    });
+
+    it('cancels exactly once on confirm, invalidates the interview, and closes', async () => {
+      state.interview = baseInterview();
+      state.isLoading = false;
+      state.error = undefined;
+      state.cancelAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        opts?.onSuccess?.();
+        return Promise.resolve();
+      });
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-cancel-interview'));
+      await userEvent.click(screen.getByTestId('dialog-cancel-interview-confirm'));
+
+      await waitFor(() => expect(screen.queryByTestId('dialog-cancel-interview')).not.toBeInTheDocument());
+      expect(state.cancelAsync).toHaveBeenCalledTimes(1);
+      expect(state.cancelAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['interview', 10, 1] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the dialog open when cancelling fails', async () => {
+      state.interview = baseInterview();
+      state.isLoading = false;
+      state.error = undefined;
+      state.cancelAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        const err = { error: 'boom' };
+        opts?.onError?.(err);
+        return Promise.reject(err);
+      });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-cancel-interview'));
+      await userEvent.click(screen.getByTestId('dialog-cancel-interview-confirm'));
+
+      await waitFor(() => expect(state.cancelAsync).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('dialog-cancel-interview')).toBeInTheDocument();
+      expect(screen.getByTestId('badge-interview-status')).toHaveTextContent('scheduled');
+    });
   });
 });

@@ -30,6 +30,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -198,10 +199,12 @@ export default function PerformanceTemplates() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<{ name: string; archived: boolean } | null>(null);
+
   const handleToggleStatus = () => {
     if (manageId == null || !detail) return;
     const nextStatus = isArchived ? 'active' : 'archived';
-    updateMutation.mutate(
+    return updateMutation.mutateAsync(
       { organizationId, id: manageId, data: { status: nextStatus } },
       {
         onSuccess: () => {
@@ -435,7 +438,7 @@ export default function PerformanceTemplates() {
                   </div>
                 </div>
                 <div className="flex justify-between">
-                  <Button type="button" variant={isArchived ? 'default' : 'destructive'} onClick={handleToggleStatus} disabled={updateMutation.isPending} data-testid="button-toggle-template-status">
+                  <Button type="button" variant={isArchived ? 'default' : 'destructive'} onClick={() => setStatusTarget({ name: detail.template.name, archived: isArchived })} disabled={updateMutation.isPending} data-testid="button-toggle-template-status">
                     {isArchived ? 'Reactivate' : 'Archive'}
                   </Button>
                   <Button type="submit" disabled={updateMutation.isPending || isArchived} data-testid="button-save-template-details">
@@ -514,6 +517,28 @@ export default function PerformanceTemplates() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.archived ? 'Reactivate review template?' : 'Archive review template?'}
+        description={
+          statusTarget?.archived ? (
+            <p>“{statusTarget?.name}” will be set to active again, so it can be edited and selected for new performance cycles.</p>
+          ) : (
+            <p>
+              “{statusTarget?.name}” will be archived. It can no longer be selected for new performance cycles or edited while archived. Reviews
+              already created from it keep their own copy of its competencies, and the template can be reactivated later.
+            </p>
+          )
+        }
+        confirmLabel={statusTarget?.archived ? 'Reactivate Template' : 'Archive Template'}
+        tone={statusTarget?.archived ? 'default' : 'destructive'}
+        onConfirm={handleToggleStatus}
+        testId="dialog-template-status"
+      />
     </div>
   );
 }

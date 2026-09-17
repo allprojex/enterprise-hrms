@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { PageContainer, PageHeader, StatusBadge, EmptyState, ErrorState, ListSkeleton } from '@/components/foundation';
+import { PageContainer, PageHeader, StatusBadge, EmptyState, ErrorState, ListSkeleton, ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useHrCapability } from '@/hooks/use-hr-capable';
 
@@ -110,6 +110,7 @@ function FormTemplatesAdmin({ organizationId }: { organizationId: number }) {
   const [newVersionFor, setNewVersionFor] = useState<number | null>(null);
   const [form, setForm] = useState({ templateKey: '', formType: 'generic' as FormTemplateType, title: '', moduleKey: '', definition: '', stages: '' });
   const [formError, setFormError] = useState<string | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; title: string } | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListFormTemplatesQueryKey(organizationId) });
   const fail = (title: string) => (err: unknown) => toast({ title, description: errorMessage(err), variant: 'destructive' });
@@ -210,7 +211,7 @@ function FormTemplatesAdmin({ organizationId }: { organizationId: number }) {
                     <Plus aria-hidden="true" />
                     New version
                   </Button>
-                  <Button variant="ghost" size="sm" disabled={t.status !== 'active'} onClick={() => archiveMutation.mutate({ organizationId, templateId: t.id }, { onSuccess: () => { refresh(); toast({ title: 'Template archived' }); }, onError: fail('Not archived') })} data-testid={`button-archive-template-${t.id}`}>
+                  <Button variant="ghost" size="sm" disabled={t.status !== 'active'} onClick={() => setArchiveTarget({ id: t.id, title: t.title })} data-testid={`button-archive-template-${t.id}`}>
                     <Archive aria-hidden="true" />
                     Archive
                   </Button>
@@ -261,6 +262,26 @@ function FormTemplatesAdmin({ organizationId }: { organizationId: number }) {
           ))}
         </div>
       )}
+
+      {/* No unarchive endpoint exists, so the copy says so. New submissions are
+          refused for an archived template; existing ones are untouched. */}
+      <ConfirmActionDialog
+        open={archiveTarget !== null}
+        onOpenChange={(o) => { if (!o) setArchiveTarget(null); }}
+        title="Archive form template?"
+        description={
+          <p>
+            “{archiveTarget?.title}” will no longer be available for new forms. Forms already raised from it are preserved. An archived
+            template cannot be restored from here.
+          </p>
+        }
+        confirmLabel="Archive Template"
+        onConfirm={() =>
+          archiveTarget &&
+          archiveMutation.mutateAsync({ organizationId, templateId: archiveTarget.id }, { onSuccess: () => { refresh(); toast({ title: 'Template archived' }); }, onError: fail('Not archived') })
+        }
+        testId="dialog-archive-template"
+      />
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setFormError(null); }}>
         <DialogContent className="max-w-2xl">

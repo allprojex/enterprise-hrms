@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
@@ -65,6 +66,7 @@ export default function RecruitmentApprovalsConfig() {
   const [resolverType, setResolverType] = useState('department_head');
   const [permissionKey, setPermissionKey] = useState('');
   const [membershipId, setMembershipId] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<{ id: number; name: string; stageOrder: number } | null>(null);
 
   const query = useListRecruitmentApprovalStages(
     organizationId,
@@ -193,19 +195,8 @@ export default function RecruitmentApprovalsConfig() {
                           variant="outline"
                           size="sm"
                           disabled={deleteMutation.isPending}
-                          onClick={() =>
-                            deleteMutation.mutate(
-                              { organizationId, stageId: s.id },
-                              {
-                                onSuccess: () => {
-                                  void query.refetch();
-                                  toast({ title: 'Stage removed', description: 'Decisions already recorded are unaffected.' });
-                                },
-                                onError: (err) =>
-                                  toast({ title: 'Could not remove', description: errorMessage(err, ''), variant: 'destructive' }),
-                              },
-                            )
-                          }
+                          onClick={() => setRemoveTarget({ id: s.id, name: s.name, stageOrder: s.stageOrder })}
+                          data-testid={`button-remove-stage-${s.stageOrder}`}
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
@@ -282,6 +273,36 @@ export default function RecruitmentApprovalsConfig() {
           </p>
         </CardContent>
       </Card>
+
+      <ConfirmActionDialog
+        open={removeTarget !== null}
+        onOpenChange={(o) => { if (!o) setRemoveTarget(null); }}
+        title="Remove approval stage?"
+        description={
+          <p>
+            Stage {removeTarget?.stageOrder}, “{removeTarget?.name}”, will be permanently deleted from the{' '}
+            {purpose === 'hire' ? 'hire authorization' : 'requisition approval'} chain. Decisions already recorded keep their own
+            snapshot and are unaffected.
+          </p>
+        }
+        confirmLabel="Remove Stage"
+        onConfirm={() =>
+          removeTarget
+            ? deleteMutation.mutateAsync(
+                { organizationId, stageId: removeTarget.id },
+                {
+                  onSuccess: () => {
+                    void query.refetch();
+                    toast({ title: 'Stage removed', description: 'Decisions already recorded are unaffected.' });
+                  },
+                  onError: (err) =>
+                    toast({ title: 'Could not remove', description: errorMessage(err, ''), variant: 'destructive' }),
+                },
+              )
+            : undefined
+        }
+        testId="dialog-remove-approval-stage"
+      />
     </div>
   );
 }
