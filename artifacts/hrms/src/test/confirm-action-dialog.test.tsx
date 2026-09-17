@@ -52,6 +52,18 @@ describe('ConfirmActionDialog', () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
+  it('moves focus into the dialog on open (onto Cancel, the safe choice) and returns it to the trigger on close', async () => {
+    const user = userEvent.setup();
+    render(<Harness onConfirm={vi.fn()} />);
+    const trigger = screen.getByRole('button', { name: 'Archive' });
+    await user.click(trigger);
+
+    await waitFor(() => expect(cancelButton()).toHaveFocus());
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(dialog()).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it('Cancel closes the dialog and runs nothing', async () => {
     const user = userEvent.setup();
     const onConfirm = vi.fn();

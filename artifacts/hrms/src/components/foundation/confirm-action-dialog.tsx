@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
   AlertDialog,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -59,6 +60,9 @@ export function ConfirmActionDialog({
 }: ConfirmActionDialogProps) {
   const inFlight = React.useRef(false);
   const [submitting, setSubmitting] = React.useState(false);
+  // Dialogs here are opened from state rather than an AlertDialogTrigger, so
+  // Radix has no trigger to hand focus back to; remember the opener ourselves.
+  const returnFocusTo = React.useRef<HTMLElement | null>(null);
 
   // Callers usually derive the wording from a target they clear on close, so
   // during the exit animation the props already describe "nothing" (e.g. a
@@ -105,7 +109,20 @@ export function ConfirmActionDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent data-testid={view.testId}>
+      <AlertDialogContent
+        data-testid={view.testId}
+        onOpenAutoFocus={() => {
+          returnFocusTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          const opener = returnFocusTo.current;
+          returnFocusTo.current = null;
+          if (opener?.isConnected) {
+            event.preventDefault();
+            opener.focus({ preventScroll: true });
+          }
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>{view.title}</AlertDialogTitle>
           <AlertDialogDescription asChild>
@@ -116,15 +133,14 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
         {view.children}
         <AlertDialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={submitting}
-            onClick={() => handleOpenChange(false)}
-            data-testid={`${view.testId}-cancel`}
-          >
-            {cancelLabel}
-          </Button>
+          {/* Radix AlertDialog moves initial focus to its Cancel part (and
+              traps focus inside the dialog from there); a plain button would
+              leave focus on the page behind the modal. */}
+          <AlertDialogCancel asChild>
+            <Button type="button" variant="outline" disabled={submitting} data-testid={`${view.testId}-cancel`}>
+              {cancelLabel}
+            </Button>
+          </AlertDialogCancel>
           <Button
             type="button"
             variant={view.tone === 'destructive' ? 'destructive' : 'default'}
