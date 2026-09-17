@@ -408,7 +408,7 @@ router.post(
         organizationId,
         employee,
         { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
-        req.userId!,
+        { applicationUserId: req.userId!, membershipId: req.membership!.id, via: "hr_admin" },
       );
 
       const labels = await resolveEmployeeLabels([updated]);
@@ -472,7 +472,11 @@ router.delete(
       return;
     }
 
-    const updated = await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
+    const updated = await clearEmployeeProfilePicture(organizationId, employee, {
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+      via: "hr_admin",
+    });
 
     const labels = await resolveEmployeeLabels([updated]);
     const visibility = await resolveEmployeeVisibility(req);
@@ -918,12 +922,16 @@ router.get(
     // colleague probing ids learns nothing new from this 403 vs the 404.
     const ownEmployeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
     const isOwn = ownEmployeeId !== null && ownEmployeeId === employeeId;
-    if (!isOwn && !(await hasPermission(req.membership!.id, "employee.documents.read"))) {
+    const canReadDocuments = await hasPermission(req.membership!.id, "employee.documents.read");
+    if (!isOwn && !canReadDocuments) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const documents = await listEmployeeDocuments(organizationId, employeeId);
+    // Reaching the list only through "it is my own record" is not the
+    // document permission: confidential/restricted documents stay with holders
+    // of employee.documents.read (see listEmployeeDocuments).
+    const documents = await listEmployeeDocuments(organizationId, employeeId, { includeConfidential: canReadDocuments });
     res.json(documents.map(formatEmployeeDocument));
   },
 );

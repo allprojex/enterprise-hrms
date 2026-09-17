@@ -202,6 +202,12 @@ describe.skipIf(!LIVE_URL)("WS-26A live: templates, submissions, isolation, immu
     expect(managerDetail.viewer.editableSectionKeys).toEqual(["approval"]);
     expect(managerDetail.viewer.availableActions).toEqual(["approve", "return", "reject"]);
 
+    // A return without a reason is refused and changes nothing.
+    await expect(
+      submissions.stageAction({ organizationId: orgId, submissionId: id, action: "return", notes: "   ", viewer: managerViewer, actor: actor(manager) }),
+    ).rejects.toThrow(submissions.FormDecisionReasonRequiredError);
+    expect((await submissions.getSubmission(orgId, id))!.status).toBe("pending_approval");
+
     // Return for correction, resubmit, then approve with the approval section filled.
     const returned = await submissions.stageAction({ organizationId: orgId, submissionId: id, action: "return", notes: "Add the email address", viewer: managerViewer, actor: actor(manager) });
     expect(returned.status).toBe("returned");
@@ -270,6 +276,11 @@ describe.skipIf(!LIVE_URL)("WS-26A live: templates, submissions, isolation, immu
     const managerViewer = await viewer(orgId, manager);
     const created = await submissions.createSubmission({ organizationId: orgId, templateId: leaveTemplateId, subjectEmployeeId: staff.employeeId, actor: actor(staff) });
     await submissions.submit({ organizationId: orgId, submissionId: created.id, answers: { leave_type: "sick_leave", from_date: "2026-11-01", to_date: "2026-11-02", days_requested: 2 }, viewer: staffViewer, actor: actor(staff) });
+    // A rejection without a reason is refused and changes nothing.
+    await expect(
+      submissions.stageAction({ organizationId: orgId, submissionId: created.id, action: "reject", answers: { decision: "rejected", rejection_reason: "Season" }, viewer: managerViewer, actor: actor(manager) }),
+    ).rejects.toThrow(submissions.FormDecisionReasonRequiredError);
+    expect((await submissions.getSubmission(orgId, created.id))!.status).toBe("pending_approval");
     const rejected = await submissions.stageAction({ organizationId: orgId, submissionId: created.id, action: "reject", answers: { decision: "rejected", rejection_reason: "Season" }, notes: "Season", viewer: managerViewer, actor: actor(manager) });
     expect(rejected.status).toBe("rejected");
     const pdf = await render.renderSubmissionDocument({ organizationId: orgId, submissionId: created.id, kind: "rejected" });

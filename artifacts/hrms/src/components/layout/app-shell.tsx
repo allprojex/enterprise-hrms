@@ -181,6 +181,7 @@ function groupSlug(label: string): string {
  */
 const MODULE_BY_HREF: Record<string, string> = {
   '/self-service': 'employee_self_service',
+  '/my-requests': 'employee_self_service',
   '/my-onboarding': 'onboarding',
   '/manager': 'manager_portal',
   '/onboarding': 'onboarding',

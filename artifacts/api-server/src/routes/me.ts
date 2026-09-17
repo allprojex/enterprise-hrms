@@ -308,7 +308,7 @@ router.post(
         organizationId,
         employee,
         { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
-        req.userId!,
+        { applicationUserId: req.userId!, membershipId: req.membership!.id, via: "self_service" },
       );
       const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
       res.json({ linked: profile != null, employee: profile });
@@ -361,7 +361,11 @@ router.delete(
       return;
     }
 
-    await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
+    await clearEmployeeProfilePicture(organizationId, employee, {
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+      via: "self_service",
+    });
     const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
     res.json({ linked: profile != null, employee: profile });
   },

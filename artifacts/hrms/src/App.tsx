@@ -218,15 +218,16 @@ function Router() {
         {() => <SecureRoute component={MyGrievances} />}
       </Route>
       {/*
-        WS-13 — Requests and Approvals. No moduleKey: these are Core HR
-        surfaces, and every endpoint behind them enforces its own permission
-        server-side (section 29.18). "/my-requests" is deliberately ungated
-        beyond authentication, because an employee's right to ask about their
-        own record comes from their employee link, not from a grant somebody
-        could withhold.
+        WS-13 — Requests and Approvals. The HR surfaces carry no moduleKey:
+        they are Core HR, and every endpoint behind them enforces its own
+        permission server-side (section 29.18). "/my-requests" needs no
+        permission — an employee's right to ask about their own record comes
+        from their employee link — but it IS an Employee Self-Service surface,
+        so it follows that module exactly as its my-* API routes now do
+        (Core-HR Phase 1).
       */}
       <Route path="/my-requests">
-        {() => <SecureRoute component={MyRequests} />}
+        {() => <SecureRoute component={MyRequests} moduleKey="employee_self_service" />}
       </Route>
       <Route path="/requests">
         {() => <SecureRoute component={Requests} />}

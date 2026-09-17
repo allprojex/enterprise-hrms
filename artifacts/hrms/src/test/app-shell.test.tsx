@@ -552,6 +552,17 @@ describe('AppShell — Administration group permission gating', () => {
     expect(screen.queryByTestId('button-nav-group-office-inventory')).not.toBeInTheDocument();
   });
 
+  it('hides My Requests with the rest of Employee Self-Service when that module is disabled', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('office_inventory', 'attendance', 'leave'));
+    actAsWwmMember({ roles: ['employee', 'wwm_employee_inventory_self_service'], permissions: KOFI_PERMISSIONS });
+    const user = userEvent.setup();
+    renderShell();
+    const selfServiceGroup = screen.queryByTestId('button-nav-group-self-service');
+    if (selfServiceGroup) await user.click(selfServiceGroup);
+    expect(screen.queryByRole('link', { name: /My Requests/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Employee Self-Service/ })).not.toBeInTheDocument();
+  });
+
   it('an ordinary employee (employee template only) sees no Administration group', () => {
     actAsWwmMember({ roles: ['employee'], permissions: EMPLOYEE_PERMISSIONS });
     renderShell();

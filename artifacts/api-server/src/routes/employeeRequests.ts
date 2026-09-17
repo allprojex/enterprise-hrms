@@ -23,6 +23,7 @@ import {
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requirePermission } from "../middlewares/requirePermission";
+import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import * as dataChange from "../lib/employeeRequests/dataChange";
@@ -52,6 +53,14 @@ import { ELIGIBLE_FIELDS, UnknownEligibleFieldError, FieldNotEligibleForOriginEr
  */
 
 const router = Router();
+
+/**
+ * The employee-facing `my-*` routes are Employee Self-Service surfaces, so they
+ * obey that module exactly as /me/employee and the other self-service routes
+ * already do. HR/administrator request routes are not self-service and stay
+ * ungated by it.
+ */
+const EMPLOYEE_SELF_SERVICE_MODULE = "employee_self_service";
 
 function mapDomainError(err: unknown, res: import("express").Response): boolean {
   if (
@@ -430,6 +439,7 @@ router.get(
   "/organizations/:organizationId/my-data-change-requests",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
     const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
@@ -449,6 +459,7 @@ router.post(
   "/organizations/:organizationId/my-data-change-requests",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = SubmitMyDataChangeRequestBody.safeParse(req.body);
     if (!parsed.success) {
@@ -485,6 +496,7 @@ router.post(
   "/organizations/:organizationId/my-data-change-requests/:requestId/withdraw",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
     const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
@@ -514,6 +526,7 @@ router.get(
   "/organizations/:organizationId/my-data-change-fields",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
     const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
@@ -827,6 +840,7 @@ router.get(
   "/organizations/:organizationId/my-service-request-types",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     // Only active, employee-visible types. A type an organization has hidden
     // from ESS is not merely unlisted here — submitting it is refused too.
@@ -843,6 +857,7 @@ router.get(
   "/organizations/:organizationId/my-service-requests",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const organizationId = req.membership!.organizationId;
     const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
@@ -864,6 +879,7 @@ router.post(
   "/organizations/:organizationId/my-service-requests",
   requireAuth as any,
   requireMembership("organizationId"),
+  requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = SubmitMyServiceRequestBody.safeParse(req.body);
     if (!parsed.success) {
@@ -913,6 +929,7 @@ const myServiceAction = (
     `/organizations/:organizationId/my-service-requests/:requestId/${path}`,
     requireAuth as any,
     requireMembership("organizationId"),
+    requireModuleEnabled(EMPLOYEE_SELF_SERVICE_MODULE),
     async (req: MembershipRequest, res): Promise<void> => {
       const organizationId = req.membership!.organizationId;
       const employeeId = await resolveOwnEmployeeId(organizationId, req.userId!);

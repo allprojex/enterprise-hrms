@@ -65,6 +65,22 @@ export class FormSubmissionStateError extends Error {}
 export class FormStageAuthorityError extends Error {}
 export class FormSubmissionFinalizedError extends Error {}
 export class FormSubjectNotFoundError extends Error {}
+/** Reject and return must carry a reason: the employee is told to read it, and the record must show why. */
+export class FormDecisionReasonRequiredError extends Error {}
+
+/**
+ * Enforced in the service, not only in the UI: a decision that sends a form
+ * back (return) or ends it (reject) must record why. Blank or whitespace-only
+ * notes do not count — the same rule WS-13 data-change reject/return applies.
+ * Complete and approve are unaffected.
+ */
+export function assertDecisionReason(action: StageAction, notes: string | null | undefined): void {
+  if (action !== "reject" && action !== "return") return;
+  if (notes?.trim()) return;
+  throw new FormDecisionReasonRequiredError(
+    action === "reject" ? "A reason is required to reject a form." : "A reason is required to return a form for correction.",
+  );
+}
 
 export interface FormActor {
   userId: number;
@@ -839,6 +855,8 @@ export async function stageAction(params: {
     const isSubject = params.viewer.employeeId != null && params.viewer.employeeId === submission.subjectEmployeeId;
     if (isCreator || isSubject) throw new FormStageAuthorityError("A form cannot be decided by the person who raised it or whom it concerns");
   }
+  // Checked after authority, so an unauthorized caller still gets 403.
+  assertDecisionReason(params.action, params.notes);
   if (params.action === "complete" || params.action === "approve") {
     await assertSubjectSignatureApplied({
       organizationId: params.organizationId,

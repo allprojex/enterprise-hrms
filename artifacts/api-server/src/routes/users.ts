@@ -3,6 +3,15 @@ import { and, eq, notInArray } from "drizzle-orm";
 import { db, usersTable, notificationsTable, employeesTable, assetsTable, officeInventoryItemsTable } from "@workspace/db";
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { recordAuditEvent } from "../lib/auditLog";
+import {
+  AccountIdentityManagedByHrError,
+  AccountProfileValidationError,
+  assertNoHrOwnedChanges,
+  computeAccountProfileChanges,
+  isLinkedToEmployee,
+  type AccountProfilePatch,
+} from "../lib/accountProfile";
 import { resolveActiveOrganizationId, getActiveMembership } from "../lib/membership";
 import { listOrganizationModules, getModuleAccess } from "../lib/organizationModules";
 import { hasPermission } from "../lib/permissions";
@@ -170,6 +179,8 @@ async function resolveEmployeeCounts(
 const router = Router();
 
 // PATCH /users/me
+// Account profile only — see lib/accountProfile.ts for why a login linked to
+// an employee record may not change its name, job title or department here.
 router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const parsed = UpdateMyProfileBody.safeParse(req.body);
   if (!parsed.success) {
@@ -177,18 +188,41 @@ router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, 
     return;
   }
 
-  const updated = await db
-    .update(usersTable)
-    .set(parsed.data)
-    .where(eq(usersTable.id, req.userId!))
-    .returning();
-
-  if (!updated.length) {
-    res.status(404).json({ error: "User not found" });
-    return;
+  const current = req.user!;
+  let changes: AccountProfilePatch;
+  try {
+    changes = computeAccountProfileChanges(current, parsed.data);
+    assertNoHrOwnedChanges(changes, await isLinkedToEmployee(current.id));
+  } catch (err) {
+    if (err instanceof AccountProfileValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof AccountIdentityManagedByHrError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
 
-  const user = updated[0];
+  let user = current;
+  if (Object.keys(changes).length > 0) {
+    const updated = await db.update(usersTable).set(changes).where(eq(usersTable.id, current.id)).returning();
+    if (!updated.length) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    user = updated[0];
+    // Field NAMES only: the account phone is personal data, and the audit
+    // trail needs to show that (and which parts of) an identity changed.
+    await recordAuditEvent({
+      actorApplicationUserId: current.id,
+      eventType: "user.profile_updated",
+      targetType: "user",
+      targetId: String(current.id),
+      metadata: { changedFields: Object.keys(changes).sort() },
+    });
+  }
   const activeOrganizationId = await resolveActiveOrganizationId(
     req.userId!,
     req.session?.activeOrganizationId,

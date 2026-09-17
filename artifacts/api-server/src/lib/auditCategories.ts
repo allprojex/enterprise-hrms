@@ -28,6 +28,9 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   membership: "security",
   primary_hr: "security",
   platform_user: "security",
+  // A login's own account profile (PATCH /users/me). Identity data, so it sits
+  // with the other identity events rather than with HR record changes.
+  user: "security",
   // WS-4 (Break-Glass Access Foundation, Owner Decision #31): every grant
   // lifecycle event (activated/revoked) is security-category by nature —
   // this is the one prefix the pre-existing fail-closed default already
@@ -80,6 +83,15 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   document_template: "documents",
   document_category: "documents",
   generated_document: "documents",
+  // WS-26 official forms. A template/version defines an official document
+  // (it renders to a finalized PDF), the same kind of thing document_template
+  // is; a signature asset is a stored personal signature image. Both belong
+  // with documents. Submission lifecycle events (form.*) are HR content — see
+  // the `form` entry with custom_form_submission below. These prefixes had
+  // been falling through to the fail-closed "security" default; events already
+  // written keep the category they were stored with.
+  form_template: "documents",
+  signature_asset: "documents",
 
   // --- assets / inventory ---
   asset: "assets_inventory",
@@ -148,6 +160,9 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // Reading/correcting an actual stored value is HR content, not configuration.
   custom_field_value: "hr",
   custom_form_submission: "hr",
+  // WS-26 form submissions: raised, submitted, approved/returned/rejected,
+  // signed, finalized, downloaded — HR content, like custom_form_submission.
+  form: "hr",
   numbering_config: "platform_configuration",
   branch: "platform_configuration",
   department: "platform_configuration",
