@@ -276,6 +276,10 @@
   --control-height-sm: 2rem;
   --control-height: 2.25rem;
   --control-height-lg: 2.5rem;
+  /* Smallest interactive area a 16px control (checkbox, radio, switch) must
+     offer. Applied by the `touch-target` utility, which grows the hit area
+     only — never the painted control. */
+  --touch-target-min: 2rem;
   --content-max-width: 1440px;
   --content-narrow-width: 720px;
   --content-form-width: 960px;
@@ -536,12 +540,39 @@
   color: hsl(var(--foreground-muted));
 }
 @utility text-overline {
-  font-size: 0.6875rem;    /* 11 — uppercase labels only, never running text */
+  font-size: 0.75rem;      /* 12 — uppercase labels only, never running text.
+                              Raised from 11 in UI-01A: no utility now sits
+                              below the 12px readability floor. */
   line-height: 1rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: hsl(var(--foreground-muted));
+}
+
+/* ------------------------------------------------------------------------ */
+/* INTERACTION PRIMITIVES                                                    */
+/* ------------------------------------------------------------------------ */
+/*
+ * Grows a small control's interactive area to --touch-target-min without
+ * changing what is painted: the ::before box is hit-tested as part of the
+ * control itself, so the checkbox still looks 16px but answers to a 32px
+ * press. Kept below the 44px TOUCH_TARGET ideal on purpose — the surrounding
+ * layouts use 16px gaps, and closing that gap is row-spacing work owned by
+ * UI-01B/UI-02, not this accessibility pass.
+ */
+@utility touch-target {
+  position: relative;
+  touch-action: manipulation;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, var(--touch-target-min));
+    height: max(100%, var(--touch-target-min));
+    transform: translate(-50%, -50%);
+  }
 }
 
 /* ------------------------------------------------------------------------ */

@@ -27,6 +27,15 @@ export const CONTROL_HEIGHT = { sm: 32, md: 36, lg: 40 } as const;
 /** Minimum touch target below the `lg` breakpoint (px). */
 export const TOUCH_TARGET = 44;
 
+/**
+ * Interactive area the 16px controls (checkbox, radio, switch) expand to via
+ * the `touch-target` utility, without changing what is painted. Deliberately
+ * below TOUCH_TARGET: those controls sit in layouts that stack them with 16px
+ * gaps, so a 44px area would overlap its neighbour. Closing that gap is
+ * row-spacing work owned by UI-01B/UI-02.
+ */
+export const TOUCH_TARGET_MIN = 32;
+
 /** Content widths (px). */
 export const CONTENT_WIDTH = { max: 1440, narrow: 720, form: 960 } as const;
 
