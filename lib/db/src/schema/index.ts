@@ -177,3 +177,6 @@ export * from "./signature-engine";
 
 // WS-26C — generic submission-to-domain linkage.
 export * from "./form-submission-links";
+
+// VR-01 — Vehicle Foundation: the organizational vehicle register.
+export * from "./vehicles";

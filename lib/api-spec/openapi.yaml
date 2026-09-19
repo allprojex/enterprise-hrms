@@ -36,6 +36,8 @@ tags:
     description: Organization membership management
   - name: primary-hr
     description: Primary HR assignment operations
+  - name: vehicles
+    description: VR-01 organizational vehicle register
   - name: audit-events
     description: Audit log operations
   - name: invitations
@@ -4465,6 +4467,163 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Records location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vehicles:
+    get:
+      operationId: listVehicles
+      tags: [vehicles]
+      summary: List the organization's vehicles (VR-01)
+      description: >-
+        Requires the vehicle_management module and vehicle.read. Optional status
+        and search filters; search matches registration number, make or model.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [available, in_use, maintenance, inactive]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The organization's vehicles, ordered by registration number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+    post:
+      operationId: createVehicle
+      tags: [vehicles]
+      summary: Register a vehicle (VR-01)
+      description: >-
+        Requires the vehicle_management module and vehicle.manage. The
+        registration number is normalized (trimmed, single-spaced, upper-cased)
+        and must be unique within the organization. A new vehicle always starts
+        available.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleInput"
+      responses:
+        "201":
+          description: The newly registered vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Invalid field, or a branch or employee from another organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: That registration number is already registered in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vehicles/{vehicleId}:
+    get:
+      operationId: getVehicle
+      tags: [vehicles]
+      summary: Get one vehicle (VR-01)
+      description: Requires the vehicle_management module and vehicle.read. Another organization's vehicle is not found.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateVehicle
+      tags: [vehicles]
+      summary: Update a vehicle's register details or status (VR-01)
+      description: >-
+        Requires the vehicle_management module and vehicle.manage. Status may be
+        set to available, maintenance or inactive only — in_use belongs to the
+        VR-02 release/return flow, and a vehicle that is currently out must have
+        its return recorded before its status changes here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleInput"
+      responses:
+        "200":
+          description: The updated vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Invalid field, disallowed status, or a branch or employee from another organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: That registration number is already registered in this organization
           content:
             application/json:
               schema:
@@ -38332,6 +38491,99 @@ components:
           type: ["string", "null"]
         pifNumber:
           type: ["string", "null"]
+
+    Vehicle:
+      type: object
+      description: >-
+        VR-01 — one organizational vehicle, identified by the registration
+        ("car") number the organization already uses. Its own register, not an
+        asset-custody record: asset custody is open-ended possession, while a
+        vehicle is booked for a period by the VR-02 flow.
+      required: [id, organizationId, registrationNumber, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        registrationNumber:
+          type: string
+          description: Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.
+        make:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+          description: Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.
+        branchId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [available, in_use, maintenance, inactive]
+          description: in_use is set only by the VR-02 release/return flow, never through the register.
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateVehicleInput:
+      type: object
+      required: [registrationNumber]
+      properties:
+        registrationNumber:
+          type: string
+          minLength: 1
+          maxLength: 32
+        make:
+          type: ["string", "null"]
+          maxLength: 120
+        model:
+          type: ["string", "null"]
+          maxLength: 120
+        description:
+          type: ["string", "null"]
+          maxLength: 500
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+
+    UpdateVehicleInput:
+      type: object
+      description: Every field is optional; only the fields supplied are changed.
+      properties:
+        registrationNumber:
+          type: string
+          minLength: 1
+          maxLength: 32
+        make:
+          type: ["string", "null"]
+          maxLength: 120
+        model:
+          type: ["string", "null"]
+          maxLength: 120
+        description:
+          type: ["string", "null"]
+          maxLength: 500
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+        status:
+          type: string
+          enum: [available, maintenance, inactive]
 
     RecordsLocation:
       type: object

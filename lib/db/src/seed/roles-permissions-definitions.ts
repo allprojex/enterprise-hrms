@@ -479,6 +479,24 @@ export const PERMISSIONS = [
   { key: "office_inventory.stocktake", resource: "office_inventory", action: "stocktake" },
   { key: "office_inventory.asset_handoff", resource: "office_inventory", action: "asset_handoff" },
   { key: "office_inventory.reports.read", resource: "office_inventory", action: "reports.read" },
+  // VR-01 — Vehicle Foundation. Exactly two keys, and deliberately NOT a reuse
+  // of `asset_management.manage`: that would force an organization to enable
+  // the Assets module to manage vehicles, and would hand vehicle
+  // administration to every asset administrator. Transport administration is
+  // its own authority.
+  //
+  // `read` is the register (who may see the organization's vehicles);
+  // `manage` is register administration (add, amend, take out of service).
+  // The request/approve/release/return keys belong to VR-02 and are
+  // deliberately NOT registered here — an unused permission key is a
+  // permission someone can be granted before the behaviour behind it exists.
+  //
+  // Following the Office Inventory precedent, neither key is added to any
+  // existing ROLE_PERMISSIONS array: super_admin receives them through the
+  // blanket map, and every other organization grants them deliberately
+  // through its own role copies.
+  { key: "vehicle.read", resource: "vehicle", action: "read" },
+  { key: "vehicle.manage", resource: "vehicle", action: "manage" },
   // WS-5 — Documents & Records Foundation (Owner Decision #4). Deliberately
   // seven keys, not one per document category (§32 explicitly forbids
   // category-specific keys). The split follows the authority boundaries the

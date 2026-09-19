@@ -15,6 +15,7 @@ import employeesRouter from "./employees";
 import employeeNumberingRouter from "./employeeNumbering";
 import personnelFilesRouter from "./personnelFiles";
 import recordsLocationsRouter from "./recordsLocations";
+import vehiclesRouter from "./vehicles";
 import personnelFileCustodyRouter from "./personnelFileCustody";
 import personnelReportingRouter from "./personnelReporting";
 import legacyImportRouter from "./legacyImport";
@@ -158,6 +159,11 @@ router.use(employeesRouter);
 router.use(employeeNumberingRouter);
 router.use(personnelFilesRouter);
 router.use(recordsLocationsRouter);
+// VR-01 — vehicle register. No literal sub-path exists under /vehicles yet, so
+// there is nothing for /vehicles/:vehicleId to swallow; when VR-02 adds one
+// (e.g. /vehicles/availability) it must be registered before this router, the
+// same ordering rule assetReporting/assets already follow below.
+router.use(vehiclesRouter);
 router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);

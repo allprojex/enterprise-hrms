@@ -47,6 +47,7 @@ import {
   Sparkles,
   Target,
   Boxes,
+  Car,
   Warehouse,
   Compass,
   Upload,
@@ -208,6 +209,7 @@ const MODULE_BY_HREF: Record<string, string> = {
   '/learning-reports': 'learning',
   '/assets-dashboard': 'asset_management',
   '/assets': 'asset_management',
+  '/vehicles': 'vehicle_management',
   '/team-assets': 'asset_management',
   '/asset-workspace': 'asset_management',
   '/asset-reports': 'asset_management',
@@ -772,6 +774,16 @@ export function AppShell({ children }: AppShellProps) {
         ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
+      ],
+    },
+    {
+      label: 'Vehicles',
+      items: [
+        // VR-01 — gated on the permission itself rather than a role name, the
+        // use-capabilities precedent: `vehicle.read` is what the API checks,
+        // and the module filter below hides the group entirely for an
+        // organization that has not enabled vehicle_management.
+        ...(caps.can('vehicle.read') ? [{ href: '/vehicles', label: 'Vehicle Register', icon: Car } satisfies NavItem] : []),
       ],
     },
     {

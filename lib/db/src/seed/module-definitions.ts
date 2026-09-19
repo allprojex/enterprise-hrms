@@ -214,6 +214,25 @@ export const MODULE_DEFINITIONS: readonly ModuleDefinition[] = [
     requiredModuleKeys: [],
     optionalModuleKeys: [],
   },
+  {
+    key: "vehicle_management",
+    name: "Vehicle Management",
+    description: "Organizational vehicle register, and the request, approval and movement record for releasing a vehicle.",
+    category: "hr-operations",
+    version: "1.0.0",
+    // VR-01 ships "hidden", the same posture Office Inventory took at its own
+    // Workstream 1: only the register exists so far, and the request →
+    // approval → release → return flow that makes it useful to an
+    // organization is VR-02. It graduates to "active" when that lands.
+    // defaultEnabled stays false — no organization inherits it; enabling it
+    // is each organization's own organization_modules decision. No dependency
+    // on Assets or Office Inventory: a vehicle is its own register, not asset
+    // custody and not a quantity ledger.
+    status: "hidden",
+    defaultEnabled: false,
+    requiredModuleKeys: [],
+    optionalModuleKeys: [],
+  },
 ] as const;
 
 /**
