@@ -164,9 +164,11 @@ describe('design tokens: shape, depth, layout, motion', () => {
     expect(light.get('--radius-sm-value')).toBe('4px');
     expect(light.get('--radius-lg-value')).toBe('8px');
     expect(light.get('--radius-xl-value')).toBe('12px');
-    expect(light.get('--control-height-sm')).toBe(`${CONTROL_HEIGHT.sm / 16}rem`);
-    expect(light.get('--control-height')).toBe(`${CONTROL_HEIGHT.md / 16}rem`);
-    expect(light.get('--control-height-lg')).toBe(`${CONTROL_HEIGHT.lg / 16}rem`);
+    // :root carries the TOUCH tier; the desktop tier lives in the 1024 block
+    // and is asserted by the responsive suite below.
+    expect(light.get('--control-height-sm')).toBe(`${CONTROL_HEIGHT.touch.sm / 16}rem`);
+    expect(light.get('--control-height')).toBe(`${CONTROL_HEIGHT.touch.md / 16}rem`);
+    expect(light.get('--control-height-lg')).toBe(`${CONTROL_HEIGHT.touch.lg / 16}rem`);
     expect(light.get('--sidebar-width')).toBe(`${SHELL.sidebar}px`);
     expect(light.get('--sidebar-width-rail')).toBe(`${SHELL.sidebarRail}px`);
     expect(light.get('--header-height')).toBe(`${SHELL.header}px`);
@@ -217,15 +219,22 @@ describe('design tokens: shape, depth, layout, motion', () => {
     expect(inCss).toEqual([...TYPE_SCALE_UTILITIES].sort());
   });
 
-  it('never sets any type-scale utility below 12px', () => {
-    const sizes = [...css.matchAll(/@utility text-[a-z-]+ \{[^}]*font-size:\s*([\d.]+)rem/g)].map((m) => Number(m[1]) * 16);
-    expect(sizes.length).toBeGreaterThan(10);
-    // UI-01A raised text-overline 11 → 12; the floor now has no exception.
-    expect(sizes.filter((px) => px < 12)).toEqual([]);
-  });
-
-  it('keeps text-overline on the 12px floor (UI-01A)', () => {
-    expect(css).toMatch(/@utility text-overline \{\s*font-size:\s*0\.75rem/);
+  it('drives every type-scale utility from the responsive custom properties, never a literal (UI-01B)', () => {
+    // This is the guard that stops UI-01C's page migration silently pinning a
+    // utility back to a fixed size: if a literal reappears here, the whole
+    // responsive scale stops moving for that token and this fails.
+    for (const u of TYPE_SCALE_UTILITIES) {
+      const block = css.match(new RegExp(`@utility ${u} \\{[^}]*\\}`))?.[0] ?? '';
+      expect(block, `${u} block missing`).toBeTruthy();
+      const name = u.replace(/^text-/, '');
+      expect(block, `${u} must read var(--type-${name})`).toMatch(
+        new RegExp(`font-size:\\s*var\\(--type-${name}\\)`),
+      );
+      expect(block, `${u} must read var(--type-${name}-lh)`).toMatch(
+        new RegExp(`line-height:\\s*var\\(--type-${name}-lh\\)`),
+      );
+      expect(block, `${u} must not hard-code a font-size`).not.toMatch(/font-size:\s*[\d.]+r?e?m/);
+    }
   });
 });
 
