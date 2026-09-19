@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, parseHslTriple, AA_TEXT_CONTRAST, AA_LARGE_CONTRAST, type Hsl } from '@/lib/color';
-import { REQUIRED_COLOR_TOKENS, TENANT_BRAND_TOKENS, TENANT_DERIVED_TOKENS, PLATFORM_OWNED_TOKENS, TYPE_SCALE_UTILITIES, Z_INDEX, DURATION, SHELL, CONTROL_HEIGHT, CONTENT_WIDTH } from '@/lib/design-tokens';
+import { REQUIRED_COLOR_TOKENS, TENANT_BRAND_TOKENS, TENANT_DERIVED_TOKENS, PLATFORM_OWNED_TOKENS, TYPE_SCALE_UTILITIES, Z_INDEX, DURATION, SHELL, CONTROL_HEIGHT, CONTENT_WIDTH, TOUCH_TARGET_MIN } from '@/lib/design-tokens';
 
 const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
 const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8');
@@ -174,6 +174,26 @@ describe('design tokens: shape, depth, layout, motion', () => {
     expect(light.get('--content-narrow-width')).toBe(`${CONTENT_WIDTH.narrow}px`);
     expect(light.get('--content-form-width')).toBe(`${CONTENT_WIDTH.form}px`);
     expect(light.get('--touch-target')).toBe('44px');
+    expect(light.get('--touch-target-min')).toBe(`${TOUCH_TARGET_MIN / 16}rem`);
+  });
+
+  it('lets the user pinch-zoom: the viewport pins no maximum scale (WCAG 1.4.4)', () => {
+    const viewport = html.match(/<meta name="viewport" content="([^"]+)"/)?.[1] ?? '';
+    expect(viewport).toContain('width=device-width');
+    expect(viewport).not.toMatch(/maximum-scale/);
+    expect(viewport).not.toMatch(/user-scalable\s*=\s*(no|0)/);
+    expect(viewport).not.toMatch(/minimum-scale/);
+  });
+
+  it('expands small controls to the minimum interactive area without repainting them (UI-01A)', () => {
+    const utility = css.match(/@utility touch-target \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(utility).toBeTruthy();
+    expect(utility).toMatch(/position:\s*relative/);
+    expect(utility).toMatch(/touch-action:\s*manipulation/);
+    // The hit area is a pseudo-element, so the painted control keeps its size.
+    expect(utility).toMatch(/&::before/);
+    expect(utility).toMatch(/width:\s*max\(100%,\s*var\(--touch-target-min\)\)/);
+    expect(utility).toMatch(/height:\s*max\(100%,\s*var\(--touch-target-min\)\)/);
   });
 
   it('pins z-index layers and motion durations to the TypeScript constants', () => {
@@ -197,11 +217,15 @@ describe('design tokens: shape, depth, layout, motion', () => {
     expect(inCss).toEqual([...TYPE_SCALE_UTILITIES].sort());
   });
 
-  it('never sets running text below 12px', () => {
+  it('never sets any type-scale utility below 12px', () => {
     const sizes = [...css.matchAll(/@utility text-[a-z-]+ \{[^}]*font-size:\s*([\d.]+)rem/g)].map((m) => Number(m[1]) * 16);
     expect(sizes.length).toBeGreaterThan(10);
-    // text-overline (11px) is uppercase label-only and is the single exception
-    expect(sizes.filter((px) => px < 12)).toEqual([11]);
+    // UI-01A raised text-overline 11 → 12; the floor now has no exception.
+    expect(sizes.filter((px) => px < 12)).toEqual([]);
+  });
+
+  it('keeps text-overline on the 12px floor (UI-01A)', () => {
+    expect(css).toMatch(/@utility text-overline \{\s*font-size:\s*0\.75rem/);
   });
 });
 
