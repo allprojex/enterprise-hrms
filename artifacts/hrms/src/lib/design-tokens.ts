@@ -21,8 +21,54 @@ export const BREAKPOINTS = {
 /** Widths every base component is expected to work at. */
 export const AUDIT_WIDTHS = [320, 360, 375, 390, 414, 430, 768, 820, 1024, 1180, 1280, 1440] as const;
 
-/** Control heights (px). Inputs, selects and buttons share these. */
-export const CONTROL_HEIGHT = { sm: 32, md: 36, lg: 40 } as const;
+/**
+ * The three typography tiers (UI-01B). `tablet` is a deliberate middle step,
+ * not an inheritance of either neighbour, and it is the tier 768px portrait
+ * resolves to. `desktop` starts at 1024 — the same width the shell switches
+ * from drawer to sidebar — so density and layout change together.
+ */
+export const TYPE_TIERS = { phone: 0, tablet: 640, desktop: 1024 } as const;
+export type TypeTier = keyof typeof TYPE_TIERS;
+
+/**
+ * Responsive semantic type scale (px). Every entry is [fontSize, lineHeight]
+ * and maps 1:1 onto the `--type-<name>` / `--type-<name>-lh` custom properties
+ * in index.css, which the `text-*` utilities read. The desktop column is
+ * byte-identical to the pre-UI-01B fixed scale.
+ *
+ * Nothing here may drop below TYPE_MIN_PX at any tier (UI-01A's floor).
+ */
+export const TYPE_SCALE = {
+  display: { phone: [24, 30], tablet: [26, 32], desktop: [28, 34] },
+  title: { phone: [20, 26], tablet: [21, 27], desktop: [22, 28] },
+  heading: { phone: [18, 24], tablet: [18, 24], desktop: [18, 24] },
+  section: { phone: [17, 24], tablet: [17, 24], desktop: [17, 24] },
+  'card-title': { phone: [16, 22], tablet: [16, 22], desktop: [15, 22] },
+  body: { phone: [16, 24], tablet: [15, 22], desktop: [14, 20] },
+  'body-sm': { phone: [15, 22], tablet: [14, 20], desktop: [13, 18] },
+  label: { phone: [15, 20], tablet: [14, 19], desktop: [13, 18] },
+  helper: { phone: [14, 20], tablet: [13, 18], desktop: [12, 16] },
+  meta: { phone: [13, 18], tablet: [12, 16], desktop: [12, 16] },
+  kpi: { phone: [24, 28], tablet: [26, 30], desktop: [28, 32] },
+  'kpi-sm': { phone: [18, 22], tablet: [19, 23], desktop: [20, 24] },
+  button: { phone: [15, 20], tablet: [14, 20], desktop: [14, 20] },
+  table: { phone: [14, 20], tablet: [13, 20], desktop: [13, 20] },
+  'table-head': { phone: [12, 16], tablet: [12, 16], desktop: [12, 16] },
+  overline: { phone: [12, 16], tablet: [12, 16], desktop: [12, 16] },
+} as const satisfies Record<string, Record<TypeTier, readonly [number, number]>>;
+
+/** Readability floor established by UI-01A; holds at every tier. */
+export const TYPE_MIN_PX = 12;
+
+/**
+ * Control heights (px) for inputs, selects and buttons. Two tiers, not three:
+ * below 1024 the control is pressed with a finger, so the default reaches the
+ * 44px TOUCH_TARGET standard; at 1024+ the original enterprise density returns.
+ */
+export const CONTROL_HEIGHT = {
+  touch: { sm: 40, md: 44, lg: 48 },
+  desktop: { sm: 32, md: 36, lg: 40 },
+} as const;
 
 /** Minimum touch target below the `lg` breakpoint (px). */
 export const TOUCH_TARGET = 44;
@@ -31,8 +77,12 @@ export const TOUCH_TARGET = 44;
  * Interactive area the 16px controls (checkbox, radio, switch) expand to via
  * the `touch-target` utility, without changing what is painted. Deliberately
  * below TOUCH_TARGET: those controls sit in layouts that stack them with 16px
- * gaps, so a 44px area would overlap its neighbour. Closing that gap is
- * row-spacing work owned by UI-01B/UI-02.
+ * gaps, so a 44px area would overlap its neighbour.
+ *
+ * UI-01B raised the *control* heights (button/input/select) to 44 on touch
+ * tiers but left this at 32: closing the remaining 12px needs row-spacing
+ * changes in the surrounding layouts, which is UI-02's scope, not a typography
+ * change. Recorded rather than silently widened.
  */
 export const TOUCH_TARGET_MIN = 32;
 
