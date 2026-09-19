@@ -273,9 +273,13 @@
   --sidebar-width: 264px;
   --sidebar-width-rail: 56px;
   --header-height: 56px;
-  --control-height-sm: 2rem;
-  --control-height: 2.25rem;
-  --control-height-lg: 2.5rem;
+  /* Touch tier (< 1024px). Buttons, inputs and selects are pressed with a
+     finger on phones and tablets, so the default control reaches the 44px
+     touch standard here. The desktop tier below restores the original
+     32/36/40 enterprise density. See the @media (min-width: 1024px) block. */
+  --control-height-sm: 2.5rem;   /* 40 */
+  --control-height: 2.75rem;     /* 44 */
+  --control-height-lg: 3rem;     /* 48 */
   /* Smallest interactive area a 16px control (checkbox, radio, switch) must
      offer. Applied by the `touch-target` utility, which grows the hit area
      only — never the painted control. */
@@ -452,98 +456,182 @@
 }
 
 /* ------------------------------------------------------------------------ */
+/* RESPONSIVE TYPE SCALE (UI-01B)                                            */
+/* ------------------------------------------------------------------------ */
+/*
+ * Every semantic type utility below reads its size and line-height from these
+ * custom properties, so the whole scale moves per breakpoint WITHOUT touching
+ * a single call site. That is the point: the ~1,114 raw `text-*` usages are
+ * untouched, and every `text-body` / `text-label` / ... consumer inherits the
+ * responsive behaviour for free.
+ *
+ * Three deliberate tiers — none of them accidental inheritance:
+ *   phone   (base, < 640px)  a 390px column read at arm's length
+ *   tablet  (>= 640px)       an intentional middle step, NOT a copy of either
+ *                            neighbour; this is the tier 768px portrait gets
+ *   desktop (>= 1024px)      the original enterprise density, unchanged
+ *
+ * Desktop values are byte-identical to the pre-UI-01B scale, so the primary
+ * platform sees no regression. UI-01A's 12px floor holds at every tier.
+ *
+ * Named `--type-*`, not `--text-*`: Tailwind v4 owns `--text-sm`/`--text-base`
+ * in its theme and colliding would silently rewrite the raw Tailwind scale.
+ */
+:root {
+  /* phone — base tier */
+  --type-display: 1.5rem;       --type-display-lh: 1.875rem;    /* 24 / 30 */
+  --type-title: 1.25rem;        --type-title-lh: 1.625rem;      /* 20 / 26 */
+  --type-heading: 1.125rem;     --type-heading-lh: 1.5rem;      /* 18 / 24 */
+  --type-section: 1.0625rem;    --type-section-lh: 1.5rem;      /* 17 / 24 */
+  --type-card-title: 1rem;      --type-card-title-lh: 1.375rem; /* 16 / 22 */
+  --type-body: 1rem;            --type-body-lh: 1.5rem;         /* 16 / 24 */
+  --type-body-sm: 0.9375rem;    --type-body-sm-lh: 1.375rem;    /* 15 / 22 */
+  --type-label: 0.9375rem;      --type-label-lh: 1.25rem;       /* 15 / 20 */
+  --type-helper: 0.875rem;      --type-helper-lh: 1.25rem;      /* 14 / 20 */
+  --type-meta: 0.8125rem;       --type-meta-lh: 1.125rem;       /* 13 / 18 */
+  --type-kpi: 1.5rem;           --type-kpi-lh: 1.75rem;         /* 24 / 28 */
+  --type-kpi-sm: 1.125rem;      --type-kpi-sm-lh: 1.375rem;     /* 18 / 22 */
+  --type-button: 0.9375rem;     --type-button-lh: 1.25rem;      /* 15 / 20 */
+  --type-table: 0.875rem;       --type-table-lh: 1.25rem;       /* 14 / 20 */
+  --type-table-head: 0.75rem;   --type-table-head-lh: 1rem;     /* 12 / 16 */
+  --type-overline: 0.75rem;     --type-overline-lh: 1rem;       /* 12 / 16 */
+}
+
+@media (min-width: 640px) {
+  :root {
+    /* tablet — intentional middle step */
+    --type-display: 1.625rem;     --type-display-lh: 2rem;        /* 26 / 32 */
+    --type-title: 1.3125rem;      --type-title-lh: 1.6875rem;     /* 21 / 27 */
+    --type-body: 0.9375rem;       --type-body-lh: 1.375rem;       /* 15 / 22 */
+    --type-body-sm: 0.875rem;     --type-body-sm-lh: 1.25rem;     /* 14 / 20 */
+    --type-label: 0.875rem;       --type-label-lh: 1.1875rem;     /* 14 / 19 */
+    --type-helper: 0.8125rem;     --type-helper-lh: 1.125rem;     /* 13 / 18 */
+    --type-meta: 0.75rem;         --type-meta-lh: 1rem;           /* 12 / 16 */
+    --type-kpi: 1.625rem;         --type-kpi-lh: 1.875rem;        /* 26 / 30 */
+    --type-kpi-sm: 1.1875rem;     --type-kpi-sm-lh: 1.4375rem;    /* 19 / 23 */
+    --type-button: 0.875rem;      --type-button-lh: 1.25rem;      /* 14 / 20 */
+    --type-table: 0.8125rem;      --type-table-lh: 1.25rem;       /* 13 / 20 */
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    /* desktop — unchanged from the pre-UI-01B scale */
+    --type-display: 1.75rem;      --type-display-lh: 2.125rem;    /* 28 / 34 */
+    --type-title: 1.375rem;       --type-title-lh: 1.75rem;       /* 22 / 28 */
+    --type-card-title: 0.9375rem; --type-card-title-lh: 1.375rem; /* 15 / 22 */
+    --type-body: 0.875rem;        --type-body-lh: 1.25rem;        /* 14 / 20 */
+    --type-body-sm: 0.8125rem;    --type-body-sm-lh: 1.125rem;    /* 13 / 18 */
+    --type-label: 0.8125rem;      --type-label-lh: 1.125rem;      /* 13 / 18 */
+    --type-helper: 0.75rem;       --type-helper-lh: 1rem;         /* 12 / 16 */
+    --type-kpi: 1.75rem;          --type-kpi-lh: 2rem;            /* 28 / 32 */
+    --type-kpi-sm: 1.25rem;       --type-kpi-sm-lh: 1.5rem;       /* 20 / 24 */
+
+    /* Desktop restores the original enterprise control density. The touch
+       tier's 40/44/48 applies below this breakpoint — the same place the
+       shell switches from drawer to sidebar, so density and layout change
+       together rather than at two unrelated widths. */
+    --control-height-sm: 2rem;    /* 32 */
+    --control-height: 2.25rem;    /* 36 */
+    --control-height-lg: 2.5rem;  /* 40 */
+  }
+}
+
+/* ------------------------------------------------------------------------ */
 /* TYPE SCALE — enterprise hierarchy; nothing below 12px.                    */
 /* ------------------------------------------------------------------------ */
 @utility text-display {
-  font-size: 1.75rem;      /* 28 */
-  line-height: 2.125rem;   /* 34 */
+  font-size: var(--type-display);
+  line-height: var(--type-display-lh);
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 @utility text-title {
-  font-size: 1.375rem;     /* 22 */
-  line-height: 1.75rem;    /* 28 */
+  font-size: var(--type-title);
+  line-height: var(--type-title-lh);
   font-weight: 600;
   letter-spacing: -0.015em;
 }
 @utility text-heading {
-  font-size: 1.125rem;     /* 18 */
-  line-height: 1.5rem;     /* 24 */
+  font-size: var(--type-heading);
+  line-height: var(--type-heading-lh);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 @utility text-section {
-  font-size: 1.0625rem;    /* 17 */
-  line-height: 1.5rem;     /* 24 */
+  font-size: var(--type-section);
+  line-height: var(--type-section-lh);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 @utility text-card-title {
-  font-size: 0.9375rem;    /* 15 */
-  line-height: 1.375rem;   /* 22 */
+  font-size: var(--type-card-title);
+  line-height: var(--type-card-title-lh);
   font-weight: 600;
 }
 @utility text-body {
-  font-size: 0.875rem;     /* 14 */
-  line-height: 1.25rem;    /* 20 */
+  font-size: var(--type-body);
+  line-height: var(--type-body-lh);
   font-weight: 400;
 }
 @utility text-body-sm {
-  font-size: 0.8125rem;    /* 13 */
-  line-height: 1.125rem;   /* 18 */
+  font-size: var(--type-body-sm);
+  line-height: var(--type-body-sm-lh);
   font-weight: 400;
 }
 @utility text-label {
-  font-size: 0.8125rem;    /* 13 */
-  line-height: 1.125rem;   /* 18 */
+  font-size: var(--type-label);
+  line-height: var(--type-label-lh);
   font-weight: 500;
 }
 @utility text-helper {
-  font-size: 0.75rem;      /* 12 */
-  line-height: 1rem;       /* 16 */
+  font-size: var(--type-helper);
+  line-height: var(--type-helper-lh);
   font-weight: 400;
 }
 @utility text-meta {
-  font-size: 0.75rem;      /* 12 */
-  line-height: 1rem;       /* 16 */
+  font-size: var(--type-meta);
+  line-height: var(--type-meta-lh);
   font-weight: 400;
   color: hsl(var(--foreground-subtle));
 }
 @utility text-kpi {
-  font-size: 1.75rem;      /* 28 */
-  line-height: 2rem;       /* 32 */
+  font-size: var(--type-kpi);
+  line-height: var(--type-kpi-lh);
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 @utility text-kpi-sm {
-  font-size: 1.25rem;      /* 20 */
-  line-height: 1.5rem;     /* 24 */
+  font-size: var(--type-kpi-sm);
+  line-height: var(--type-kpi-sm-lh);
   font-weight: 600;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 @utility text-button {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: var(--type-button);
+  line-height: var(--type-button-lh);
   font-weight: 500;
 }
 @utility text-table {
-  font-size: 0.8125rem;    /* 13 */
-  line-height: 1.25rem;    /* 20 */
+  font-size: var(--type-table);
+  line-height: var(--type-table-lh);
 }
 @utility text-table-head {
-  font-size: 0.75rem;      /* 12 */
-  line-height: 1rem;
+  font-size: var(--type-table-head);
+  line-height: var(--type-table-head-lh);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: hsl(var(--foreground-muted));
 }
 @utility text-overline {
-  font-size: 0.75rem;      /* 12 — uppercase labels only, never running text.
-                              Raised from 11 in UI-01A: no utility now sits
-                              below the 12px readability floor. */
-  line-height: 1rem;
+  /* 12 at every tier — uppercase labels only, never running text. Raised from
+     11 in UI-01A; UI-01B keeps it pinned at the 12px readability floor rather
+     than growing it, because uppercase + letter-spacing already reads larger
+     than its nominal size. */
+  font-size: var(--type-overline);
+  line-height: var(--type-overline-lh);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
