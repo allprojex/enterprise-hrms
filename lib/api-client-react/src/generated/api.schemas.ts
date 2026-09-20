@@ -6506,20 +6506,19 @@ export interface PersonnelSearchResult {
 }
 
 /**
- * in_use is set only by the VR-02 release/return flow, never through the register.
+ * The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.
  */
 export type VehicleStatus = typeof VehicleStatus[keyof typeof VehicleStatus];
 
 
 export const VehicleStatus = {
   available: 'available',
-  in_use: 'in_use',
   maintenance: 'maintenance',
   inactive: 'inactive',
 } as const;
 
 /**
- * VR-01 — one organizational vehicle, identified by the registration ("car") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow.
+ * VR-01 — one organizational vehicle, identified by the registration ("car") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.
  */
 export interface Vehicle {
   id: number;
@@ -6539,7 +6538,12 @@ export interface Vehicle {
   defaultDriverEmployeeId?: number | null;
   /** @nullable */
   branchId?: number | null;
-  /** in_use is set only by the VR-02 release/return flow, never through the register. */
+  /**
+     * Optional link to the same organization's capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.
+     * @nullable
+     */
+  assetId?: number | null;
+  /** The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here. */
   status: VehicleStatus;
   /** @nullable */
   notes?: string | null;
@@ -6572,6 +6576,8 @@ export interface CreateVehicleInput {
   defaultDriverEmployeeId?: number | null;
   /** @nullable */
   branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
   /**
      * @maxLength 500
      * @nullable
@@ -6616,6 +6622,8 @@ export interface UpdateVehicleInput {
   defaultDriverEmployeeId?: number | null;
   /** @nullable */
   branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
   /**
      * @maxLength 500
      * @nullable
@@ -14163,7 +14171,6 @@ export type ListVehiclesStatus = typeof ListVehiclesStatus[keyof typeof ListVehi
 
 export const ListVehiclesStatus = {
   available: 'available',
-  in_use: 'in_use',
   maintenance: 'maintenance',
   inactive: 'inactive',
 } as const;

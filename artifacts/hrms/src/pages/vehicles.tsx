@@ -15,6 +15,8 @@ import {
   getListVehiclesQueryKey,
   useCreateVehicle,
   useUpdateVehicle,
+  useListAssets,
+  getListAssetsQueryKey,
   useGetMe,
   getGetMeQueryKey,
   type Vehicle,
@@ -28,21 +30,26 @@ import { ConfirmActionDialog } from '@/components/foundation';
 /**
  * VR-01 — the organizational vehicle register.
  *
- * Read needs `vehicle.read`; the add/edit/status controls need
- * `vehicle.manage`. Hiding a control is never the authorization — every route
- * behind this page re-checks the permission and the module server-side.
+ * The register is Assets administration: reading it and the add/edit/status
+ * controls alike need the existing `asset_management.manage`, and VR-01 adds no
+ * permission key of its own. Hiding a control is never the authorization —
+ * every route behind this page re-checks the permission and the module
+ * server-side.
  *
- * `in_use` is shown but never settable here: a vehicle that is out is brought
- * back by recording its return (VR-02), not by editing the register.
+ * Status is the register's own administrative state — available, maintenance
+ * or inactive. Whether a vehicle is physically out is a VR-02 question the
+ * register deliberately cannot answer, so nothing here displays or implies it.
  */
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   available: { label: 'Available', className: 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100' },
-  in_use: { label: 'In use', className: 'bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100' },
   maintenance: { label: 'Maintenance', className: 'bg-sky-100 text-sky-900 dark:bg-sky-900/40 dark:text-sky-100' },
   inactive: { label: 'Inactive', className: 'bg-muted text-muted-foreground' },
 };
 
-const emptyForm = { registrationNumber: '', make: '', model: '', notes: '' };
+const emptyForm = { registrationNumber: '', make: '', model: '', notes: '', assetId: '' };
+
+/** The select needs a concrete value for "no asset"; the API takes null. */
+const NO_ASSET = 'none';
 
 function errorMessage(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'error' in err) return String((err as { error: unknown }).error);
@@ -56,7 +63,7 @@ export default function Vehicles() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
   const capabilities = useCapabilities(organizationId);
-  const canManage = capabilities.can('vehicle.manage');
+  const canManage = capabilities.can('asset_management.manage');
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
@@ -83,6 +90,21 @@ export default function Vehicles() {
   const [editForm, setEditForm] = useState(emptyForm);
   const [statusTarget, setStatusTarget] = useState<Vehicle | null>(null);
 
+  // The optional capital-asset link. Same permission and module as this page,
+  // so no extra gate: a caller who may administer the register may already read
+  // the asset register.
+  const { data: assetsPage } = useListAssets(
+    organizationId,
+    { pageSize: 200 },
+    { query: { queryKey: getListAssetsQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 } },
+  );
+  const assets = assetsPage?.items ?? [];
+  const assetLabel = (assetId: number | null | undefined): string | null => {
+    if (assetId == null) return null;
+    const asset = assets.find((a) => a.id === assetId);
+    return asset ? `${asset.assetTag} · ${asset.name}` : `Asset #${assetId}`;
+  };
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListVehiclesQueryKey(organizationId) });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -95,6 +117,7 @@ export default function Vehicles() {
           make: form.make.trim() || null,
           model: form.model.trim() || null,
           notes: form.notes.trim() || null,
+          assetId: form.assetId ? Number(form.assetId) : null,
         },
       },
       {
@@ -121,6 +144,7 @@ export default function Vehicles() {
       make: vehicle.make ?? '',
       model: vehicle.model ?? '',
       notes: vehicle.notes ?? '',
+      assetId: vehicle.assetId != null ? String(vehicle.assetId) : '',
     });
   };
 
@@ -136,6 +160,7 @@ export default function Vehicles() {
           make: editForm.make.trim() || null,
           model: editForm.model.trim() || null,
           notes: editForm.notes.trim() || null,
+          assetId: editForm.assetId ? Number(editForm.assetId) : null,
         },
       },
       {
@@ -151,7 +176,7 @@ export default function Vehicles() {
   };
 
   // Returned so the confirmation stays open, with the error toast, when the
-  // server refuses — e.g. a vehicle that is currently out.
+  // server refuses.
   const handleToggleStatus = (vehicle: Vehicle) => {
     const nextStatus = vehicle.status === 'inactive' ? 'available' : 'inactive';
     return updateMutation.mutateAsync(
@@ -220,6 +245,25 @@ export default function Vehicles() {
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="vehicle-asset">Linked asset (optional)</Label>
+                    <Select
+                      value={form.assetId || NO_ASSET}
+                      onValueChange={(value) => setForm({ ...form, assetId: value === NO_ASSET ? '' : value })}
+                    >
+                      <SelectTrigger id="vehicle-asset" data-testid="select-vehicle-asset">
+                        <SelectValue placeholder="Not linked" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_ASSET}>Not linked</SelectItem>
+                        {assets.map((asset) => (
+                          <SelectItem key={asset.id} value={String(asset.id)}>
+                            {asset.assetTag} · {asset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="vehicle-notes">Notes</Label>
                     <Textarea
                       id="vehicle-notes"
@@ -251,7 +295,6 @@ export default function Vehicles() {
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="available">Available</SelectItem>
-              <SelectItem value="in_use">In use</SelectItem>
               <SelectItem value="maintenance">Maintenance</SelectItem>
               <SelectItem value="inactive">Inactive</SelectItem>
             </SelectContent>
@@ -301,6 +344,7 @@ export default function Vehicles() {
                 <TableHead>Registration</TableHead>
                 <TableHead>Make</TableHead>
                 <TableHead>Model</TableHead>
+                <TableHead>Linked asset</TableHead>
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
@@ -313,6 +357,7 @@ export default function Vehicles() {
                     <TableCell className="font-mono font-medium">{vehicle.registrationNumber}</TableCell>
                     <TableCell>{vehicle.make ?? '—'}</TableCell>
                     <TableCell>{vehicle.model ?? '—'}</TableCell>
+                    <TableCell data-testid={`cell-vehicle-asset-${vehicle.id}`}>{assetLabel(vehicle.assetId) ?? '—'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={status.className} data-testid={`badge-vehicle-status-${vehicle.id}`}>
                         {status.label}
@@ -334,7 +379,7 @@ export default function Vehicles() {
                             size="sm"
                             variant={vehicle.status === 'inactive' ? 'default' : 'destructive'}
                             onClick={() => setStatusTarget(vehicle)}
-                            disabled={vehicle.status === 'in_use' || updateMutation.isPending}
+                            disabled={updateMutation.isPending}
                             data-testid={`button-toggle-vehicle-status-${vehicle.id}`}
                           >
                             {vehicle.status === 'inactive' ? 'Return to service' : 'Take out of service'}

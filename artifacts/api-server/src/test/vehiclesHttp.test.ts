@@ -1,8 +1,8 @@
 /**
  * VR-01 — vehicle register HTTP authorization boundary. Proves the guard chain
  * each route composes: authentication, the caller's own organization, the
- * vehicle_management module, and then vehicle.read for viewing versus
- * vehicle.manage for administering. The service layer itself is covered by
+ * asset_management module, and then the existing asset_management.manage
+ * permission — VR-01 adds no permission key and no module key of its own. The service layer itself is covered by
  * vehicles.test.ts and is stubbed here so this file tests only who may call
  * what.
  */
@@ -19,7 +19,7 @@ const { state, getModuleAccessMock, hasPermissionMock, serviceMocks } = vi.hoist
     state,
     getModuleAccessMock: vi.fn(async (_organizationId: number, moduleKey: string) => ({
       found: true,
-      enabled: moduleKey === "vehicle_management" && state.moduleEnabled,
+      enabled: moduleKey === "asset_management" && state.moduleEnabled,
     })),
     hasPermissionMock: vi.fn(async (_membershipId: number, key: string) => state.permissions.has(key)),
     serviceMocks: {
@@ -103,7 +103,7 @@ describe("vehicle register — authentication and organization", () => {
   });
 
   it("refuses another organization's path", async () => {
-    state.permissions = new Set(["vehicle.read"]);
+    state.permissions = new Set(["asset_management.manage"]);
     const res = await request(app).get(`/organizations/${OTHER_ORG}/vehicles`).set(AUTH);
     expect(res.status).toBe(403);
     expect(getModuleAccessMock).not.toHaveBeenCalled();
@@ -114,50 +114,47 @@ describe("vehicle register — module gate", () => {
   it.each([
     ["get", base],
     ["post", base],
-  ] as const)("refuses %s %s when vehicle_management is disabled", async (method, path) => {
+  ] as const)("refuses %s %s when asset_management is disabled", async (method, path) => {
     state.moduleEnabled = false;
-    state.permissions = new Set(["vehicle.read", "vehicle.manage"]);
+    state.permissions = new Set(["asset_management.manage"]);
     const res = await request(app)[method](path).set(AUTH).send({ registrationNumber: "GR 1" });
     expect(res.status).toBe(403);
-    expect(res.body.error).toMatch(/vehicle_management/);
+    expect(res.body.error).toMatch(/asset_management/);
     expect(serviceMocks.listVehicles).not.toHaveBeenCalled();
     expect(serviceMocks.createVehicle).not.toHaveBeenCalled();
   });
 
   it("evaluates the module for the caller's own organization", async () => {
-    state.permissions = new Set(["vehicle.read"]);
+    state.permissions = new Set(["asset_management.manage"]);
     await request(app).get(base).set(AUTH);
-    expect(getModuleAccessMock).toHaveBeenCalledWith(CALLER_ORG, "vehicle_management");
+    expect(getModuleAccessMock).toHaveBeenCalledWith(CALLER_ORG, "asset_management");
   });
 });
 
 describe("vehicle register — permissions", () => {
-  it("vehicle.read may list and view, but not create or change", async () => {
-    state.permissions = new Set(["vehicle.read"]);
+  it("asset_management.manage may read and administer the register", async () => {
+    state.permissions = new Set(["asset_management.manage"]);
     expect((await request(app).get(base).set(AUTH)).status).toBe(200);
     expect((await request(app).get(`${base}/1`).set(AUTH)).status).toBe(200);
-    expect((await request(app).post(base).set(AUTH).send({ registrationNumber: "GR 0001-20" })).status).toBe(403);
-    expect((await request(app).patch(`${base}/1`).set(AUTH).send({ model: "X" })).status).toBe(403);
-    expect(serviceMocks.createVehicle).not.toHaveBeenCalled();
-    expect(serviceMocks.updateVehicle).not.toHaveBeenCalled();
-  });
-
-  it("vehicle.manage may create and change", async () => {
-    state.permissions = new Set(["vehicle.manage"]);
     expect((await request(app).post(base).set(AUTH).send({ registrationNumber: "GR 0001-20" })).status).toBe(201);
     expect((await request(app).patch(`${base}/1`).set(AUTH).send({ status: "inactive" })).status).toBe(200);
   });
 
-  it("an asset administrator gets nothing here — vehicles are their own authority", async () => {
-    state.permissions = new Set(["asset_management.manage"]);
+  it("refuses every route without asset_management.manage", async () => {
+    state.permissions = new Set(["asset_management.read.own"]);
     expect((await request(app).get(base).set(AUTH)).status).toBe(403);
+    expect((await request(app).get(`${base}/1`).set(AUTH)).status).toBe(403);
     expect((await request(app).post(base).set(AUTH).send({ registrationNumber: "GR 0001-20" })).status).toBe(403);
+    expect((await request(app).patch(`${base}/1`).set(AUTH).send({ model: "X" })).status).toBe(403);
+    expect(serviceMocks.listVehicles).not.toHaveBeenCalled();
+    expect(serviceMocks.createVehicle).not.toHaveBeenCalled();
+    expect(serviceMocks.updateVehicle).not.toHaveBeenCalled();
   });
 });
 
 describe("vehicle register — request shape", () => {
   beforeEach(() => {
-    state.permissions = new Set(["vehicle.read", "vehicle.manage"]);
+    state.permissions = new Set(["asset_management.manage"]);
   });
 
   it("400s an invalid vehicle id", async () => {

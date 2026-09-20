@@ -21,3 +21,26 @@ function pgErrorCode(err: unknown): string | undefined {
 export function isUniqueViolation(err: unknown): boolean {
   return pgErrorCode(err) === "23505";
 }
+
+function pgErrorConstraint(err: unknown): string | undefined {
+  if (typeof err !== "object" || err === null) return undefined;
+  if ("constraint" in err && typeof (err as { constraint?: unknown }).constraint === "string") {
+    return (err as { constraint: string }).constraint;
+  }
+  // Same wrapping as pgErrorCode: the driver's DatabaseError is reached
+  // through `.cause`, and only it carries the index name.
+  if ("cause" in err) return pgErrorConstraint((err as { cause?: unknown }).cause);
+  return undefined;
+}
+
+/**
+ * The name of the unique index a 23505 came from, when the driver reports it.
+ * Callers whose table has MORE THAN ONE unique index need this to translate the
+ * violation into the right typed error; where only one index can fire,
+ * `isUniqueViolation` alone remains sufficient (see assets.ts's own note).
+ * Returns undefined when the name is not available, so callers must keep a
+ * sensible fallback rather than assuming a match.
+ */
+export function uniqueViolationConstraint(err: unknown): string | undefined {
+  return isUniqueViolation(err) ? pgErrorConstraint(err) : undefined;
+}

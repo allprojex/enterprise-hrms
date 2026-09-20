@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, serial, integer, text, pgEnum, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -5,6 +6,7 @@ import { organizationsTable } from "./organizations";
 import { organizationMembershipsTable } from "./organization-memberships";
 import { employeesTable } from "./employees";
 import { branchesTable } from "./branches";
+import { assetsTable } from "./assets";
 
 // VR-01 — Vehicle Foundation. The register of organizational vehicles: one row
 // per physical vehicle, identified by the registration ("car") number the
@@ -22,15 +24,20 @@ import { branchesTable } from "./branches";
 // individually-tracked durable items, so it is not a candidate either.
 //
 // `assetId` is an OPTIONAL link for organizations that also carry the vehicle
-// in the capital-asset register; it is never required and never the source of
-// vehicle identity. It is deliberately left out of VR-01 (nothing consumes it
-// yet) — the link belongs with whichever workstream first needs it.
+// in the capital-asset register. It is never required, never the source of
+// vehicle identity, and never a custody record: linking a vehicle to an asset
+// creates no `asset_assignments` row and does not make vehicle availability
+// depend on asset assignment state. A partial unique index keeps the link
+// one-to-one per organization without forcing every vehicle to have one.
 //
-// `status` is the register's own availability state. `in_use` is NOT settable
-// through the register API: only the VR-02 release/return flow may move a
-// vehicle into and out of it, exactly as Office Inventory keeps request
-// approval and ledger movement in separate transactions.
-export const vehicleStatusEnum = pgEnum("vehicle_status", ["available", "in_use", "maintenance", "inactive"]);
+// `status` is the register's own ADMINISTRATIVE availability state, and VR-01
+// defines exactly three values. There is deliberately no `in_use`: whether a
+// vehicle is physically out is DERIVED from the VR-02 request/movement record
+// (a released request), never stored here. Storing it would create a second
+// source of truth that the register could drift away from — the same reason
+// Office Inventory derives quantity from its stock-movement ledger instead of
+// carrying a `currentQuantity` column.
+export const vehicleStatusEnum = pgEnum("vehicle_status", ["available", "maintenance", "inactive"]);
 
 export const vehiclesTable = pgTable(
   "vehicles",
@@ -54,6 +61,12 @@ export const vehiclesTable = pgTable(
       onDelete: "set null",
     }),
     branchId: integer("branch_id").references(() => branchesTable.id, { onDelete: "set null" }),
+    /**
+     * Optional link to the capital-asset register. `set null`, never cascade:
+     * removing an asset row must never destroy the vehicle or the movement
+     * history that will reference it from VR-02 onward.
+     */
+    assetId: integer("asset_id").references(() => assetsTable.id, { onDelete: "set null" }),
     status: vehicleStatusEnum("status").notNull().default("available"),
     notes: text("notes"),
     createdByMembershipId: integer("created_by_membership_id").references(() => organizationMembershipsTable.id, {
@@ -70,7 +83,14 @@ export const vehiclesTable = pgTable(
   },
   (table) => [
     uniqueIndex("vehicles_org_registration_unique").on(table.organizationId, table.registrationNumber),
+    // One asset links to at most one vehicle per organization. Partial, so any
+    // number of vehicles may carry no asset link at all — the `assets` partial
+    // unique on `serialNumber` is the precedent for this shape.
+    uniqueIndex("vehicles_org_asset_unique")
+      .on(table.organizationId, table.assetId)
+      .where(sql`${table.assetId} is not null`),
     index("vehicles_org_status_idx").on(table.organizationId, table.status),
+    index("vehicles_org_branch_idx").on(table.organizationId, table.branchId),
   ],
 );
 

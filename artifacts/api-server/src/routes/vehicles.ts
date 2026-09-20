@@ -2,14 +2,16 @@
  * VR-01 — Vehicle Foundation: the organizational vehicle register.
  *
  * Every route runs requireAuth → requireMembership(:organizationId) →
- * requireModuleEnabled("vehicle_management") → requirePermission. The
+ * requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY) → requirePermission. The
  * organization always comes from the caller's membership, never the body, and a
  * vehicle id belonging to another organization answers 404 rather than
  * confirming that it exists.
  *
- * `vehicle.read` sees the register; `vehicle.manage` administers it. Neither is
- * asset_management: enabling Assets must not be the price of managing vehicles,
- * and an asset administrator is not automatically a transport administrator.
+ * The register is Assets administration, not a domain of its own: it is gated by
+ * the existing `asset_management` module and the existing
+ * `asset_management.manage` permission. VR-01 introduces no permission key and
+ * no module key, so no organization grants anything new to use it, and
+ * `asset_management.manage` gains no reach anywhere outside this register.
  */
 import { Router } from "express";
 import { CreateVehicleBody, UpdateVehicleBody } from "@workspace/api-zod";
@@ -17,6 +19,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { requirePermission } from "../middlewares/requirePermission";
+import { ASSET_MANAGEMENT_MODULE_KEY } from "../lib/assetManagementAuthorization";
 import { CrossOrganizationReferenceError } from "../lib/orgScopedRefs";
 import {
   listVehicles,
@@ -26,12 +29,12 @@ import {
   VehicleNotFoundError,
   InvalidVehicleError,
   DuplicateVehicleRegistrationError,
-  type RegisterSettableStatus,
+  DuplicateVehicleAssetLinkError,
+  type VehicleStatus,
 } from "../lib/vehicles";
 import type { Vehicle } from "@workspace/db";
 
 const router = Router();
-const VEHICLE_MODULE = "vehicle_management";
 
 function formatVehicle(v: Vehicle) {
   return {
@@ -43,6 +46,7 @@ function formatVehicle(v: Vehicle) {
     description: v.description,
     defaultDriverEmployeeId: v.defaultDriverEmployeeId,
     branchId: v.branchId,
+    assetId: v.assetId,
     status: v.status,
     notes: v.notes,
     createdAt: v.createdAt,
@@ -60,7 +64,7 @@ function handleError(err: unknown, res: import("express").Response): boolean {
     res.status(404).json({ error: "Vehicle not found" });
     return true;
   }
-  if (err instanceof DuplicateVehicleRegistrationError) {
+  if (err instanceof DuplicateVehicleRegistrationError || err instanceof DuplicateVehicleAssetLinkError) {
     res.status(409).json({ error: err.message });
     return true;
   }
@@ -76,8 +80,8 @@ router.get(
   "/organizations/:organizationId/vehicles",
   requireAuth as any,
   requireMembership("organizationId"),
-  requireModuleEnabled(VEHICLE_MODULE),
-  requirePermission("vehicle.read"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
   async (req: MembershipRequest, res): Promise<void> => {
     const statusRaw = typeof req.query["status"] === "string" ? req.query["status"] : undefined;
     const searchRaw = typeof req.query["search"] === "string" ? req.query["search"] : undefined;
@@ -94,8 +98,8 @@ router.get(
   "/organizations/:organizationId/vehicles/:vehicleId",
   requireAuth as any,
   requireMembership("organizationId"),
-  requireModuleEnabled(VEHICLE_MODULE),
-  requirePermission("vehicle.read"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
   async (req: MembershipRequest, res): Promise<void> => {
     const vehicleId = parseVehicleId(req.params["vehicleId"]);
     if (Number.isNaN(vehicleId)) {
@@ -116,8 +120,8 @@ router.post(
   "/organizations/:organizationId/vehicles",
   requireAuth as any,
   requireMembership("organizationId"),
-  requireModuleEnabled(VEHICLE_MODULE),
-  requirePermission("vehicle.manage"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CreateVehicleBody.safeParse(req.body);
     if (!parsed.success) {
@@ -133,6 +137,7 @@ router.post(
         description: parsed.data.description ?? null,
         defaultDriverEmployeeId: parsed.data.defaultDriverEmployeeId ?? null,
         branchId: parsed.data.branchId ?? null,
+        assetId: parsed.data.assetId ?? null,
         notes: parsed.data.notes ?? null,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
@@ -149,8 +154,8 @@ router.patch(
   "/organizations/:organizationId/vehicles/:vehicleId",
   requireAuth as any,
   requireMembership("organizationId"),
-  requireModuleEnabled(VEHICLE_MODULE),
-  requirePermission("vehicle.manage"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
   async (req: MembershipRequest, res): Promise<void> => {
     const vehicleId = parseVehicleId(req.params["vehicleId"]);
     if (Number.isNaN(vehicleId)) {
@@ -174,8 +179,9 @@ router.patch(
           ? { defaultDriverEmployeeId: parsed.data.defaultDriverEmployeeId }
           : {}),
         ...(parsed.data.branchId !== undefined ? { branchId: parsed.data.branchId } : {}),
+        ...(parsed.data.assetId !== undefined ? { assetId: parsed.data.assetId } : {}),
         ...(parsed.data.notes !== undefined ? { notes: parsed.data.notes } : {}),
-        ...(parsed.data.status !== undefined ? { status: parsed.data.status as RegisterSettableStatus } : {}),
+        ...(parsed.data.status !== undefined ? { status: parsed.data.status as VehicleStatus } : {}),
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
       });

@@ -4478,7 +4478,7 @@ paths:
       tags: [vehicles]
       summary: List the organization's vehicles (VR-01)
       description: >-
-        Requires the vehicle_management module and vehicle.read. Optional status
+        Requires the asset_management module and asset_management.manage. Optional status
         and search filters; search matches registration number, make or model.
       parameters:
         - name: organizationId
@@ -4491,7 +4491,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [available, in_use, maintenance, inactive]
+            enum: [available, maintenance, inactive]
         - name: search
           in: query
           required: false
@@ -4511,7 +4511,7 @@ paths:
       tags: [vehicles]
       summary: Register a vehicle (VR-01)
       description: >-
-        Requires the vehicle_management module and vehicle.manage. The
+        Requires the asset_management module and asset_management.manage. The
         registration number is normalized (trimmed, single-spaced, upper-cased)
         and must be unique within the organization. A new vehicle always starts
         available.
@@ -4552,7 +4552,7 @@ paths:
       operationId: getVehicle
       tags: [vehicles]
       summary: Get one vehicle (VR-01)
-      description: Requires the vehicle_management module and vehicle.read. Another organization's vehicle is not found.
+      description: Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
       parameters:
         - name: organizationId
           in: path
@@ -4582,10 +4582,10 @@ paths:
       tags: [vehicles]
       summary: Update a vehicle's register details or status (VR-01)
       description: >-
-        Requires the vehicle_management module and vehicle.manage. Status may be
-        set to available, maintenance or inactive only — in_use belongs to the
-        VR-02 release/return flow, and a vehicle that is currently out must have
-        its return recorded before its status changes here.
+        Requires the asset_management module and asset_management.manage. Status
+        is the register's own administrative state: available, maintenance or
+        inactive. Whether a vehicle is physically out is derived from the VR-02
+        movement record and is never set here.
       parameters:
         - name: organizationId
           in: path
@@ -38498,7 +38498,9 @@ components:
         VR-01 — one organizational vehicle, identified by the registration
         ("car") number the organization already uses. Its own register, not an
         asset-custody record: asset custody is open-ended possession, while a
-        vehicle is booked for a period by the VR-02 flow.
+        vehicle is booked for a period by the VR-02 flow. An organization that
+        also carries the vehicle in its capital-asset register may link the two
+        through assetId; the link is optional and creates no asset custody.
       required: [id, organizationId, registrationNumber, status, createdAt, updatedAt]
       properties:
         id:
@@ -38519,10 +38521,19 @@ components:
           description: Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.
         branchId:
           type: ["integer", "null"]
+        assetId:
+          type: ["integer", "null"]
+          description: >-
+            Optional link to the same organization's capital-asset register. At
+            most one vehicle may link to a given asset. Linking records no asset
+            custody and changes no asset history.
         status:
           type: string
-          enum: [available, in_use, maintenance, inactive]
-          description: in_use is set only by the VR-02 release/return flow, never through the register.
+          enum: [available, maintenance, inactive]
+          description: >-
+            The register's own administrative state. Whether a vehicle is
+            physically out is derived from the VR-02 movement record, never
+            stored here.
         notes:
           type: ["string", "null"]
         createdAt:
@@ -38553,6 +38564,8 @@ components:
           type: ["integer", "null"]
         branchId:
           type: ["integer", "null"]
+        assetId:
+          type: ["integer", "null"]
         notes:
           type: ["string", "null"]
           maxLength: 500
@@ -38577,6 +38590,8 @@ components:
         defaultDriverEmployeeId:
           type: ["integer", "null"]
         branchId:
+          type: ["integer", "null"]
+        assetId:
           type: ["integer", "null"]
         notes:
           type: ["string", "null"]

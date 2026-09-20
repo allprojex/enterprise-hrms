@@ -394,11 +394,11 @@ function Router() {
       <Route path="/assets">
         {() => <SecureRoute component={Assets} moduleKey="asset_management" />}
       </Route>
-      {/* VR-01 — the vehicle register. Its own module: managing vehicles must
-          not require enabling Assets, and the page's own controls are gated on
-          vehicle.read / vehicle.manage, which the API re-checks. */}
+      {/* VR-01 — the vehicle register is Assets administration: the same
+          asset_management module gate as the rest of the group, and the page's
+          own controls follow asset_management.manage, which the API re-checks. */}
       <Route path="/vehicles">
-        {() => <SecureRoute component={Vehicles} moduleKey="vehicle_management" />}
+        {() => <SecureRoute component={Vehicles} moduleKey="asset_management" />}
       </Route>
       <Route path="/team-assets">
         {() => <SecureRoute component={TeamAssets} moduleKey="asset_management" />}

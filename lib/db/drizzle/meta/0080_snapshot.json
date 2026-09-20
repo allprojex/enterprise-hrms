@@ -1,5 +1,5 @@
 {
-  "id": "89316e59-7d03-49bb-8154-bd9a80685418",
+  "id": "564b3799-0628-47d0-8094-582c416e0cac",
   "prevId": "77dbdefc-418d-46a0-b92d-fe720406ed9b",
   "version": "7",
   "dialect": "postgresql",
@@ -38126,6 +38126,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "vehicle_status",
@@ -38189,6 +38195,28 @@
           "method": "btree",
           "with": {}
         },
+        "vehicles_org_asset_unique": {
+          "name": "vehicles_org_asset_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "asset_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"vehicles\".\"asset_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "vehicles_org_status_idx": {
           "name": "vehicles_org_status_idx",
           "columns": [
@@ -38200,6 +38228,27 @@
             },
             {
               "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vehicles_org_branch_idx": {
+          "name": "vehicles_org_branch_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -38244,6 +38293,19 @@
           "tableTo": "branches",
           "columnsFrom": [
             "branch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "vehicles_asset_id_assets_id_fk": {
+          "name": "vehicles_asset_id_assets_id_fk",
+          "tableFrom": "vehicles",
+          "tableTo": "assets",
+          "columnsFrom": [
+            "asset_id"
           ],
           "columnsTo": [
             "id"
@@ -40429,7 +40491,6 @@
       "schema": "public",
       "values": [
         "available",
-        "in_use",
         "maintenance",
         "inactive"
       ]

@@ -1,7 +1,7 @@
 /**
  * VR-01 — the vehicle register page. Covers what the page itself decides:
- * which controls a caller sees (vehicle.read versus vehicle.manage), that the
- * register never offers "in use" as a settable status, and that taking a
+ * which controls a caller sees (asset_management.manage or nothing), that the
+ * register offers only its three administrative statuses, and that taking a
  * vehicle out of service goes through the shared confirmation dialog. The
  * server re-checks every one of these; hiding a control is not authorization.
  */
@@ -15,6 +15,7 @@ const { state, createMutateMock, updateMutateMock, updateMutateAsyncMock } = vi.
   state: {
     permissions: new Set<string>(),
     vehicles: [] as Record<string, unknown>[],
+    assets: [] as Record<string, unknown>[],
   },
   createMutateMock: vi.fn(),
   updateMutateMock: vi.fn(),
@@ -38,6 +39,8 @@ vi.mock('@workspace/api-client-react', () => ({
   getListVehiclesQueryKey: () => ['vehicles'],
   useCreateVehicle: () => ({ mutate: createMutateMock, isPending: false }),
   useUpdateVehicle: () => ({ mutate: updateMutateMock, mutateAsync: updateMutateAsyncMock, isPending: false }),
+  useListAssets: () => ({ data: { items: state.assets }, isLoading: false }),
+  getListAssetsQueryKey: () => ['assets'],
 }));
 
 vi.mock('@/hooks/use-capabilities', () => ({
@@ -65,7 +68,7 @@ function renderPage() {
 
 const VEHICLES = [
   { id: 1, organizationId: 10, registrationNumber: 'GR 1234-20', make: 'Toyota', model: 'Hiace', status: 'available', notes: null },
-  { id: 3, organizationId: 10, registrationNumber: 'GW 9999-22', make: 'Toyota', model: 'Corolla', status: 'in_use', notes: null },
+  { id: 3, organizationId: 10, registrationNumber: 'GW 9999-22', make: 'Toyota', model: 'Corolla', status: 'maintenance', notes: null, assetId: 77 },
 ];
 
 beforeEach(() => {
@@ -76,12 +79,16 @@ beforeEach(() => {
     options?.onSuccess?.();
     return Promise.resolve(undefined);
   });
-  state.permissions = new Set(['vehicle.read']);
+  state.permissions = new Set(['asset_management.read.own']);
   state.vehicles = [...VEHICLES];
+  state.assets = [
+    { id: 77, assetTag: 'AST-77', name: 'Hiace bus' },
+    { id: 78, assetTag: 'AST-78', name: 'Generator' },
+  ];
 });
 
 describe('Vehicle register — what each caller may do', () => {
-  it('shows the register to vehicle.read without any administration controls', () => {
+  it('shows no administration controls without asset_management.manage', () => {
     renderPage();
     expect(screen.getByText('GR 1234-20')).toBeInTheDocument();
     expect(screen.queryByTestId('button-add-vehicle')).not.toBeInTheDocument();
@@ -89,12 +96,18 @@ describe('Vehicle register — what each caller may do', () => {
     expect(screen.queryByTestId('button-toggle-vehicle-status-1')).not.toBeInTheDocument();
   });
 
-  it('shows administration controls to vehicle.manage', () => {
-    state.permissions = new Set(['vehicle.read', 'vehicle.manage']);
+  it('shows administration controls to asset_management.manage', () => {
+    state.permissions = new Set(['asset_management.manage']);
     renderPage();
     expect(screen.getByTestId('button-add-vehicle')).toBeInTheDocument();
     expect(screen.getByTestId('button-edit-vehicle-1')).toBeInTheDocument();
     expect(screen.getByTestId('button-toggle-vehicle-status-1')).toBeInTheDocument();
+  });
+
+  it('shows the linked asset, and a dash where there is none', () => {
+    renderPage();
+    expect(screen.getByTestId('cell-vehicle-asset-3')).toHaveTextContent('AST-77 · Hiace bus');
+    expect(screen.getByTestId('cell-vehicle-asset-1')).toHaveTextContent('—');
   });
 
   it('shows an empty state when the organization has no vehicles yet', () => {
@@ -106,19 +119,19 @@ describe('Vehicle register — what each caller may do', () => {
 
 describe('Vehicle register — status rules', () => {
   beforeEach(() => {
-    state.permissions = new Set(['vehicle.read', 'vehicle.manage']);
+    state.permissions = new Set(['asset_management.manage']);
   });
 
-  it('never offers a way to set a vehicle in use from the register', () => {
+  it('never offers a way to put a vehicle in use from the register', () => {
     renderPage();
     const controls = screen.getAllByRole('button').map((b) => b.textContent ?? '');
     expect(controls.some((t) => /in use/i.test(t))).toBe(false);
   });
 
-  it('disables taking a vehicle out of service while it is out', () => {
+  it('leaves the out-of-service action available for every administrative status', () => {
     renderPage();
-    expect(screen.getByTestId('button-toggle-vehicle-status-3')).toBeDisabled();
-    expect(screen.getByTestId('badge-vehicle-status-3')).toHaveTextContent('In use');
+    expect(screen.getByTestId('badge-vehicle-status-3')).toHaveTextContent('Maintenance');
+    expect(screen.getByTestId('button-toggle-vehicle-status-3')).toBeEnabled();
   });
 
   it('confirms before taking a vehicle out of service, and sends the status once', async () => {
@@ -147,7 +160,7 @@ describe('Vehicle register — status rules', () => {
 
 describe('Vehicle register — adding a vehicle', () => {
   beforeEach(() => {
-    state.permissions = new Set(['vehicle.read', 'vehicle.manage']);
+    state.permissions = new Set(['asset_management.manage']);
   });
 
   it('submits the entered registration details', async () => {
@@ -159,7 +172,7 @@ describe('Vehicle register — adding a vehicle', () => {
     await user.click(screen.getByTestId('button-submit-vehicle'));
 
     expect(createMutateMock).toHaveBeenCalledWith(
-      { organizationId: 10, data: { registrationNumber: 'gr 4321-23', make: 'Ford', model: null, notes: null } },
+      { organizationId: 10, data: { registrationNumber: 'gr 4321-23', make: 'Ford', model: null, notes: null, assetId: null } },
       expect.anything(),
     );
   });

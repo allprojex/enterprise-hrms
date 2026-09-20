@@ -3,22 +3,20 @@
  *
  * Scope is deliberately the REGISTER only: which vehicles the organization has,
  * how they are identified, who normally drives them, and whether they are
- * currently usable. The request → approval → release → return flow is VR-02 and
- * owns its own tables; nothing here reserves a vehicle or records movement.
- *
- * `in_use` is reachable only from that later flow. The register API refuses to
- * set it, the same separation Office Inventory keeps between approving a
- * request and moving the ledger — so a vehicle can never be shown as out
- * without a movement record explaining why.
+ * administratively usable. The request → approval → release → return flow is
+ * VR-02 and owns its own tables; nothing here reserves a vehicle, records a
+ * movement, or asks whether a vehicle is currently out — that question has no
+ * answer until VR-02 exists, so the register never pretends to hold one.
  *
  * Every read and write is scoped by organizationId taken from the caller's
- * membership, never from the body; `branchId`/`defaultDriverEmployeeId` are
- * verified to belong to the same organization before they can be attached.
+ * membership, never from the body; `branchId`, `defaultDriverEmployeeId` and
+ * the optional `assetId` link are each verified to belong to the same
+ * organization before they can be attached.
  */
 import { and, eq, ilike, or, type SQL } from "drizzle-orm";
-import { db, vehiclesTable, branchesTable, employeesTable, type Vehicle } from "@workspace/db";
+import { db, vehiclesTable, branchesTable, employeesTable, assetsTable, type Vehicle } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
-import { isUniqueViolation } from "./dbErrors";
+import { isUniqueViolation, uniqueViolationConstraint } from "./dbErrors";
 import { assertBelongsToOrganization } from "./orgScopedRefs";
 
 export class VehicleNotFoundError extends Error {
@@ -42,9 +40,32 @@ export class DuplicateVehicleRegistrationError extends Error {
   }
 }
 
-/** Statuses the register itself may set. `in_use` belongs to the VR-02 movement flow. */
-export const REGISTER_SETTABLE_STATUSES = ["available", "maintenance", "inactive"] as const;
-export type RegisterSettableStatus = (typeof REGISTER_SETTABLE_STATUSES)[number];
+export class DuplicateVehicleAssetLinkError extends Error {
+  constructor() {
+    super("That asset is already linked to another vehicle in this organization");
+    this.name = "DuplicateVehicleAssetLinkError";
+  }
+}
+
+/**
+ * The register's administrative statuses — the whole enum, because VR-01 has no
+ * state the register itself may not set.
+ */
+export type VehicleStatus = Vehicle["status"];
+
+/**
+ * `vehicles` carries two unique indexes, so a 23505 has to be attributed before
+ * it can be reported: a duplicate asset link and a duplicate registration
+ * number fail for completely different reasons. The index name is the
+ * attribution; when the driver does not supply one, the registration number is
+ * the safe fallback, since it is the only one of the two that every write
+ * always touches.
+ */
+function translateUniqueViolation(err: unknown): Error {
+  return uniqueViolationConstraint(err) === "vehicles_org_asset_unique"
+    ? new DuplicateVehicleAssetLinkError()
+    : new DuplicateVehicleRegistrationError();
+}
 
 /**
  * Registration numbers are compared case- and spacing-insensitively so
@@ -105,12 +126,16 @@ async function assertReferencesValid(params: {
   organizationId: number;
   branchId?: number | null;
   defaultDriverEmployeeId?: number | null;
+  assetId?: number | null;
 }): Promise<void> {
   if (params.branchId != null) {
     await assertBelongsToOrganization(branchesTable, params.branchId, params.organizationId, "Branch");
   }
   if (params.defaultDriverEmployeeId != null) {
     await assertBelongsToOrganization(employeesTable, params.defaultDriverEmployeeId, params.organizationId, "Employee");
+  }
+  if (params.assetId != null) {
+    await assertBelongsToOrganization(assetsTable, params.assetId, params.organizationId, "Asset");
   }
 }
 
@@ -122,6 +147,8 @@ export interface CreateVehicleParams {
   description?: string | null;
   defaultDriverEmployeeId?: number | null;
   branchId?: number | null;
+  /** Optional link to the same organization's capital-asset register. */
+  assetId?: number | null;
   notes?: string | null;
   actorApplicationUserId: number;
   actorMembershipId: number;
@@ -142,6 +169,7 @@ export async function createVehicle(params: CreateVehicleParams): Promise<Vehicl
         description: optionalText(params.description, "description", 500),
         defaultDriverEmployeeId: params.defaultDriverEmployeeId ?? null,
         branchId: params.branchId ?? null,
+        assetId: params.assetId ?? null,
         status: "available",
         notes: optionalText(params.notes, "notes", 500),
         createdByMembershipId: params.actorMembershipId,
@@ -161,14 +189,15 @@ export async function createVehicle(params: CreateVehicleParams): Promise<Vehicl
         make: vehicle!.make,
         model: vehicle!.model,
         status: vehicle!.status,
+        assetId: vehicle!.assetId,
       },
     });
     return vehicle!;
   } catch (err) {
-    // The (organization_id, registration_number) unique index is the real
-    // guarantee, so a concurrent insert of the same number surfaces here
-    // rather than through a check-then-insert race.
-    if (isUniqueViolation(err)) throw new DuplicateVehicleRegistrationError();
+    // The unique indexes are the real guarantee, so a concurrent insert of the
+    // same registration number or the same asset link surfaces here rather than
+    // through a check-then-insert race.
+    if (isUniqueViolation(err)) throw translateUniqueViolation(err);
     throw err;
   }
 }
@@ -182,8 +211,9 @@ export interface UpdateVehicleParams {
   description?: string | null;
   defaultDriverEmployeeId?: number | null;
   branchId?: number | null;
+  assetId?: number | null;
   notes?: string | null;
-  status?: RegisterSettableStatus;
+  status?: VehicleStatus;
   actorApplicationUserId: number;
   actorMembershipId: number;
 }
@@ -192,16 +222,6 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Vehicl
   const existing = await getVehicleById(params.organizationId, params.vehicleId);
   if (!existing) throw new VehicleNotFoundError();
 
-  if (params.status != null && !REGISTER_SETTABLE_STATUSES.includes(params.status)) {
-    throw new InvalidVehicleError(`status must be one of ${REGISTER_SETTABLE_STATUSES.join(", ")}`);
-  }
-  // A vehicle that is out cannot be edited into another state from the
-  // register: the movement record that took it out is what brings it back.
-  // Every status the register can set differs from `in_use`, so any status
-  // change at all is refused while the vehicle is out.
-  if (existing.status === "in_use" && params.status != null) {
-    throw new InvalidVehicleError("This vehicle is currently out. Record its return before changing its status.");
-  }
   await assertReferencesValid(params);
 
   const patch: Partial<typeof vehiclesTable.$inferInsert> = { updatedByMembershipId: params.actorMembershipId };
@@ -211,6 +231,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Vehicl
   if (params.description !== undefined) patch.description = optionalText(params.description, "description", 500);
   if (params.defaultDriverEmployeeId !== undefined) patch.defaultDriverEmployeeId = params.defaultDriverEmployeeId;
   if (params.branchId !== undefined) patch.branchId = params.branchId;
+  if (params.assetId !== undefined) patch.assetId = params.assetId;
   if (params.notes !== undefined) patch.notes = optionalText(params.notes, "notes", 500);
   if (params.status !== undefined) patch.status = params.status;
 
@@ -222,7 +243,7 @@ export async function updateVehicle(params: UpdateVehicleParams): Promise<Vehicl
       .where(and(eq(vehiclesTable.id, params.vehicleId), eq(vehiclesTable.organizationId, params.organizationId)))
       .returning();
   } catch (err) {
-    if (isUniqueViolation(err)) throw new DuplicateVehicleRegistrationError();
+    if (isUniqueViolation(err)) throw translateUniqueViolation(err);
     throw err;
   }
   if (!updated) throw new VehicleNotFoundError();

@@ -2,8 +2,8 @@
  * VR-01 — vehicle register service. Exercises lib/vehicles.ts against a mocked
  * @workspace/db with real field-based condition evaluation: organization
  * scoping, registration-number normalization and uniqueness, cross-organization
- * references, the in_use guard the register may never override, and the audit
- * event every change records. No real database connection is made.
+ * references, the optional capital-asset link, and the audit event every
+ * change records. No real database connection is made.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -18,11 +18,14 @@ const { fixtures, tables } = vi.hoisted(() => {
       vehicles: [] as Record<string, unknown>[],
       branches: [] as Record<string, unknown>[],
       employees: [] as Record<string, unknown>[],
+      assets: [] as Record<string, unknown>[],
       audits: [] as Record<string, unknown>[],
       inserts: [] as Record<string, unknown>[],
       updates: [] as Record<string, unknown>[],
       nextId: 100,
       failInsertWithUnique: false,
+      /** Which unique index the faked 23505 came from, as the driver reports it. */
+      uniqueConstraint: "vehicles_org_registration_unique",
     },
     tables: {
       vehiclesTable: mk("vehicles", [
@@ -34,6 +37,7 @@ const { fixtures, tables } = vi.hoisted(() => {
         "description",
         "defaultDriverEmployeeId",
         "branchId",
+        "assetId",
         "status",
         "notes",
         "createdByMembershipId",
@@ -41,6 +45,7 @@ const { fixtures, tables } = vi.hoisted(() => {
       ]),
       branchesTable: mk("branches", ["id", "organizationId"]),
       employeesTable: mk("employees", ["id", "organizationId"]),
+      assetsTable: mk("assets", ["id", "organizationId"]),
       auditEventsTable: mk("audit_events", ["id"]),
     },
   };
@@ -67,6 +72,7 @@ function matches(row: Record<string, unknown>, cond: Cond): boolean {
 
 class UniqueViolation extends Error {
   code = "23505";
+  constraint = fixtures.uniqueConstraint;
 }
 
 vi.mock("drizzle-orm", () => ({
@@ -88,7 +94,9 @@ vi.mock("@workspace/db", () => ({
               ? fixtures.branches
               : table === tables.employeesTable
                 ? fixtures.employees
-                : [];
+                : table === tables.assetsTable
+                  ? fixtures.assets
+                  : [];
         let filtered = rows;
         const builder = {
           where(cond: Cond) {
@@ -141,6 +149,7 @@ const {
   VehicleNotFoundError,
   InvalidVehicleError,
   DuplicateVehicleRegistrationError,
+  DuplicateVehicleAssetLinkError,
 } = await import("../lib/vehicles");
 const { CrossOrganizationReferenceError } = await import("../lib/orgScopedRefs");
 
@@ -152,11 +161,13 @@ beforeEach(() => {
   fixtures.vehicles = [
     { id: 1, organizationId: ORG, registrationNumber: "GR 1234-20", make: "Toyota", model: "Hiace", status: "available", notes: null },
     { id: 2, organizationId: ORG, registrationNumber: "GT 5678-21", make: "Nissan", model: "Urvan", status: "maintenance", notes: null },
-    { id: 3, organizationId: ORG, registrationNumber: "GW 9999-22", make: "Toyota", model: "Corolla", status: "in_use", notes: null },
+    { id: 3, organizationId: ORG, registrationNumber: "GW 9999-22", make: "Toyota", model: "Corolla", status: "inactive", notes: null, assetId: 80 },
     { id: 9, organizationId: OTHER_ORG, registrationNumber: "XX 0000-00", make: "Other", model: "Org", status: "available", notes: null },
   ];
   fixtures.branches = [{ id: 50, organizationId: ORG }, { id: 51, organizationId: OTHER_ORG }];
   fixtures.employees = [{ id: 70, organizationId: ORG }, { id: 71, organizationId: OTHER_ORG }];
+  fixtures.assets = [{ id: 80, organizationId: ORG }, { id: 81, organizationId: ORG }, { id: 82, organizationId: OTHER_ORG }];
+  fixtures.uniqueConstraint = "vehicles_org_registration_unique";
   fixtures.audits = [];
   fixtures.inserts = [];
   fixtures.updates = [];
@@ -226,14 +237,36 @@ describe("createVehicle", () => {
     expect(fixtures.audits).toHaveLength(0);
   });
 
-  it("refuses a branch or default driver from another organization", async () => {
+  it("refuses a branch, default driver or asset from another organization", async () => {
     await expect(createVehicle({ organizationId: ORG, registrationNumber: "NEW 1", branchId: 51, ...actor })).rejects.toThrow(
       CrossOrganizationReferenceError,
     );
     await expect(
       createVehicle({ organizationId: ORG, registrationNumber: "NEW 2", defaultDriverEmployeeId: 71, ...actor }),
     ).rejects.toThrow(CrossOrganizationReferenceError);
+    await expect(createVehicle({ organizationId: ORG, registrationNumber: "NEW 3", assetId: 82, ...actor })).rejects.toThrow(
+      CrossOrganizationReferenceError,
+    );
     expect(fixtures.inserts).toHaveLength(0);
+  });
+
+  it("stores the optional asset link and records it on the audit event", async () => {
+    const vehicle = await createVehicle({ organizationId: ORG, registrationNumber: "NEW 4", assetId: 81, ...actor });
+    expect(vehicle.assetId).toBe(81);
+    expect(fixtures.audits[0]).toMatchObject({ eventType: "vehicle.created", afterState: { assetId: 81 } });
+  });
+
+  it("leaves the asset link null when none is supplied", async () => {
+    const vehicle = await createVehicle({ organizationId: ORG, registrationNumber: "NEW 5", ...actor });
+    expect(vehicle.assetId).toBeNull();
+  });
+
+  it("reports an asset already linked to another vehicle as its own conflict", async () => {
+    fixtures.failInsertWithUnique = true;
+    fixtures.uniqueConstraint = "vehicles_org_asset_unique";
+    await expect(createVehicle({ organizationId: ORG, registrationNumber: "NEW 6", assetId: 80, ...actor })).rejects.toThrow(
+      DuplicateVehicleAssetLinkError,
+    );
   });
 });
 
@@ -253,23 +286,33 @@ describe("updateVehicle", () => {
     });
   });
 
-  it("refuses a status the register may not set", async () => {
-    await expect(
-      updateVehicle({ organizationId: ORG, vehicleId: 1, status: "in_use" as never, ...actor }),
-    ).rejects.toThrow(InvalidVehicleError);
-    expect(fixtures.updates).toHaveLength(0);
+  it("may set every administrative status, since the register owns them all", async () => {
+    for (const status of ["available", "maintenance", "inactive"] as const) {
+      await updateVehicle({ organizationId: ORG, vehicleId: 1, status, ...actor });
+    }
+    expect(fixtures.updates.map((u) => u["status"])).toEqual(["available", "maintenance", "inactive"]);
   });
 
-  it("refuses to change the status of a vehicle that is currently out", async () => {
-    await expect(updateVehicle({ organizationId: ORG, vehicleId: 3, status: "available", ...actor })).rejects.toThrow(
-      /currently out/i,
+  it("attaches and clears the optional asset link", async () => {
+    await updateVehicle({ organizationId: ORG, vehicleId: 1, assetId: 81, ...actor });
+    expect(fixtures.updates[0]).toMatchObject({ assetId: 81 });
+    await updateVehicle({ organizationId: ORG, vehicleId: 3, assetId: null, ...actor });
+    expect(fixtures.updates[1]).toMatchObject({ assetId: null });
+  });
+
+  it("refuses an asset from another organization", async () => {
+    await expect(updateVehicle({ organizationId: ORG, vehicleId: 1, assetId: 82, ...actor })).rejects.toThrow(
+      CrossOrganizationReferenceError,
     );
     expect(fixtures.updates).toHaveLength(0);
   });
 
-  it("still allows editing the details of a vehicle that is out", async () => {
-    await updateVehicle({ organizationId: ORG, vehicleId: 3, notes: "Serviced last month", ...actor });
-    expect(fixtures.updates[0]).toMatchObject({ notes: "Serviced last month" });
+  it("reports a duplicate asset link on update as its own conflict", async () => {
+    fixtures.failInsertWithUnique = true;
+    fixtures.uniqueConstraint = "vehicles_org_asset_unique";
+    await expect(updateVehicle({ organizationId: ORG, vehicleId: 1, assetId: 80, ...actor })).rejects.toThrow(
+      DuplicateVehicleAssetLinkError,
+    );
   });
 
   it("treats another organization's vehicle as not found", async () => {

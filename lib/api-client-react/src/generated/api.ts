@@ -9967,7 +9967,7 @@ export const getListVehiclesUrl = (organizationId: number,
 }
 
 /**
- * Requires the vehicle_management module and vehicle.read. Optional status and search filters; search matches registration number, make or model.
+ * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
  * @summary List the organization's vehicles (VR-01)
  */
 export const listVehicles = async (organizationId: number,
@@ -10049,7 +10049,7 @@ export const getCreateVehicleUrl = (organizationId: number,) => {
 }
 
 /**
- * Requires the vehicle_management module and vehicle.manage. The registration number is normalized (trimmed, single-spaced, upper-cased) and must be unique within the organization. A new vehicle always starts available.
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced, upper-cased) and must be unique within the organization. A new vehicle always starts available.
  * @summary Register a vehicle (VR-01)
  */
 export const createVehicle = async (organizationId: number,
@@ -10123,7 +10123,7 @@ export const getGetVehicleUrl = (organizationId: number,
 }
 
 /**
- * Requires the vehicle_management module and vehicle.read. Another organization's vehicle is not found.
+ * Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
  * @summary Get one vehicle (VR-01)
  */
 export const getVehicle = async (organizationId: number,
@@ -10206,7 +10206,7 @@ export const getUpdateVehicleUrl = (organizationId: number,
 }
 
 /**
- * Requires the vehicle_management module and vehicle.manage. Status may be set to available, maintenance or inactive only — in_use belongs to the VR-02 release/return flow, and a vehicle that is currently out must have its return recorded before its status changes here.
+ * Requires the asset_management module and asset_management.manage. Status is the register's own administrative state: available, maintenance or inactive. Whether a vehicle is physically out is derived from the VR-02 movement record and is never set here.
  * @summary Update a vehicle's register details or status (VR-01)
  */
 export const updateVehicle = async (organizationId: number,
