@@ -6505,6 +6505,93 @@ export interface PersonnelSearchResult {
   pifNumber: string | null;
 }
 
+export type VehicleRequestApprovalStagePurpose = typeof VehicleRequestApprovalStagePurpose[keyof typeof VehicleRequestApprovalStagePurpose];
+
+
+export const VehicleRequestApprovalStagePurpose = {
+  vehicle_request: 'vehicle_request',
+} as const;
+
+export type VehicleRequestApprovalStageResolverType = typeof VehicleRequestApprovalStageResolverType[keyof typeof VehicleRequestApprovalStageResolverType];
+
+
+export const VehicleRequestApprovalStageResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+/**
+ * permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.
+ */
+export type VehicleRequestApprovalStageResolverConfig = { [key: string]: unknown };
+
+/**
+ * VR-02A — one configured stage in an organization's Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.
+ */
+export interface VehicleRequestApprovalStage {
+  id: number;
+  organizationId: number;
+  purpose: VehicleRequestApprovalStagePurpose;
+  /** 1-based position. Stages are decided strictly in ascending order. */
+  stageOrder: number;
+  name: string;
+  resolverType: VehicleRequestApprovalStageResolverType;
+  /** permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department. */
+  resolverConfig?: VehicleRequestApprovalStageResolverConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateVehicleRequestApprovalStageInputResolverType = typeof CreateVehicleRequestApprovalStageInputResolverType[keyof typeof CreateVehicleRequestApprovalStageInputResolverType];
+
+
+export const CreateVehicleRequestApprovalStageInputResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type CreateVehicleRequestApprovalStageInputResolverConfig = { [key: string]: unknown };
+
+export interface CreateVehicleRequestApprovalStageInput {
+  /** @minimum 1 */
+  stageOrder: number;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  resolverType: CreateVehicleRequestApprovalStageInputResolverType;
+  resolverConfig?: CreateVehicleRequestApprovalStageInputResolverConfig;
+}
+
+export type UpdateVehicleRequestApprovalStageInputResolverType = typeof UpdateVehicleRequestApprovalStageInputResolverType[keyof typeof UpdateVehicleRequestApprovalStageInputResolverType];
+
+
+export const UpdateVehicleRequestApprovalStageInputResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type UpdateVehicleRequestApprovalStageInputResolverConfig = { [key: string]: unknown };
+
+/**
+ * Every field is optional; only the fields supplied are changed.
+ */
+export interface UpdateVehicleRequestApprovalStageInput {
+  /** @minimum 1 */
+  stageOrder?: number;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  resolverType?: UpdateVehicleRequestApprovalStageInputResolverType;
+  resolverConfig?: UpdateVehicleRequestApprovalStageInputResolverConfig;
+}
+
 /**
  * The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.
  */

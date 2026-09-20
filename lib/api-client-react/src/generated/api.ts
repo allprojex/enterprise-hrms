@@ -197,6 +197,7 @@ import type {
   CreateTalentPoolInput,
   CreateVacancyInput,
   CreateVehicleInput,
+  CreateVehicleRequestApprovalStageInput,
   CustomFieldDefinition,
   CustomFieldDetail,
   CustomFieldInput,
@@ -784,6 +785,7 @@ import type {
   UpdateTalentPoolInput,
   UpdateVacancyInput,
   UpdateVehicleInput,
+  UpdateVehicleRequestApprovalStageInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UploadMigrationSourceBody,
@@ -797,6 +799,7 @@ import type {
   Vacancy,
   VacancyListResponse,
   Vehicle,
+  VehicleRequestApprovalStage,
   VerifyDocumentRequirementBody,
   VerifyEmployeeSkillInput,
   WaiveClearanceItemInput,
@@ -9948,6 +9951,389 @@ export const useUpdateRecordsLocation = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateRecordsLocationMutationOptions(options));
+    }
+
+export const getListVehicleRequestApprovalStagesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Returned in ascending stage order.
+ * @summary List the organization's Vehicle Request approval stages (VR-02A)
+ */
+export const listVehicleRequestApprovalStages = async (organizationId: number, options?: RequestInit): Promise<VehicleRequestApprovalStage[]> => {
+
+  return customFetch<VehicleRequestApprovalStage[]>(getListVehicleRequestApprovalStagesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVehicleRequestApprovalStagesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/vehicle-request-approval-stages`
+    ] as const;
+    }
+
+
+export const getListVehicleRequestApprovalStagesQueryOptions = <TData = Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVehicleRequestApprovalStagesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>> = ({ signal }) => listVehicleRequestApprovalStages(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVehicleRequestApprovalStagesQueryResult = NonNullable<Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>>
+export type ListVehicleRequestApprovalStagesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the organization's Vehicle Request approval stages (VR-02A)
+ */
+
+export function useListVehicleRequestApprovalStages<TData = Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVehicleRequestApprovalStagesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVehicleRequestApprovalStageUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. The resolver configuration is validated against the resolver type, so a stage that could authorize nobody is refused here rather than stranding a request later.
+ * @summary Add an approval stage (VR-02A)
+ */
+export const createVehicleRequestApprovalStage = async (organizationId: number,
+    createVehicleRequestApprovalStageInput: CreateVehicleRequestApprovalStageInput, options?: RequestInit): Promise<VehicleRequestApprovalStage> => {
+
+  return customFetch<VehicleRequestApprovalStage>(getCreateVehicleRequestApprovalStageUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createVehicleRequestApprovalStageInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVehicleRequestApprovalStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>, TError,{organizationId: number;data: BodyType<CreateVehicleRequestApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>, TError,{organizationId: number;data: BodyType<CreateVehicleRequestApprovalStageInput>}, TContext> => {
+
+const mutationKey = ['createVehicleRequestApprovalStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>, {organizationId: number;data: BodyType<CreateVehicleRequestApprovalStageInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createVehicleRequestApprovalStage(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVehicleRequestApprovalStageMutationResult = NonNullable<Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>>
+    export type CreateVehicleRequestApprovalStageMutationBody = BodyType<CreateVehicleRequestApprovalStageInput>
+    export type CreateVehicleRequestApprovalStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Add an approval stage (VR-02A)
+ */
+export const useCreateVehicleRequestApprovalStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>, TError,{organizationId: number;data: BodyType<CreateVehicleRequestApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createVehicleRequestApprovalStage>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateVehicleRequestApprovalStageInput>},
+        TContext
+      > => {
+      return useMutation(getCreateVehicleRequestApprovalStageMutationOptions(options));
+    }
+
+export const getGetVehicleRequestApprovalStageUrl = (organizationId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages/${stageId}`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
+ * @summary Get one approval stage (VR-02A)
+ */
+export const getVehicleRequestApprovalStage = async (organizationId: number,
+    stageId: number, options?: RequestInit): Promise<VehicleRequestApprovalStage> => {
+
+  return customFetch<VehicleRequestApprovalStage>(getGetVehicleRequestApprovalStageUrl(organizationId,stageId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVehicleRequestApprovalStageQueryKey = (organizationId: number,
+    stageId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/vehicle-request-approval-stages/${stageId}`
+    ] as const;
+    }
+
+
+export const getGetVehicleRequestApprovalStageQueryOptions = <TData = Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>, TError = ErrorType<void>>(organizationId: number,
+    stageId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVehicleRequestApprovalStageQueryKey(organizationId,stageId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>> = ({ signal }) => getVehicleRequestApprovalStage(organizationId,stageId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && stageId !== null && stageId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVehicleRequestApprovalStageQueryResult = NonNullable<Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>>
+export type GetVehicleRequestApprovalStageQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get one approval stage (VR-02A)
+ */
+
+export function useGetVehicleRequestApprovalStage<TData = Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>, TError = ErrorType<void>>(
+ organizationId: number,
+    stageId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicleRequestApprovalStage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVehicleRequestApprovalStageQueryOptions(organizationId,stageId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateVehicleRequestApprovalStageUrl = (organizationId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages/${stageId}`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Changing the resolver type revalidates its configuration. Reconfiguring the chain never alters a request already in flight.
+ * @summary Amend an approval stage (VR-02A)
+ */
+export const updateVehicleRequestApprovalStage = async (organizationId: number,
+    stageId: number,
+    updateVehicleRequestApprovalStageInput: UpdateVehicleRequestApprovalStageInput, options?: RequestInit): Promise<VehicleRequestApprovalStage> => {
+
+  return customFetch<VehicleRequestApprovalStage>(getUpdateVehicleRequestApprovalStageUrl(organizationId,stageId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateVehicleRequestApprovalStageInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVehicleRequestApprovalStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number;data: BodyType<UpdateVehicleRequestApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number;data: BodyType<UpdateVehicleRequestApprovalStageInput>}, TContext> => {
+
+const mutationKey = ['updateVehicleRequestApprovalStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>, {organizationId: number;stageId: number;data: BodyType<UpdateVehicleRequestApprovalStageInput>}> = (props) => {
+          const {organizationId,stageId,data} = props ?? {};
+
+          return  updateVehicleRequestApprovalStage(organizationId,stageId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVehicleRequestApprovalStageMutationResult = NonNullable<Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>>
+    export type UpdateVehicleRequestApprovalStageMutationBody = BodyType<UpdateVehicleRequestApprovalStageInput>
+    export type UpdateVehicleRequestApprovalStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Amend an approval stage (VR-02A)
+ */
+export const useUpdateVehicleRequestApprovalStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number;data: BodyType<UpdateVehicleRequestApprovalStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateVehicleRequestApprovalStage>>,
+        TError,
+        {organizationId: number;stageId: number;data: BodyType<UpdateVehicleRequestApprovalStageInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateVehicleRequestApprovalStageMutationOptions(options));
+    }
+
+export const getDeleteVehicleRequestApprovalStageUrl = (organizationId: number,
+    stageId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages/${stageId}`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Affects future requests only — an in-flight request carries its own frozen stage count and its decisions keep their own stage snapshots.
+ * @summary Remove an approval stage (VR-02A)
+ */
+export const deleteVehicleRequestApprovalStage = async (organizationId: number,
+    stageId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteVehicleRequestApprovalStageUrl(organizationId,stageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteVehicleRequestApprovalStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext> => {
+
+const mutationKey = ['deleteVehicleRequestApprovalStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>, {organizationId: number;stageId: number}> = (props) => {
+          const {organizationId,stageId} = props ?? {};
+
+          return  deleteVehicleRequestApprovalStage(organizationId,stageId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteVehicleRequestApprovalStageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>>
+
+    export type DeleteVehicleRequestApprovalStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an approval stage (VR-02A)
+ */
+export const useDeleteVehicleRequestApprovalStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>, TError,{organizationId: number;stageId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteVehicleRequestApprovalStage>>,
+        TError,
+        {organizationId: number;stageId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteVehicleRequestApprovalStageMutationOptions(options));
     }
 
 export const getListVehiclesUrl = (organizationId: number,

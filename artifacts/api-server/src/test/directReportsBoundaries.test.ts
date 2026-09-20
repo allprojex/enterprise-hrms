@@ -71,17 +71,26 @@ describe("WS-16 Pass 2A — shared direct-report helper boundaries", () => {
     expect(retained).toMatch(/ne\(employeesTable\.employmentStatus,\s*"terminated"\)/);
   });
 
-  it("the delegation foundation exists but has ZERO business consumers (§32.21)", () => {
+  it("the delegation foundation has only its ONE approved business consumer (§32.21)", () => {
     // This guard was written in Pass 2A to assert the delegation foundation
     // did not exist yet. Pass 2B built it, so the guard now protects the
-    // boundary that actually matters: the foundation is deliberately DORMANT.
-    // The initial consumer set is frozen as EMPTY — Leave, Recruitment, WS-13,
-    // Onboarding, Payroll, Performance, Learning, Assets, Office Inventory,
-    // Employee Relations, Skills/Succession and Lifecycle are all expressly
-    // not delegatable — and adoption requires an explicit Owner Decision
-    // naming a module (Pass 2D, gated). A file appearing here means a consumer
-    // was wired without that decision.
-    const ALLOWED = new Set(["/lib/authorityDelegations.ts"]);
+    // boundary that actually matters: adoption requires an explicit Owner
+    // Decision naming a module (Pass 2D, gated), and a file appearing here
+    // that is not on this list means a consumer was wired without one.
+    //
+    // The set was frozen EMPTY until 2026-09-20, when the owner authorized
+    // VR-02 Vehicle Requests to compose the shared department-head and
+    // authority-delegation primitives for its configurable approval chain.
+    // That is the FIRST and so far ONLY approved consumer: Leave, Recruitment,
+    // WS-13, Onboarding, Payroll, Performance, Learning, Assets, Office
+    // Inventory, Employee Relations, Skills/Succession and Lifecycle all
+    // remain expressly not delegatable, and each would need its own decision.
+    //
+    // Note what this consumer does NOT do: it never writes a delegation, never
+    // exposes one over HTTP (the test below still holds), and never treats a
+    // delegation as a permission — a delegate still needs
+    // vehicle_request.approve in their own right.
+    const ALLOWED = new Set(["/lib/authorityDelegations.ts", "/lib/vehicleRequestAuthority.ts"]);
     const consumers = sourceFiles
       .filter((f) => /authorityDelegationsTable|from "\.\.?\/(lib\/)?authorityDelegations"/.test(read(f)))
       .map((f) => f.replace(SRC, "").replace(/\\/g, "/"))

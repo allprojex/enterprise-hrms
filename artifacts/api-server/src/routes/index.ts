@@ -16,6 +16,7 @@ import employeeNumberingRouter from "./employeeNumbering";
 import personnelFilesRouter from "./personnelFiles";
 import recordsLocationsRouter from "./recordsLocations";
 import vehiclesRouter from "./vehicles";
+import vehicleRequestApprovalStagesRouter from "./vehicleRequestApprovalStages";
 import personnelFileCustodyRouter from "./personnelFileCustody";
 import personnelReportingRouter from "./personnelReporting";
 import legacyImportRouter from "./legacyImport";
@@ -164,6 +165,10 @@ router.use(recordsLocationsRouter);
 // (e.g. /vehicles/availability) it must be registered before this router, the
 // same ordering rule assetReporting/assets already follow below.
 router.use(vehiclesRouter);
+// VR-02A — vehicle-request approval-stage configuration. Its own path prefix
+// (/vehicle-request-approval-stages), so it cannot be swallowed by, and cannot
+// swallow, the /vehicles routes above.
+router.use(vehicleRequestApprovalStagesRouter);
 router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);

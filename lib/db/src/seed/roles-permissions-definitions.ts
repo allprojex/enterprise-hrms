@@ -479,6 +479,21 @@ export const PERMISSIONS = [
   { key: "office_inventory.stocktake", resource: "office_inventory", action: "stocktake" },
   { key: "office_inventory.asset_handoff", resource: "office_inventory", action: "asset_handoff" },
   { key: "office_inventory.reports.read", resource: "office_inventory", action: "reports.read" },
+  // VR-02 — Vehicle Requests. Exactly four keys, and deliberately no fifth:
+  //   * reading YOUR OWN requests needs no key at all — "owning your own data
+  //     is not an operational grant" (the ESS precedent that officeInventoryEss
+  //     states outright), so ownership is proved server-side from the caller's
+  //     own membership instead;
+  //   * configuring the approval chain is administration of the vehicle domain,
+  //     so it reuses the existing `asset_management.manage` rather than adding
+  //     a `vehicle_request.configure`.
+  // These are NOT the rejected `vehicle.read`/`vehicle.manage` pair: VR-01's
+  // register stays on `asset_management.manage`, and none of these four grants
+  // any access to it.
+  { key: "vehicle_request.write.own", resource: "vehicle_request", action: "write.own" },
+  { key: "vehicle_request.write.department", resource: "vehicle_request", action: "write.department" },
+  { key: "vehicle_request.approve", resource: "vehicle_request", action: "approve" },
+  { key: "vehicle_request.read.all", resource: "vehicle_request", action: "read.all" },
   // WS-5 — Documents & Records Foundation (Owner Decision #4). Deliberately
   // seven keys, not one per document category (§32 explicitly forbids
   // category-specific keys). The split follows the authority boundaries the
@@ -1073,6 +1088,11 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.read.own",
     "asset_management.write.own",
     "asset_management.reports.read",
+    // VR-02 — an ordinary employee may raise a vehicle request for themselves.
+    // ONLY this key: `write.department`, `approve` and `read.all` are
+    // deliberately absent from every template and are granted per organization,
+    // so no employee acquires departmental, approval or oversight reach here.
+    "vehicle_request.write.own",
   ],
 };
 
