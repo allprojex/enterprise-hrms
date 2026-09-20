@@ -68,12 +68,19 @@ function translateUniqueViolation(err: unknown): Error {
 }
 
 /**
- * Registration numbers are compared case- and spacing-insensitively so
- * "gr 1234-20" and "GR1234-20" cannot both be registered; the normalized upper
- * case form is what is stored and shown.
+ * Registration numbers are stored and shown as the organization entered them,
+ * with only safe whitespace normalization: surrounding space is trimmed and
+ * internal runs collapse to a single space. Case is DELIBERATELY preserved —
+ * a registration is an external identifier the organization already uses on
+ * paper, and silently rewriting its casing changes their own record of it.
+ *
+ * Consequence for V1: uniqueness is over the stored value, so "GR 1234-20" and
+ * "gr 1234-20" are two distinct registrations. Case-insensitive registration
+ * semantics would need a deliberate decision and a functional index; neither
+ * is in scope here.
  */
 export function normalizeRegistrationNumber(raw: string): string {
-  const normalized = raw.trim().replace(/\s+/g, " ").toUpperCase();
+  const normalized = raw.trim().replace(/\s+/g, " ");
   if (!normalized) throw new InvalidVehicleError("registrationNumber is required");
   if (normalized.length > 32) throw new InvalidVehicleError("registrationNumber must be 32 characters or fewer");
   return normalized;

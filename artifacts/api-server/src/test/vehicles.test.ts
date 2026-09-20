@@ -175,8 +175,16 @@ beforeEach(() => {
 });
 
 describe("normalizeRegistrationNumber", () => {
-  it("trims, collapses spacing and upper-cases so one vehicle cannot be registered twice", () => {
-    expect(normalizeRegistrationNumber("  gr   1234-20 ")).toBe("GR 1234-20");
+  it("trims and collapses internal spacing", () => {
+    expect(normalizeRegistrationNumber("  GR   1234-20 ")).toBe("GR 1234-20");
+  });
+
+  it("preserves the case the organization entered, and never upper-cases it", () => {
+    // A registration is an external identifier the organization already uses
+    // on paper; rewriting its casing would change their own record of it.
+    expect(normalizeRegistrationNumber("gr 1234-20")).toBe("gr 1234-20");
+    expect(normalizeRegistrationNumber("Gr 1234-20")).toBe("Gr 1234-20");
+    expect(normalizeRegistrationNumber("  gh-  4821 x ")).toBe("gh- 4821 x");
   });
 
   it("refuses an empty or over-long registration number", () => {
@@ -209,7 +217,7 @@ describe("listVehicles / getVehicleById", () => {
 });
 
 describe("createVehicle", () => {
-  it("stores the normalized registration number, starts available, and audits", async () => {
+  it("stores the whitespace-normalized registration with its case intact, starts available, and audits", async () => {
     const vehicle = await createVehicle({
       organizationId: ORG,
       registrationNumber: " gw 4321-23 ",
@@ -217,7 +225,8 @@ describe("createVehicle", () => {
       model: "",
       ...actor,
     });
-    expect(vehicle.registrationNumber).toBe("GW 4321-23");
+    // Trimmed, but still lower case exactly as it was entered.
+    expect(vehicle.registrationNumber).toBe("gw 4321-23");
     expect(fixtures.inserts[0]).toMatchObject({ organizationId: ORG, status: "available", make: "Ford", model: null, createdByMembershipId: 5 });
     expect(fixtures.audits).toHaveLength(1);
     expect(fixtures.audits[0]).toMatchObject({

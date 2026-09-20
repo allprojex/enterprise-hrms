@@ -46,7 +46,7 @@ export const vehiclesTable = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizationsTable.id, { onDelete: "restrict" }),
-    /** The organization's own car/registration number. Unique per organization, client-supplied, normalized upper-case. */
+    /** The organization's own car/registration number. Unique per organization, client-supplied; whitespace-normalized with case preserved. */
     registrationNumber: text("registration_number").notNull(),
     make: text("make"),
     model: text("model"),

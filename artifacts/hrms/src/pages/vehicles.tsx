@@ -17,6 +17,10 @@ import {
   useUpdateVehicle,
   useListAssets,
   getListAssetsQueryKey,
+  useListEmployees,
+  getListEmployeesQueryKey,
+  useListBranches,
+  getListBranchesQueryKey,
   useGetMe,
   getGetMeQueryKey,
   type Vehicle,
@@ -46,10 +50,23 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   inactive: { label: 'Inactive', className: 'bg-muted text-muted-foreground' },
 };
 
-const emptyForm = { registrationNumber: '', make: '', model: '', notes: '', assetId: '' };
+const emptyForm = {
+  registrationNumber: '',
+  make: '',
+  model: '',
+  notes: '',
+  assetId: '',
+  defaultDriverEmployeeId: '',
+  branchId: '',
+};
 
-/** The select needs a concrete value for "no asset"; the API takes null. */
+/**
+ * Every optional reference is chosen from a list, never typed as an id: the
+ * select needs a concrete value for "not set", and the API takes null.
+ */
 const NO_ASSET = 'none';
+const NO_DRIVER = 'none';
+const NO_BRANCH = 'none';
 
 function errorMessage(err: unknown): string | undefined {
   if (err && typeof err === 'object' && 'error' in err) return String((err as { error: unknown }).error);
@@ -105,6 +122,35 @@ export default function Vehicles() {
     return asset ? `${asset.assetTag} · ${asset.name}` : `Asset #${assetId}`;
   };
 
+  // The default driver and the owning branch are the register's other two
+  // optional references. Both are picked from the organization's own lists —
+  // the page never asks anyone to type an id, and never shows one.
+  const { data: employeesPage } = useListEmployees(
+    organizationId,
+    { pageSize: 200 },
+    { query: { queryKey: getListEmployeesQueryKey(organizationId, { pageSize: 200 }), enabled: organizationId > 0 } },
+  );
+  const employees = employeesPage?.items ?? [];
+  const employeeName = (employee: { firstName: string; lastName: string; employeeNumber?: string | null }): string =>
+    employee.employeeNumber
+      ? `${employee.firstName} ${employee.lastName} · ${employee.employeeNumber}`
+      : `${employee.firstName} ${employee.lastName}`;
+  const driverLabel = (employeeId: number | null | undefined): string | null => {
+    if (employeeId == null) return null;
+    const employee = employees.find((e) => e.id === employeeId);
+    return employee ? employeeName(employee) : 'Unknown employee';
+  };
+
+  const { data: branches } = useListBranches(organizationId, {
+    query: { queryKey: getListBranchesQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const branchList = branches ?? [];
+  const branchLabel = (branchId: number | null | undefined): string | null => {
+    if (branchId == null) return null;
+    const branch = branchList.find((b) => b.id === branchId);
+    return branch ? branch.name : 'Unknown branch';
+  };
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListVehiclesQueryKey(organizationId) });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -118,6 +164,8 @@ export default function Vehicles() {
           model: form.model.trim() || null,
           notes: form.notes.trim() || null,
           assetId: form.assetId ? Number(form.assetId) : null,
+          defaultDriverEmployeeId: form.defaultDriverEmployeeId ? Number(form.defaultDriverEmployeeId) : null,
+          branchId: form.branchId ? Number(form.branchId) : null,
         },
       },
       {
@@ -145,6 +193,8 @@ export default function Vehicles() {
       model: vehicle.model ?? '',
       notes: vehicle.notes ?? '',
       assetId: vehicle.assetId != null ? String(vehicle.assetId) : '',
+      defaultDriverEmployeeId: vehicle.defaultDriverEmployeeId != null ? String(vehicle.defaultDriverEmployeeId) : '',
+      branchId: vehicle.branchId != null ? String(vehicle.branchId) : '',
     });
   };
 
@@ -161,6 +211,8 @@ export default function Vehicles() {
           model: editForm.model.trim() || null,
           notes: editForm.notes.trim() || null,
           assetId: editForm.assetId ? Number(editForm.assetId) : null,
+          defaultDriverEmployeeId: editForm.defaultDriverEmployeeId ? Number(editForm.defaultDriverEmployeeId) : null,
+          branchId: editForm.branchId ? Number(editForm.branchId) : null,
         },
       },
       {
@@ -242,6 +294,48 @@ export default function Vehicles() {
                         onChange={(e) => setForm({ ...form, model: e.target.value })}
                         data-testid="input-vehicle-model"
                       />
+                    </div>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicle-driver">Default driver (optional)</Label>
+                      <Select
+                        value={form.defaultDriverEmployeeId || NO_DRIVER}
+                        onValueChange={(value) =>
+                          setForm({ ...form, defaultDriverEmployeeId: value === NO_DRIVER ? '' : value })
+                        }
+                      >
+                        <SelectTrigger id="vehicle-driver" data-testid="select-vehicle-driver">
+                          <SelectValue placeholder="No default driver" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_DRIVER}>No default driver</SelectItem>
+                          {employees.map((employee) => (
+                            <SelectItem key={employee.id} value={String(employee.id)}>
+                              {employeeName(employee)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vehicle-branch">Branch (optional)</Label>
+                      <Select
+                        value={form.branchId || NO_BRANCH}
+                        onValueChange={(value) => setForm({ ...form, branchId: value === NO_BRANCH ? '' : value })}
+                      >
+                        <SelectTrigger id="vehicle-branch" data-testid="select-vehicle-branch">
+                          <SelectValue placeholder="No branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_BRANCH}>No branch</SelectItem>
+                          {branchList.map((branch) => (
+                            <SelectItem key={branch.id} value={String(branch.id)}>
+                              {branch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -341,9 +435,10 @@ export default function Vehicles() {
           <Table aria-label="Vehicles">
             <TableHeader>
               <TableRow>
-                <TableHead>Registration</TableHead>
-                <TableHead>Make</TableHead>
-                <TableHead>Model</TableHead>
+                <TableHead>Car / registration number</TableHead>
+                <TableHead>Make / model</TableHead>
+                <TableHead>Default driver</TableHead>
+                <TableHead>Branch</TableHead>
                 <TableHead>Linked asset</TableHead>
                 <TableHead>Status</TableHead>
                 {canManage && <TableHead className="text-right">Actions</TableHead>}
@@ -355,8 +450,15 @@ export default function Vehicles() {
                 return (
                   <TableRow key={vehicle.id} data-testid={`row-vehicle-${vehicle.id}`}>
                     <TableCell className="font-mono font-medium">{vehicle.registrationNumber}</TableCell>
-                    <TableCell>{vehicle.make ?? '—'}</TableCell>
-                    <TableCell>{vehicle.model ?? '—'}</TableCell>
+                    <TableCell data-testid={`cell-vehicle-make-model-${vehicle.id}`}>
+                      {[vehicle.make, vehicle.model].filter(Boolean).join(' ') || '—'}
+                    </TableCell>
+                    <TableCell data-testid={`cell-vehicle-driver-${vehicle.id}`}>
+                      {driverLabel(vehicle.defaultDriverEmployeeId) ?? '—'}
+                    </TableCell>
+                    <TableCell data-testid={`cell-vehicle-branch-${vehicle.id}`}>
+                      {branchLabel(vehicle.branchId) ?? '—'}
+                    </TableCell>
                     <TableCell data-testid={`cell-vehicle-asset-${vehicle.id}`}>{assetLabel(vehicle.assetId) ?? '—'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={status.className} data-testid={`badge-vehicle-status-${vehicle.id}`}>
@@ -456,6 +558,48 @@ export default function Vehicles() {
                     onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
                     data-testid="input-edit-vehicle-model"
                   />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-vehicle-driver">Default driver (optional)</Label>
+                  <Select
+                    value={editForm.defaultDriverEmployeeId || NO_DRIVER}
+                    onValueChange={(value) =>
+                      setEditForm({ ...editForm, defaultDriverEmployeeId: value === NO_DRIVER ? '' : value })
+                    }
+                  >
+                    <SelectTrigger id="edit-vehicle-driver" data-testid="select-edit-vehicle-driver">
+                      <SelectValue placeholder="No default driver" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_DRIVER}>No default driver</SelectItem>
+                      {employees.map((employee) => (
+                        <SelectItem key={employee.id} value={String(employee.id)}>
+                          {employeeName(employee)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-vehicle-branch">Branch (optional)</Label>
+                  <Select
+                    value={editForm.branchId || NO_BRANCH}
+                    onValueChange={(value) => setEditForm({ ...editForm, branchId: value === NO_BRANCH ? '' : value })}
+                  >
+                    <SelectTrigger id="edit-vehicle-branch" data-testid="select-edit-vehicle-branch">
+                      <SelectValue placeholder="No branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_BRANCH}>No branch</SelectItem>
+                      {branchList.map((branch) => (
+                        <SelectItem key={branch.id} value={String(branch.id)}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">

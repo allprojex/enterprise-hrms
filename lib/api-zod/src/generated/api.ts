@@ -3912,7 +3912,7 @@ export const ListVehiclesQueryParams = zod.object({
 export const ListVehiclesResponseItem = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
-  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.'),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
   "make": zod.string().nullish(),
   "model": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -3928,7 +3928,7 @@ export const ListVehiclesResponse = zod.array(ListVehiclesResponseItem)
 
 
 /**
- * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced, upper-cased) and must be unique within the organization. A new vehicle always starts available.
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced; case preserved) and must be unique within the organization. A new vehicle always starts available.
  * @summary Register a vehicle (VR-01)
  */
 export const CreateVehicleParams = zod.object({
@@ -3961,7 +3961,7 @@ export const CreateVehicleBody = zod.object({
 export const CreateVehicleResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
-  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.'),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
   "make": zod.string().nullish(),
   "model": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -3987,7 +3987,7 @@ export const GetVehicleParams = zod.object({
 export const GetVehicleResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
-  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.'),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
   "make": zod.string().nullish(),
   "model": zod.string().nullish(),
   "description": zod.string().nullish(),
@@ -4037,7 +4037,7 @@ export const UpdateVehicleBody = zod.object({
 export const UpdateVehicleResponse = zod.object({
   "id": zod.number(),
   "organizationId": zod.number(),
-  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.'),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
   "make": zod.string().nullish(),
   "model": zod.string().nullish(),
   "description": zod.string().nullish(),

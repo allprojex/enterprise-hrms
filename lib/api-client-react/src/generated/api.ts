@@ -10049,7 +10049,7 @@ export const getCreateVehicleUrl = (organizationId: number,) => {
 }
 
 /**
- * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced, upper-cased) and must be unique within the organization. A new vehicle always starts available.
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced; case preserved) and must be unique within the organization. A new vehicle always starts available.
  * @summary Register a vehicle (VR-01)
  */
 export const createVehicle = async (organizationId: number,

@@ -16,6 +16,8 @@ const { state, createMutateMock, updateMutateMock, updateMutateAsyncMock } = vi.
     permissions: new Set<string>(),
     vehicles: [] as Record<string, unknown>[],
     assets: [] as Record<string, unknown>[],
+    employees: [] as Record<string, unknown>[],
+    branches: [] as Record<string, unknown>[],
   },
   createMutateMock: vi.fn(),
   updateMutateMock: vi.fn(),
@@ -41,6 +43,10 @@ vi.mock('@workspace/api-client-react', () => ({
   useUpdateVehicle: () => ({ mutate: updateMutateMock, mutateAsync: updateMutateAsyncMock, isPending: false }),
   useListAssets: () => ({ data: { items: state.assets }, isLoading: false }),
   getListAssetsQueryKey: () => ['assets'],
+  useListEmployees: () => ({ data: { items: state.employees }, isLoading: false }),
+  getListEmployeesQueryKey: () => ['employees'],
+  useListBranches: () => ({ data: state.branches, isLoading: false }),
+  getListBranchesQueryKey: () => ['branches'],
 }));
 
 vi.mock('@/hooks/use-capabilities', () => ({
@@ -67,8 +73,39 @@ function renderPage() {
 }
 
 const VEHICLES = [
-  { id: 1, organizationId: 10, registrationNumber: 'GR 1234-20', make: 'Toyota', model: 'Hiace', status: 'available', notes: null },
-  { id: 3, organizationId: 10, registrationNumber: 'GW 9999-22', make: 'Toyota', model: 'Corolla', status: 'maintenance', notes: null, assetId: 77 },
+  {
+    id: 1,
+    organizationId: 10,
+    registrationNumber: 'GR 1234-20',
+    make: 'Toyota',
+    model: 'Hiace',
+    status: 'available',
+    notes: null,
+    defaultDriverEmployeeId: null,
+    branchId: null,
+  },
+  {
+    id: 3,
+    organizationId: 10,
+    registrationNumber: 'GW 9999-22',
+    make: 'Toyota',
+    model: 'Corolla',
+    status: 'maintenance',
+    notes: null,
+    assetId: 77,
+    defaultDriverEmployeeId: 200,
+    branchId: 5,
+  },
+];
+
+const EMPLOYEES = [
+  { id: 200, organizationId: 10, firstName: 'Amara', lastName: 'Owusu', employeeNumber: 'EMP-200' },
+  { id: 201, organizationId: 10, firstName: 'Kwesi', lastName: 'Mensah', employeeNumber: null },
+];
+
+const BRANCHES = [
+  { id: 5, organizationId: 10, name: 'Head Office', code: 'HO', status: 'active' },
+  { id: 6, organizationId: 10, name: 'Kumasi Branch', code: 'KSI', status: 'active' },
 ];
 
 beforeEach(() => {
@@ -85,6 +122,8 @@ beforeEach(() => {
     { id: 77, assetTag: 'AST-77', name: 'Hiace bus' },
     { id: 78, assetTag: 'AST-78', name: 'Generator' },
   ];
+  state.employees = EMPLOYEES.map((e) => ({ ...e }));
+  state.branches = BRANCHES.map((b) => ({ ...b }));
 });
 
 describe('Vehicle register — what each caller may do', () => {
@@ -172,8 +211,173 @@ describe('Vehicle register — adding a vehicle', () => {
     await user.click(screen.getByTestId('button-submit-vehicle'));
 
     expect(createMutateMock).toHaveBeenCalledWith(
-      { organizationId: 10, data: { registrationNumber: 'gr 4321-23', make: 'Ford', model: null, notes: null, assetId: null } },
+      {
+        organizationId: 10,
+        data: {
+          registrationNumber: 'gr 4321-23',
+          make: 'Ford',
+          model: null,
+          notes: null,
+          assetId: null,
+          defaultDriverEmployeeId: null,
+          branchId: null,
+        },
+      },
       expect.anything(),
     );
+  });
+
+  it('sends the chosen default driver', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    await user.type(screen.getByTestId('input-vehicle-registration'), 'GR 4321-23');
+    await user.click(screen.getByTestId('select-vehicle-driver'));
+    await user.click(screen.getByRole('option', { name: 'Amara Owusu · EMP-200' }));
+    await user.click(screen.getByTestId('button-submit-vehicle'));
+
+    expect(createMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, data: expect.objectContaining({ defaultDriverEmployeeId: 200 }) },
+      expect.anything(),
+    );
+  });
+
+  it('sends the chosen branch', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    await user.type(screen.getByTestId('input-vehicle-registration'), 'GR 4321-23');
+    await user.click(screen.getByTestId('select-vehicle-branch'));
+    await user.click(screen.getByRole('option', { name: 'Kumasi Branch' }));
+    await user.click(screen.getByTestId('button-submit-vehicle'));
+
+    expect(createMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, data: expect.objectContaining({ branchId: 6 }) },
+      expect.anything(),
+    );
+  });
+
+  it('leaves both optional references unset when nothing is chosen', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    await user.type(screen.getByTestId('input-vehicle-registration'), 'GR 4321-23');
+    await user.click(screen.getByTestId('button-submit-vehicle'));
+
+    expect(createMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, data: expect.objectContaining({ defaultDriverEmployeeId: null, branchId: null }) },
+      expect.anything(),
+    );
+  });
+});
+
+describe('Vehicle register — the default driver and branch of an existing vehicle', () => {
+  beforeEach(() => {
+    state.permissions = new Set(['asset_management.manage']);
+  });
+
+  it('opens the edit dialog already showing the vehicle’s driver and branch', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    expect(screen.getByTestId('select-edit-vehicle-driver')).toHaveTextContent('Amara Owusu · EMP-200');
+    expect(screen.getByTestId('select-edit-vehicle-branch')).toHaveTextContent('Head Office');
+  });
+
+  it('sends the replacement driver and branch', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    await user.click(screen.getByTestId('select-edit-vehicle-driver'));
+    await user.click(screen.getByRole('option', { name: 'Kwesi Mensah' }));
+    await user.click(screen.getByTestId('select-edit-vehicle-branch'));
+    await user.click(screen.getByRole('option', { name: 'Kumasi Branch' }));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      {
+        organizationId: 10,
+        vehicleId: 3,
+        data: expect.objectContaining({ defaultDriverEmployeeId: 201, branchId: 6 }),
+      },
+      expect.anything(),
+    );
+  });
+
+  it('clears both back to nothing', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    await user.click(screen.getByTestId('select-edit-vehicle-driver'));
+    await user.click(screen.getByRole('option', { name: 'No default driver' }));
+    await user.click(screen.getByTestId('select-edit-vehicle-branch'));
+    await user.click(screen.getByRole('option', { name: 'No branch' }));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      {
+        organizationId: 10,
+        vehicleId: 3,
+        data: expect.objectContaining({ defaultDriverEmployeeId: null, branchId: null }),
+      },
+      expect.anything(),
+    );
+  });
+});
+
+/**
+ * A vehicle's driver, branch and asset are references to other records. The
+ * register must never make anyone type or read one of their ids: every entry
+ * point is a chooser, so no text box or number box may stand for one.
+ */
+function assertNoIdEntry(scope: HTMLElement) {
+  for (const field of Array.from(scope.querySelectorAll('input, textarea'))) {
+    expect(field.getAttribute('type')).not.toBe('number');
+    const identity = `${field.id} ${field.getAttribute('data-testid') ?? ''} ${field.getAttribute('name') ?? ''}`;
+    expect(identity).not.toMatch(/driver|branch|asset/i);
+  }
+}
+
+describe('Vehicle register — the register reads in names, never ids', () => {
+  it('shows the driver and the branch by name, and a dash where there is none', () => {
+    renderPage();
+    expect(screen.getByTestId('cell-vehicle-driver-3')).toHaveTextContent('Amara Owusu');
+    expect(screen.getByTestId('cell-vehicle-branch-3')).toHaveTextContent('Head Office');
+    expect(screen.getByTestId('cell-vehicle-driver-1')).toHaveTextContent('—');
+    expect(screen.getByTestId('cell-vehicle-branch-1')).toHaveTextContent('—');
+  });
+
+  it('shows an unresolvable reference as unknown rather than as its id', () => {
+    state.employees = [];
+    state.branches = [];
+    renderPage();
+    expect(screen.getByTestId('cell-vehicle-driver-3')).toHaveTextContent('Unknown employee');
+    expect(screen.getByTestId('cell-vehicle-branch-3')).toHaveTextContent('Unknown branch');
+    expect(screen.getByTestId('cell-vehicle-driver-3')).not.toHaveTextContent('200');
+    expect(screen.getByTestId('cell-vehicle-branch-3')).not.toHaveTextContent('5');
+  });
+
+  it('offers no free-text or numeric field for driver, branch or asset when adding', async () => {
+    state.permissions = new Set(['asset_management.manage']);
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+
+    assertNoIdEntry(screen.getByRole('dialog'));
+    // Each optional reference is a chooser, not a typed id.
+    expect(screen.getByTestId('select-vehicle-driver')).toHaveAttribute('role', 'combobox');
+    expect(screen.getByTestId('select-vehicle-branch')).toHaveAttribute('role', 'combobox');
+    expect(screen.getByTestId('select-vehicle-asset')).toHaveAttribute('role', 'combobox');
+  });
+
+  it('offers no free-text or numeric field for driver or branch when editing', async () => {
+    state.permissions = new Set(['asset_management.manage']);
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+
+    assertNoIdEntry(screen.getByRole('dialog'));
+    expect(screen.getByTestId('select-edit-vehicle-driver')).toHaveAttribute('role', 'combobox');
+    expect(screen.getByTestId('select-edit-vehicle-branch')).toHaveAttribute('role', 'combobox');
   });
 });

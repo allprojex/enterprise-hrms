@@ -4512,7 +4512,7 @@ paths:
       summary: Register a vehicle (VR-01)
       description: >-
         Requires the asset_management module and asset_management.manage. The
-        registration number is normalized (trimmed, single-spaced, upper-cased)
+        registration number is normalized (trimmed, single-spaced; case preserved)
         and must be unique within the organization. A new vehicle always starts
         available.
       parameters:
@@ -38509,7 +38509,7 @@ components:
           type: integer
         registrationNumber:
           type: string
-          description: Normalized (trimmed, single-spaced, upper-cased) and unique within the organization.
+          description: Normalized (trimmed, single-spaced; case preserved) and unique within the organization.
         make:
           type: ["string", "null"]
         model:

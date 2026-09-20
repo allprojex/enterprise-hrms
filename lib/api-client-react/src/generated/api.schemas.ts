@@ -6523,7 +6523,7 @@ export const VehicleStatus = {
 export interface Vehicle {
   id: number;
   organizationId: number;
-  /** Normalized (trimmed, single-spaced, upper-cased) and unique within the organization. */
+  /** Normalized (trimmed, single-spaced; case preserved) and unique within the organization. */
   registrationNumber: string;
   /** @nullable */
   make?: string | null;
