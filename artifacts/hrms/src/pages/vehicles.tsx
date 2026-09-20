@@ -54,11 +54,24 @@ const emptyForm = {
   registrationNumber: '',
   make: '',
   model: '',
+  description: '',
   notes: '',
   assetId: '',
   defaultDriverEmployeeId: '',
   branchId: '',
+  status: 'available',
 };
+
+/**
+ * The three administrative statuses the register defines. There is no "in use"
+ * here and never will be: whether a vehicle is physically out is a movement
+ * concern, not a register field.
+ */
+const REGISTER_STATUSES = [
+  { value: 'available', label: 'Available' },
+  { value: 'maintenance', label: 'Maintenance' },
+  { value: 'inactive', label: 'Inactive' },
+] as const;
 
 /**
  * Every optional reference is chosen from a list, never typed as an id: the
@@ -162,6 +175,7 @@ export default function Vehicles() {
           registrationNumber: form.registrationNumber.trim(),
           make: form.make.trim() || null,
           model: form.model.trim() || null,
+          description: form.description.trim() || null,
           notes: form.notes.trim() || null,
           assetId: form.assetId ? Number(form.assetId) : null,
           defaultDriverEmployeeId: form.defaultDriverEmployeeId ? Number(form.defaultDriverEmployeeId) : null,
@@ -191,10 +205,12 @@ export default function Vehicles() {
       registrationNumber: vehicle.registrationNumber,
       make: vehicle.make ?? '',
       model: vehicle.model ?? '',
+      description: vehicle.description ?? '',
       notes: vehicle.notes ?? '',
       assetId: vehicle.assetId != null ? String(vehicle.assetId) : '',
       defaultDriverEmployeeId: vehicle.defaultDriverEmployeeId != null ? String(vehicle.defaultDriverEmployeeId) : '',
       branchId: vehicle.branchId != null ? String(vehicle.branchId) : '',
+      status: vehicle.status,
     });
   };
 
@@ -209,10 +225,12 @@ export default function Vehicles() {
           registrationNumber: editForm.registrationNumber.trim(),
           make: editForm.make.trim() || null,
           model: editForm.model.trim() || null,
+          description: editForm.description.trim() || null,
           notes: editForm.notes.trim() || null,
           assetId: editForm.assetId ? Number(editForm.assetId) : null,
           defaultDriverEmployeeId: editForm.defaultDriverEmployeeId ? Number(editForm.defaultDriverEmployeeId) : null,
           branchId: editForm.branchId ? Number(editForm.branchId) : null,
+          status: editForm.status as Vehicle['status'],
         },
       },
       {
@@ -356,6 +374,39 @@ export default function Vehicles() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle-status">Status</Label>
+                    {/* A newly registered vehicle always starts available — the
+                        create endpoint takes no status — so this shows the
+                        starting value rather than offering a choice the server
+                        would discard. Maintenance and Inactive are set from
+                        Edit, or through the out-of-service action. */}
+                    <Select value={form.status} disabled>
+                      <SelectTrigger id="vehicle-status" data-testid="select-vehicle-status">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REGISTER_STATUSES.map((s) => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      A new vehicle starts available. Change it from Edit once it is registered.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicle-description">Description</Label>
+                    <Textarea
+                      id="vehicle-description"
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={2}
+                      data-testid="input-vehicle-description"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="vehicle-notes">Notes</Label>
@@ -601,6 +652,50 @@ export default function Vehicles() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-vehicle-asset">Linked asset (optional)</Label>
+                <Select
+                  value={editForm.assetId || NO_ASSET}
+                  onValueChange={(value) => setEditForm({ ...editForm, assetId: value === NO_ASSET ? '' : value })}
+                >
+                  <SelectTrigger id="edit-vehicle-asset" data-testid="select-edit-vehicle-asset">
+                    <SelectValue placeholder="Not linked" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_ASSET}>Not linked</SelectItem>
+                    {assets.map((asset) => (
+                      <SelectItem key={asset.id} value={String(asset.id)}>
+                        {asset.assetTag} · {asset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-vehicle-status">Status</Label>
+                <Select value={editForm.status} onValueChange={(value) => setEditForm({ ...editForm, status: value })}>
+                  <SelectTrigger id="edit-vehicle-status" data-testid="select-edit-vehicle-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REGISTER_STATUSES.map((s) => (
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-vehicle-description">Description</Label>
+                <Textarea
+                  id="edit-vehicle-description"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={2}
+                  data-testid="input-edit-vehicle-description"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-vehicle-notes">Notes</Label>

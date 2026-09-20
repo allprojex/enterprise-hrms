@@ -217,6 +217,7 @@ describe('Vehicle register — adding a vehicle', () => {
           registrationNumber: 'gr 4321-23',
           make: 'Ford',
           model: null,
+          description: null,
           notes: null,
           assetId: null,
           defaultDriverEmployeeId: null,
@@ -225,6 +226,49 @@ describe('Vehicle register — adding a vehicle', () => {
       },
       expect.anything(),
     );
+  });
+
+  it('exposes every authorized register field when adding', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    for (const testId of [
+      'input-vehicle-registration',
+      'input-vehicle-make',
+      'input-vehicle-model',
+      'input-vehicle-description',
+      'select-vehicle-driver',
+      'select-vehicle-branch',
+      'select-vehicle-asset',
+      'select-vehicle-status',
+      'input-vehicle-notes',
+    ]) {
+      expect(screen.getByTestId(testId)).toBeInTheDocument();
+    }
+  });
+
+  it('submits the entered description', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    await user.type(screen.getByTestId('input-vehicle-registration'), 'GR 4321-23');
+    await user.type(screen.getByTestId('input-vehicle-description'), '15-seater staff bus');
+    await user.click(screen.getByTestId('button-submit-vehicle'));
+
+    expect(createMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, data: expect.objectContaining({ description: '15-seater staff bus' }) },
+      expect.anything(),
+    );
+  });
+
+  it('starts a new vehicle available, and does not offer to create it in another status', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-add-vehicle'));
+    expect(screen.getByTestId('select-vehicle-status')).toHaveTextContent('Available');
+    // The create endpoint takes no status, so the control must not invite a
+    // choice the server would silently discard.
+    expect(screen.getByTestId('select-vehicle-status')).toBeDisabled();
   });
 
   it('sends the chosen default driver', async () => {
@@ -322,6 +366,116 @@ describe('Vehicle register — the default driver and branch of an existing vehi
       },
       expect.anything(),
     );
+  });
+});
+
+describe('Vehicle register — editing description, asset and status', () => {
+  beforeEach(() => {
+    state.permissions = new Set(['asset_management.manage']);
+    state.vehicles = [{ ...VEHICLES[1], description: 'Staff shuttle' }];
+  });
+
+  it('exposes every authorized register field when editing', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    for (const testId of [
+      'input-edit-vehicle-registration',
+      'input-edit-vehicle-make',
+      'input-edit-vehicle-model',
+      'input-edit-vehicle-description',
+      'select-edit-vehicle-driver',
+      'select-edit-vehicle-branch',
+      'select-edit-vehicle-asset',
+      'select-edit-vehicle-status',
+      'input-edit-vehicle-notes',
+    ]) {
+      expect(screen.getByTestId(testId)).toBeInTheDocument();
+    }
+  });
+
+  it('pre-populates the description, and can change and clear it', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    const description = screen.getByTestId('input-edit-vehicle-description');
+    expect(description).toHaveValue('Staff shuttle');
+
+    await user.clear(description);
+    await user.type(description, 'Long-haul bus');
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, vehicleId: 3, data: expect.objectContaining({ description: 'Long-haul bus' }) },
+      expect.anything(),
+    );
+
+    updateMutateMock.mockReset();
+    await user.clear(screen.getByTestId('input-edit-vehicle-description'));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, vehicleId: 3, data: expect.objectContaining({ description: null }) },
+      expect.anything(),
+    );
+  });
+
+  it('pre-populates the linked asset, and can change it', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    expect(screen.getByTestId('select-edit-vehicle-asset')).toHaveTextContent('AST-77 · Hiace bus');
+
+    await user.click(screen.getByTestId('select-edit-vehicle-asset'));
+    await user.click(screen.getByRole('option', { name: 'AST-78 · Generator' }));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, vehicleId: 3, data: expect.objectContaining({ assetId: 78 }) },
+      expect.anything(),
+    );
+  });
+
+  it('clears the linked asset as null', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    await user.click(screen.getByTestId('select-edit-vehicle-asset'));
+    await user.click(screen.getByRole('option', { name: 'Not linked' }));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, vehicleId: 3, data: expect.objectContaining({ assetId: null }) },
+      expect.anything(),
+    );
+  });
+
+  it('pre-populates the current status', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    expect(screen.getByTestId('select-edit-vehicle-status')).toHaveTextContent('Maintenance');
+  });
+
+  it('can put a vehicle into maintenance — the status the register could not reach before', async () => {
+    state.vehicles = [{ ...VEHICLES[0], description: null }];
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-1'));
+    expect(screen.getByTestId('select-edit-vehicle-status')).toHaveTextContent('Available');
+    await user.click(screen.getByTestId('select-edit-vehicle-status'));
+    await user.click(screen.getByRole('option', { name: 'Maintenance' }));
+    await user.click(screen.getByTestId('button-submit-edit-vehicle'));
+    expect(updateMutateMock).toHaveBeenCalledWith(
+      { organizationId: 10, vehicleId: 1, data: expect.objectContaining({ status: 'maintenance' }) },
+      expect.anything(),
+    );
+  });
+
+  it('offers only the three administrative statuses, and never in use', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('button-edit-vehicle-3'));
+    await user.click(screen.getByTestId('select-edit-vehicle-status'));
+    const options = screen.getAllByRole('option').map((o) => o.textContent ?? '');
+    expect(options).toEqual(['Available', 'Maintenance', 'Inactive']);
+    expect(options.some((t) => /in use/i.test(t))).toBe(false);
   });
 });
 
