@@ -54,6 +54,7 @@ import LearningEnrollments from '@/pages/learning-enrollments';
 import LearningDashboard from '@/pages/learning-dashboard';
 import LearningReports from '@/pages/learning-reports';
 import Assets from '@/pages/assets';
+import Vehicles from '@/pages/vehicles';
 import TeamAssets from '@/pages/team-assets';
 import AssetsDashboard from '@/pages/assets-dashboard';
 import AssetReports from '@/pages/asset-reports';
@@ -392,6 +393,12 @@ function Router() {
       </Route>
       <Route path="/assets">
         {() => <SecureRoute component={Assets} moduleKey="asset_management" />}
+      </Route>
+      {/* VR-01 — the vehicle register is Assets administration: the same
+          asset_management module gate as the rest of the group, and the page's
+          own controls follow asset_management.manage, which the API re-checks. */}
+      <Route path="/vehicles">
+        {() => <SecureRoute component={Vehicles} moduleKey="asset_management" />}
       </Route>
       <Route path="/team-assets">
         {() => <SecureRoute component={TeamAssets} moduleKey="asset_management" />}

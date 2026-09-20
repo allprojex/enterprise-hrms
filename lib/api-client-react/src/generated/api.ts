@@ -196,6 +196,7 @@ import type {
   CreateSuccessionPlanInput,
   CreateTalentPoolInput,
   CreateVacancyInput,
+  CreateVehicleInput,
   CustomFieldDefinition,
   CustomFieldDetail,
   CustomFieldInput,
@@ -436,6 +437,7 @@ import type {
   ListSkillsParams,
   ListSuccessionCandidatesParams,
   ListVacanciesParams,
+  ListVehiclesParams,
   LoginInput,
   ManagerPortalDashboard,
   ManagerPortalPendingActions,
@@ -781,6 +783,7 @@ import type {
   UpdateSuccessionPlanInput,
   UpdateTalentPoolInput,
   UpdateVacancyInput,
+  UpdateVehicleInput,
   UploadEmployeeDocumentBody,
   UploadEmployeeProfilePictureBody,
   UploadMigrationSourceBody,
@@ -793,6 +796,7 @@ import type {
   UserProfileUpdate,
   Vacancy,
   VacancyListResponse,
+  Vehicle,
   VerifyDocumentRequirementBody,
   VerifyEmployeeSkillInput,
   WaiveClearanceItemInput,
@@ -9944,6 +9948,327 @@ export const useUpdateRecordsLocation = <TError = ErrorType<ApiError>,
         TContext
       > => {
       return useMutation(getUpdateRecordsLocationMutationOptions(options));
+    }
+
+export const getListVehiclesUrl = (organizationId: number,
+    params?: ListVehiclesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/organizations/${organizationId}/vehicles?${stringifiedParams}` : `/api/organizations/${organizationId}/vehicles`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
+ * @summary List the organization's vehicles (VR-01)
+ */
+export const listVehicles = async (organizationId: number,
+    params?: ListVehiclesParams, options?: RequestInit): Promise<Vehicle[]> => {
+
+  return customFetch<Vehicle[]>(getListVehiclesUrl(organizationId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVehiclesQueryKey = (organizationId: number,
+    params?: ListVehiclesParams,) => {
+    return [
+    `/api/organizations/${organizationId}/vehicles`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListVehiclesQueryOptions = <TData = Awaited<ReturnType<typeof listVehicles>>, TError = ErrorType<unknown>>(organizationId: number,
+    params?: ListVehiclesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVehiclesQueryKey(organizationId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVehicles>>> = ({ signal }) => listVehicles(organizationId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVehicles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVehiclesQueryResult = NonNullable<Awaited<ReturnType<typeof listVehicles>>>
+export type ListVehiclesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the organization's vehicles (VR-01)
+ */
+
+export function useListVehicles<TData = Awaited<ReturnType<typeof listVehicles>>, TError = ErrorType<unknown>>(
+ organizationId: number,
+    params?: ListVehiclesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVehiclesQueryOptions(organizationId,params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateVehicleUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicles`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced; case preserved) and must be unique within the organization. A new vehicle always starts available.
+ * @summary Register a vehicle (VR-01)
+ */
+export const createVehicle = async (organizationId: number,
+    createVehicleInput: CreateVehicleInput, options?: RequestInit): Promise<Vehicle> => {
+
+  return customFetch<Vehicle>(getCreateVehicleUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createVehicleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateVehicleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVehicle>>, TError,{organizationId: number;data: BodyType<CreateVehicleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createVehicle>>, TError,{organizationId: number;data: BodyType<CreateVehicleInput>}, TContext> => {
+
+const mutationKey = ['createVehicle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createVehicle>>, {organizationId: number;data: BodyType<CreateVehicleInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  createVehicle(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateVehicleMutationResult = NonNullable<Awaited<ReturnType<typeof createVehicle>>>
+    export type CreateVehicleMutationBody = BodyType<CreateVehicleInput>
+    export type CreateVehicleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Register a vehicle (VR-01)
+ */
+export const useCreateVehicle = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVehicle>>, TError,{organizationId: number;data: BodyType<CreateVehicleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createVehicle>>,
+        TError,
+        {organizationId: number;data: BodyType<CreateVehicleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateVehicleMutationOptions(options));
+    }
+
+export const getGetVehicleUrl = (organizationId: number,
+    vehicleId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicles/${vehicleId}`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
+ * @summary Get one vehicle (VR-01)
+ */
+export const getVehicle = async (organizationId: number,
+    vehicleId: number, options?: RequestInit): Promise<Vehicle> => {
+
+  return customFetch<Vehicle>(getGetVehicleUrl(organizationId,vehicleId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetVehicleQueryKey = (organizationId: number,
+    vehicleId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/vehicles/${vehicleId}`
+    ] as const;
+    }
+
+
+export const getGetVehicleQueryOptions = <TData = Awaited<ReturnType<typeof getVehicle>>, TError = ErrorType<ApiError>>(organizationId: number,
+    vehicleId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetVehicleQueryKey(organizationId,vehicleId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getVehicle>>> = ({ signal }) => getVehicle(organizationId,vehicleId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && vehicleId !== null && vehicleId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getVehicle>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetVehicleQueryResult = NonNullable<Awaited<ReturnType<typeof getVehicle>>>
+export type GetVehicleQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Get one vehicle (VR-01)
+ */
+
+export function useGetVehicle<TData = Awaited<ReturnType<typeof getVehicle>>, TError = ErrorType<ApiError>>(
+ organizationId: number,
+    vehicleId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getVehicle>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetVehicleQueryOptions(organizationId,vehicleId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateVehicleUrl = (organizationId: number,
+    vehicleId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicles/${vehicleId}`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage. Status is the register's own administrative state: available, maintenance or inactive. Whether a vehicle is physically out is derived from the VR-02 movement record and is never set here.
+ * @summary Update a vehicle's register details or status (VR-01)
+ */
+export const updateVehicle = async (organizationId: number,
+    vehicleId: number,
+    updateVehicleInput: UpdateVehicleInput, options?: RequestInit): Promise<Vehicle> => {
+
+  return customFetch<Vehicle>(getUpdateVehicleUrl(organizationId,vehicleId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateVehicleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateVehicleMutationOptions = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVehicle>>, TError,{organizationId: number;vehicleId: number;data: BodyType<UpdateVehicleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateVehicle>>, TError,{organizationId: number;vehicleId: number;data: BodyType<UpdateVehicleInput>}, TContext> => {
+
+const mutationKey = ['updateVehicle'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateVehicle>>, {organizationId: number;vehicleId: number;data: BodyType<UpdateVehicleInput>}> = (props) => {
+          const {organizationId,vehicleId,data} = props ?? {};
+
+          return  updateVehicle(organizationId,vehicleId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateVehicleMutationResult = NonNullable<Awaited<ReturnType<typeof updateVehicle>>>
+    export type UpdateVehicleMutationBody = BodyType<UpdateVehicleInput>
+    export type UpdateVehicleMutationError = ErrorType<ApiError>
+
+    /**
+ * @summary Update a vehicle's register details or status (VR-01)
+ */
+export const useUpdateVehicle = <TError = ErrorType<ApiError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateVehicle>>, TError,{organizationId: number;vehicleId: number;data: BodyType<UpdateVehicleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateVehicle>>,
+        TError,
+        {organizationId: number;vehicleId: number;data: BodyType<UpdateVehicleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateVehicleMutationOptions(options));
     }
 
 export const getRetireRecordsLocationUrl = (organizationId: number,

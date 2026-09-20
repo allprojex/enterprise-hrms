@@ -6505,6 +6505,133 @@ export interface PersonnelSearchResult {
   pifNumber: string | null;
 }
 
+/**
+ * The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.
+ */
+export type VehicleStatus = typeof VehicleStatus[keyof typeof VehicleStatus];
+
+
+export const VehicleStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * VR-01 — one organizational vehicle, identified by the registration ("car") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.
+ */
+export interface Vehicle {
+  id: number;
+  organizationId: number;
+  /** Normalized (trimmed, single-spaced; case preserved) and unique within the organization. */
+  registrationNumber: string;
+  /** @nullable */
+  make?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /**
+     * Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.
+     * @nullable
+     */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /**
+     * Optional link to the same organization's capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.
+     * @nullable
+     */
+  assetId?: number | null;
+  /** The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here. */
+  status: VehicleStatus;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVehicleInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  registrationNumber: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  make?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+  /** @nullable */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type UpdateVehicleInputStatus = typeof UpdateVehicleInputStatus[keyof typeof UpdateVehicleInputStatus];
+
+
+export const UpdateVehicleInputStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Every field is optional; only the fields supplied are changed.
+ */
+export interface UpdateVehicleInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  registrationNumber?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  make?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+  /** @nullable */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  notes?: string | null;
+  status?: UpdateVehicleInputStatus;
+}
+
 export type RecordsLocationStatus = typeof RecordsLocationStatus[keyof typeof RecordsLocationStatus];
 
 
@@ -14033,6 +14160,20 @@ export type UploadEmployeeDocumentBody = {
 export type SearchPersonnelRecordsParams = {
 search?: string;
 };
+
+export type ListVehiclesParams = {
+status?: ListVehiclesStatus;
+search?: string;
+};
+
+export type ListVehiclesStatus = typeof ListVehiclesStatus[keyof typeof ListVehiclesStatus];
+
+
+export const ListVehiclesStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
 
 export type ListPersonnelFileMovementsParams = {
 volumeId?: number;

@@ -47,6 +47,7 @@ import {
   Sparkles,
   Target,
   Boxes,
+  Car,
   Warehouse,
   Compass,
   Upload,
@@ -208,6 +209,7 @@ const MODULE_BY_HREF: Record<string, string> = {
   '/learning-reports': 'learning',
   '/assets-dashboard': 'asset_management',
   '/assets': 'asset_management',
+  '/vehicles': 'asset_management',
   '/team-assets': 'asset_management',
   '/asset-workspace': 'asset_management',
   '/asset-reports': 'asset_management',
@@ -772,6 +774,11 @@ export function AppShell({ children }: AppShellProps) {
         ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
+        // VR-01 — the vehicle register lives under Assets and carries no
+        // authority of its own: the route re-checks asset_management.manage,
+        // and the module filter above hides it with the rest of the group
+        // when asset_management is disabled.
+        ...(isHrCapable ? [{ href: '/vehicles', label: 'Vehicles', icon: Car } satisfies NavItem] : []),
       ],
     },
     {

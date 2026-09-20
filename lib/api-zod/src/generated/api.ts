@@ -3897,6 +3897,161 @@ export const UpdateRecordsLocationResponse = zod.object({
 
 
 /**
+ * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
+ * @summary List the organization's vehicles (VR-01)
+ */
+export const ListVehiclesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehiclesQueryParams = zod.object({
+  "status": zod.enum(['available', 'maintenance', 'inactive']).optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const ListVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+export const ListVehiclesResponse = zod.array(ListVehiclesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced; case preserved) and must be unique within the organization. A new vehicle always starts available.
+ * @summary Register a vehicle (VR-01)
+ */
+export const CreateVehicleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createVehicleBodyRegistrationNumberMax = 32;
+
+export const createVehicleBodyMakeMax = 120;
+
+export const createVehicleBodyModelMax = 120;
+
+export const createVehicleBodyDescriptionMax = 500;
+
+export const createVehicleBodyNotesMax = 500;
+
+
+
+export const CreateVehicleBody = zod.object({
+  "registrationNumber": zod.string().min(1).max(createVehicleBodyRegistrationNumberMax),
+  "make": zod.string().max(createVehicleBodyMakeMax).nullish(),
+  "model": zod.string().max(createVehicleBodyModelMax).nullish(),
+  "description": zod.string().max(createVehicleBodyDescriptionMax).nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish(),
+  "notes": zod.string().max(createVehicleBodyNotesMax).nullish()
+})
+
+export const CreateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
+ * @summary Get one vehicle (VR-01)
+ */
+export const GetVehicleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "vehicleId": zod.coerce.number()
+})
+
+export const GetVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Status is the register's own administrative state: available, maintenance or inactive. Whether a vehicle is physically out is derived from the VR-02 movement record and is never set here.
+ * @summary Update a vehicle's register details or status (VR-01)
+ */
+export const UpdateVehicleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "vehicleId": zod.coerce.number()
+})
+
+export const updateVehicleBodyRegistrationNumberMax = 32;
+
+export const updateVehicleBodyMakeMax = 120;
+
+export const updateVehicleBodyModelMax = 120;
+
+export const updateVehicleBodyDescriptionMax = 500;
+
+export const updateVehicleBodyNotesMax = 500;
+
+
+
+export const UpdateVehicleBody = zod.object({
+  "registrationNumber": zod.string().min(1).max(updateVehicleBodyRegistrationNumberMax).optional(),
+  "make": zod.string().max(updateVehicleBodyMakeMax).nullish(),
+  "model": zod.string().max(updateVehicleBodyModelMax).nullish(),
+  "description": zod.string().max(updateVehicleBodyDescriptionMax).nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish(),
+  "notes": zod.string().max(updateVehicleBodyNotesMax).nullish(),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).optional()
+}).describe('Every field is optional; only the fields supplied are changed.')
+
+export const UpdateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+
+
+/**
  * Requires personnel_file.manage. Never cascades — existing occupants are untouched; retirement only blocks this location from being chosen for a NEW custody assignment going forward.
  * @summary Retire a records location (Phase 3H, W116)
  */
