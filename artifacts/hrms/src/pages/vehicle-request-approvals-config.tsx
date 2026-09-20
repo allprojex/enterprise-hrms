@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
   getGetMeQueryKey,
+  useListMembers,
+  getListMembersQueryKey,
   useListVehicleRequestApprovalStages,
   getListVehicleRequestApprovalStagesQueryKey,
   useCreateVehicleRequestApprovalStage,
@@ -84,8 +86,33 @@ export default function VehicleRequestApprovalsConfig() {
     query: { queryKey: getListVehicleRequestApprovalStagesQueryKey(organizationId), enabled: organizationId > 0 },
   });
 
+  // A membership id is not something an administrator can know — it is never
+  // displayed anywhere in the product — so the picker and the list both resolve
+  // it against the canonical member list. This is the rule VR-01's register was
+  // corrected to follow: no raw id is ever typed or displayed.
+  const { data: members } = useListMembers(organizationId, {
+    query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
+  });
+  const activeMembers = (members ?? []).filter((m) => m.status === 'active');
+  const memberById = new Map((members ?? []).map((m) => [m.membershipId, m]));
+
   const createMutation = useCreateVehicleRequestApprovalStage();
   const deleteMutation = useDeleteVehicleRequestApprovalStage();
+
+  /** What a configured stage actually names, in words. Null when the resolver takes no input. */
+  const resolverDetail = (stage: VehicleRequestApprovalStage): string | null => {
+    const config = (stage.resolverConfig ?? {}) as { permissionKey?: unknown; membershipId?: unknown };
+    if (stage.resolverType === 'permission_holder') {
+      return typeof config.permissionKey === 'string' ? config.permissionKey : null;
+    }
+    if (stage.resolverType === 'specific_membership') {
+      if (typeof config.membershipId !== 'number') return null;
+      const member = memberById.get(config.membershipId);
+      // An unresolvable reference reads as unknown rather than leaking its id.
+      return member ? `${member.firstName} ${member.lastName}` : 'Unknown member';
+    }
+    return null;
+  };
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: getListVehicleRequestApprovalStagesQueryKey(organizationId) });
@@ -210,6 +237,14 @@ export default function VehicleRequestApprovalsConfig() {
                           <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                           {resolver?.label ?? stage.resolverType}
                         </span>
+                        {resolverDetail(stage) !== null && (
+                          <span
+                            className="mt-0.5 block text-xs text-muted-foreground"
+                            data-testid={`text-stage-detail-${stage.id}`}
+                          >
+                            {resolverDetail(stage)}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -286,14 +321,21 @@ export default function VehicleRequestApprovalsConfig() {
             {form.resolverType === 'specific_membership' && (
               <div className="space-y-2">
                 <Label htmlFor="stage-membership-id">Member</Label>
-                <Input
-                  id="stage-membership-id"
-                  type="number"
-                  min={1}
+                <Select
                   value={form.membershipId}
-                  onChange={(e) => setForm({ ...form, membershipId: e.target.value })}
-                  data-testid="input-stage-membership-id"
-                />
+                  onValueChange={(value) => setForm({ ...form, membershipId: value })}
+                >
+                  <SelectTrigger id="stage-membership-id" data-testid="select-stage-membership">
+                    <SelectValue placeholder="Choose a member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeMembers.map((m) => (
+                      <SelectItem key={m.membershipId} value={String(m.membershipId)}>
+                        {m.firstName} {m.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 

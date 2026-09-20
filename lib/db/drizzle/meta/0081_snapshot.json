@@ -38673,7 +38673,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "restrict",
           "onUpdate": "no action"
         },
         "vehicle_request_approvals_decided_by_membership_id_organization_memberships_id_fk": {

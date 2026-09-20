@@ -16,6 +16,7 @@ import VehicleRequestApprovalsConfig from '@/pages/vehicle-request-approvals-con
 const { state, createMutateMock, deleteMutateAsyncMock } = vi.hoisted(() => ({
   state: {
     stages: [] as Record<string, unknown>[],
+    members: [] as Record<string, unknown>[],
     error: null as unknown,
   },
   createMutateMock: vi.fn(),
@@ -27,6 +28,8 @@ const me = { id: 1, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: me, isLoading: false }),
   getGetMeQueryKey: () => ['getMe'],
+  useListMembers: () => ({ data: state.members, isLoading: false }),
+  getListMembersQueryKey: () => ['members'],
   useListVehicleRequestApprovalStages: () => ({
     data: state.stages,
     isLoading: false,
@@ -52,6 +55,11 @@ const STAGES = [
   { id: 2, organizationId: 10, purpose: 'vehicle_request', stageOrder: 2, name: 'Transport Officer', resolverType: 'permission_holder', resolverConfig: { permissionKey: 'vehicle_request.approve' } },
 ];
 
+const MEMBERS = [
+  { membershipId: 77, firstName: 'Grace', lastName: 'Hopper', status: 'active' },
+  { membershipId: 88, firstName: 'Alan', lastName: 'Turing', status: 'revoked' },
+];
+
 beforeEach(() => {
   createMutateMock.mockReset();
   deleteMutateAsyncMock.mockReset();
@@ -60,6 +68,7 @@ beforeEach(() => {
     return Promise.resolve(undefined);
   });
   state.stages = [...STAGES];
+  state.members = [...MEMBERS];
   state.error = null;
 });
 
@@ -110,15 +119,109 @@ describe('Vehicle approval chain — adding a stage', () => {
     renderPage();
     const user = userEvent.setup();
     expect(screen.queryByTestId('input-stage-permission-key')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('input-stage-membership-id')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('select-stage-membership')).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('select-stage-resolver'));
     await user.click(screen.getByRole('option', { name: 'Anyone holding a permission' }));
 
     expect(screen.getByTestId('input-stage-permission-key')).toBeInTheDocument();
-    expect(screen.queryByTestId('input-stage-membership-id')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('select-stage-membership')).not.toBeInTheDocument();
     // Still incomplete: a permission_holder stage without a key authorizes nobody.
     expect(screen.getByTestId('button-add-stage')).toBeDisabled();
+  });
+});
+
+describe('Vehicle approval chain — naming a person', () => {
+  async function chooseNamedPerson(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByTestId('select-stage-resolver'));
+    await user.click(screen.getByRole('option', { name: 'One named person' }));
+  }
+
+  it('offers a member picker, never a box to type a database id into', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await chooseNamedPerson(user);
+
+    expect(screen.getByTestId('select-stage-membership')).toBeInTheDocument();
+    // A membership id is never displayed anywhere in the product, so it is not
+    // something an administrator could type even if we asked them to.
+    expect(screen.queryByTestId('input-stage-membership-id')).not.toBeInTheDocument();
+    expect(document.querySelector('input[type="number"]')).toBeNull();
+  });
+
+  it('offers only members who are currently active', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await chooseNamedPerson(user);
+    await user.click(screen.getByTestId('select-stage-membership'));
+
+    expect(screen.getByRole('option', { name: 'Grace Hopper' })).toBeInTheDocument();
+    // Revoked: naming them would configure a stage that authorizes nobody.
+    expect(screen.queryByRole('option', { name: 'Alan Turing' })).not.toBeInTheDocument();
+  });
+
+  it('sends the chosen member as the resolver configuration', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId('input-stage-name'), 'Managing Director');
+    await chooseNamedPerson(user);
+    await user.click(screen.getByTestId('select-stage-membership'));
+    await user.click(screen.getByRole('option', { name: 'Grace Hopper' }));
+    await user.click(screen.getByTestId('button-add-stage'));
+
+    expect(createMutateMock).toHaveBeenCalledWith(
+      {
+        organizationId: 10,
+        data: {
+          stageOrder: 3,
+          name: 'Managing Director',
+          resolverType: 'specific_membership',
+          resolverConfig: { membershipId: 77 },
+        },
+      },
+      expect.anything(),
+    );
+  });
+
+  it('keeps submission disabled until a member is actually chosen', async () => {
+    renderPage();
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId('input-stage-name'), 'Managing Director');
+    await chooseNamedPerson(user);
+
+    expect(screen.getByTestId('button-add-stage')).toBeDisabled();
+  });
+});
+
+describe('Vehicle approval chain — what a configured stage says it names', () => {
+  it('shows the named person by name, not by id', () => {
+    state.stages = [
+      { id: 3, organizationId: 10, purpose: 'vehicle_request', stageOrder: 1, name: 'Final sign-off', resolverType: 'specific_membership', resolverConfig: { membershipId: 77 } },
+    ];
+    renderPage();
+
+    expect(screen.getByTestId('text-stage-detail-3')).toHaveTextContent('Grace Hopper');
+    expect(screen.getByTestId('text-stage-detail-3')).not.toHaveTextContent('77');
+  });
+
+  it('reads an unresolvable member as unknown rather than leaking the id', () => {
+    state.stages = [
+      { id: 4, organizationId: 10, purpose: 'vehicle_request', stageOrder: 1, name: 'Final sign-off', resolverType: 'specific_membership', resolverConfig: { membershipId: 4242 } },
+    ];
+    renderPage();
+
+    expect(screen.getByTestId('text-stage-detail-4')).toHaveTextContent('Unknown member');
+    expect(screen.getByTestId('text-stage-detail-4')).not.toHaveTextContent('4242');
+  });
+
+  it('shows which permission a permission_holder stage names', () => {
+    renderPage();
+    expect(screen.getByTestId('text-stage-detail-2')).toHaveTextContent('vehicle_request.approve');
+  });
+
+  it('says nothing extra for a department-head stage, which names no one', () => {
+    renderPage();
+    expect(screen.queryByTestId('text-stage-detail-1')).not.toBeInTheDocument();
   });
 });
 

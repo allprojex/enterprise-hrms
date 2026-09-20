@@ -230,9 +230,15 @@ export const vehicleRequestApprovalsTable = pgTable(
     organizationId: integer("organization_id")
       .notNull()
       .references(() => organizationsTable.id, { onDelete: "restrict" }),
+    // RESTRICT, not cascade. This log is the permanent record of who decided
+    // what under whose authority, so a request must never be able to take its
+    // own decision history with it — the WS-9 rule, where
+    // `hire_authorization_decisions.hire_authorization_id` is restrict for
+    // exactly this reason. Nothing deletes a vehicle request today; this is
+    // what keeps that true by construction rather than by everyone remembering.
     requestId: integer("request_id")
       .notNull()
-      .references(() => vehicleRequestsTable.id, { onDelete: "cascade" }),
+      .references(() => vehicleRequestsTable.id, { onDelete: "restrict" }),
     stageOrder: integer("stage_order").notNull(),
     /** The stage's configured label at decision time. Text, because a stage may later be renamed or removed. */
     stageNameSnapshot: text("stage_name_snapshot").notNull(),

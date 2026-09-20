@@ -4,7 +4,8 @@
 -- organizations / organization_memberships / users are referenced only, and
 -- VR-01's own vehicle_status enum is untouched.
 -- Clean reversal: drop the children before their parent, then the enum types
--- they own.
+-- they own. With vehicle_request_approvals.request_id now ON DELETE restrict,
+-- that order is enforced by the database rather than merely observed here.
 DROP TABLE IF EXISTS "vehicle_request_approvals";--> statement-breakpoint
 DROP TABLE IF EXISTS "vehicle_requests";--> statement-breakpoint
 DROP TABLE IF EXISTS "vehicle_request_approval_stages";--> statement-breakpoint
