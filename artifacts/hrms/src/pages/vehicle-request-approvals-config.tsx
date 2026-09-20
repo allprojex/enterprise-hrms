@@ -14,8 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
   getGetMeQueryKey,
-  useListMembers,
-  getListMembersQueryKey,
+  useListVehicleRequestApprovalCandidates,
+  getListVehicleRequestApprovalCandidatesQueryKey,
   useListVehicleRequestApprovalStages,
   getListVehicleRequestApprovalStagesQueryKey,
   useCreateVehicleRequestApprovalStage,
@@ -88,29 +88,59 @@ export default function VehicleRequestApprovalsConfig() {
 
   // A membership id is not something an administrator can know — it is never
   // displayed anywhere in the product — so the picker and the list both resolve
-  // it against the canonical member list. This is the rule VR-01's register was
-  // corrected to follow: no raw id is ever typed or displayed.
-  const { data: members } = useListMembers(organizationId, {
-    query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
+  // it by name. The source is the narrow candidate endpoint, not the membership
+  // directory: it needs no membership.read, and it lists only people who
+  // actually hold vehicle_request.approve, so a stage cannot be configured to
+  // name someone who could never decide it.
+  const {
+    data: candidates,
+    isLoading: candidatesLoading,
+    error: candidatesError,
+  } = useListVehicleRequestApprovalCandidates(organizationId, {
+    query: {
+      queryKey: getListVehicleRequestApprovalCandidatesQueryKey(organizationId),
+      enabled: organizationId > 0,
+    },
   });
-  const activeMembers = (members ?? []).filter((m) => m.status === 'active');
-  const memberById = new Map((members ?? []).map((m) => [m.membershipId, m]));
+  const candidateList = candidates ?? [];
+  const candidateById = new Map(candidateList.map((c) => [c.membershipId, c]));
 
   const createMutation = useCreateVehicleRequestApprovalStage();
   const deleteMutation = useDeleteVehicleRequestApprovalStage();
 
-  /** What a configured stage actually names, in words. Null when the resolver takes no input. */
-  const resolverDetail = (stage: VehicleRequestApprovalStage): string | null => {
+  /**
+   * What a configured stage names, in words — and, when it cannot be named,
+   * WHY. "Could not load the list" and "this person is no longer eligible" are
+   * different facts, and reporting the first as the second would assert
+   * something false about the organization's configuration.
+   */
+  type StageDetail = { text: string; tone: 'normal' | 'warning' };
+
+  const resolverDetail = (stage: VehicleRequestApprovalStage): StageDetail | null => {
     const config = (stage.resolverConfig ?? {}) as { permissionKey?: unknown; membershipId?: unknown };
+
     if (stage.resolverType === 'permission_holder') {
-      return typeof config.permissionKey === 'string' ? config.permissionKey : null;
+      return typeof config.permissionKey === 'string'
+        ? { text: config.permissionKey, tone: 'normal' }
+        : null;
     }
+
     if (stage.resolverType === 'specific_membership') {
       if (typeof config.membershipId !== 'number') return null;
-      const member = memberById.get(config.membershipId);
-      // An unresolvable reference reads as unknown rather than leaking its id.
-      return member ? `${member.firstName} ${member.lastName}` : 'Unknown member';
+
+      const candidate = candidateById.get(config.membershipId);
+      if (candidate) return { text: `${candidate.firstName} ${candidate.lastName}`, tone: 'normal' };
+
+      // Not found — but only one of these three reasons is about the person.
+      if (candidatesLoading) return { text: 'Loading…', tone: 'normal' };
+      if (candidatesError) return { text: 'Cannot show who — approver list unavailable', tone: 'warning' };
+      // Loaded successfully and they are genuinely absent: they no longer hold
+      // vehicle_request.approve, or their membership ended. The stored
+      // configuration is untouched and no substitute is chosen — this stage
+      // simply cannot be satisfied until it is corrected.
+      return { text: 'No longer an eligible approver', tone: 'warning' };
     }
+
     return null;
   };
 
@@ -237,14 +267,22 @@ export default function VehicleRequestApprovalsConfig() {
                           <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                           {resolver?.label ?? stage.resolverType}
                         </span>
-                        {resolverDetail(stage) !== null && (
-                          <span
-                            className="mt-0.5 block text-xs text-muted-foreground"
-                            data-testid={`text-stage-detail-${stage.id}`}
-                          >
-                            {resolverDetail(stage)}
-                          </span>
-                        )}
+                        {(() => {
+                          const detail = resolverDetail(stage);
+                          if (detail === null) return null;
+                          return (
+                            <span
+                              className={
+                                detail.tone === 'warning'
+                                  ? 'mt-0.5 block text-xs font-medium text-destructive'
+                                  : 'mt-0.5 block text-xs text-muted-foreground'
+                              }
+                              data-testid={`text-stage-detail-${stage.id}`}
+                            >
+                              {detail.text}
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -321,21 +359,37 @@ export default function VehicleRequestApprovalsConfig() {
             {form.resolverType === 'specific_membership' && (
               <div className="space-y-2">
                 <Label htmlFor="stage-membership-id">Member</Label>
-                <Select
-                  value={form.membershipId}
-                  onValueChange={(value) => setForm({ ...form, membershipId: value })}
-                >
-                  <SelectTrigger id="stage-membership-id" data-testid="select-stage-membership">
-                    <SelectValue placeholder="Choose a member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeMembers.map((m) => (
-                      <SelectItem key={m.membershipId} value={String(m.membershipId)}>
-                        {m.firstName} {m.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {candidatesLoading ? (
+                  <p className="text-sm text-muted-foreground" data-testid="text-candidates-loading">
+                    Loading eligible approvers…
+                  </p>
+                ) : candidatesError ? (
+                  <p className="text-sm font-medium text-destructive" data-testid="text-candidates-error">
+                    The list of eligible approvers could not be loaded, so nobody can be named right now.
+                    Try again, or choose a different resolver.
+                  </p>
+                ) : candidateList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="text-candidates-empty">
+                    Nobody in this organization currently holds the vehicle-request approval permission,
+                    so there is no one to name. Grant it to someone first, or use a different resolver.
+                  </p>
+                ) : (
+                  <Select
+                    value={form.membershipId}
+                    onValueChange={(value) => setForm({ ...form, membershipId: value })}
+                  >
+                    <SelectTrigger id="stage-membership-id" data-testid="select-stage-membership">
+                      <SelectValue placeholder="Choose a member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {candidateList.map((c) => (
+                        <SelectItem key={c.membershipId} value={String(c.membershipId)}>
+                          {c.firstName} {c.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             )}
 

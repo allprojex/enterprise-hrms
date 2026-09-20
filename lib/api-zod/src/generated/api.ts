@@ -3952,6 +3952,26 @@ export const CreateVehicleRequestApprovalStageResponse = zod.object({
 
 
 /**
+ * Requires the asset_management module and asset_management.manage — the same authorization as the rest of the approval-chain configuration surface. It deliberately does NOT require membership.read: this is an administrator choosing an approver, not a second route onto the organization's membership directory.
+ *
+ * Returns active memberships that independently hold vehicle_request.approve. Anyone else could be named but could never resolve, because approval re-checks that permission at decision time — so a stage naming them would strand every request that reached it.
+ *
+ * The response carries only the identity the picker needs. There is no lookup-by-id form, so it cannot be used to probe whether a given membership id exists. Listing someone here grants them nothing.
+ * @summary List who may be named by a specific_membership stage (VR-02A)
+ */
+export const ListVehicleRequestApprovalCandidatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehicleRequestApprovalCandidatesResponseItem = zod.object({
+  "membershipId": zod.number().describe('The canonical id persisted in the stage\'s resolverConfig.'),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+}).describe('VR-02A — a membership that may be named by a specific_membership approval stage. Deliberately minimal: the membership id that gets persisted in the resolver configuration, plus enough identity to show a person\'s name. No email, roles, Primary HR flag, application user id or employee record is exposed here.')
+export const ListVehicleRequestApprovalCandidatesResponse = zod.array(ListVehicleRequestApprovalCandidatesResponseItem)
+
+
+/**
  * Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
  * @summary Get one approval stage (VR-02A)
  */

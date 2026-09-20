@@ -17,17 +17,25 @@
  * in-flight request is complete, and an already-recorded decision keeps its own
  * snapshot of the stage that produced it. Nothing here touches a request row.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   db,
   vehicleRequestApprovalStagesTable,
   organizationMembershipsTable,
+  membershipRolesTable,
+  rolePermissionsTable,
   permissionsTable,
+  usersTable,
   type VehicleRequestApprovalStage,
 } from "@workspace/db";
+import { activeAndUnexpired } from "./membership";
 import { recordAuditEvent } from "./auditLog";
 import { isUniqueViolation } from "./dbErrors";
-import { readPermissionHolderConfig, readSpecificMembershipConfig } from "./vehicleRequestAuthority";
+import {
+  readPermissionHolderConfig,
+  readSpecificMembershipConfig,
+  VEHICLE_REQUEST_APPROVE_PERMISSION,
+} from "./vehicleRequestAuthority";
 
 export const VEHICLE_REQUEST_PURPOSE = "vehicle_request" as const;
 
@@ -125,6 +133,67 @@ export async function validateResolverConfig(
     default:
       throw new InvalidVehicleRequestStageError("Unknown resolver type");
   }
+}
+
+/**
+ * The minimum identity the configuration UI needs to name a person, and
+ * nothing else. Deliberately NOT MemberSummary: no email, no role list, no
+ * Primary HR flag, no user id, no membership metadata. A configuration
+ * administrator is choosing an approver, not reading the membership directory.
+ */
+export interface VehicleRequestApprovalCandidate {
+  membershipId: number;
+  firstName: string;
+  lastName: string;
+}
+
+/**
+ * Who may legitimately be named by a `specific_membership` stage.
+ *
+ * A named person who does not hold `vehicle_request.approve` can never resolve
+ * — `resolveApprovalAuthority` checks the permission first and returns null
+ * without it — so a stage naming them would strand every request that reached
+ * it. Listing the whole organization would therefore offer choices that are
+ * guaranteed to be wrong, which is why this returns candidates rather than
+ * members.
+ *
+ * THIS GRANTS NOTHING. It reports who already holds the permission; it never
+ * confers it, and approval execution re-checks the permission independently at
+ * decision time. Removing someone from this list cannot revoke authority and
+ * appearing on it cannot create any.
+ *
+ * Active membership uses the repository's authoritative predicate,
+ * `activeAndUnexpired()`, rather than a second reading of "active" that could
+ * drift from it. Permission possession is resolved through
+ * membership_roles -> role_permissions -> permissions BY KEY — never by role
+ * NAME — so a permission granted through an organization-defined custom role
+ * counts exactly as much as one from a system template.
+ */
+export async function listApprovalCandidates(organizationId: number): Promise<VehicleRequestApprovalCandidate[]> {
+  const rows = await db
+    .selectDistinct({
+      membershipId: organizationMembershipsTable.id,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+    })
+    .from(organizationMembershipsTable)
+    .innerJoin(usersTable, eq(organizationMembershipsTable.applicationUserId, usersTable.id))
+    .innerJoin(membershipRolesTable, eq(membershipRolesTable.membershipId, organizationMembershipsTable.id))
+    .innerJoin(rolePermissionsTable, eq(rolePermissionsTable.roleId, membershipRolesTable.roleId))
+    .innerJoin(permissionsTable, eq(rolePermissionsTable.permissionId, permissionsTable.id))
+    .where(
+      and(
+        // Tenant scope first: the organization comes from the caller's own
+        // resolved membership, never from anything a client supplied.
+        eq(organizationMembershipsTable.organizationId, organizationId),
+        activeAndUnexpired(),
+        eq(permissionsTable.key, VEHICLE_REQUEST_APPROVE_PERMISSION),
+      ),
+    );
+
+  return rows.sort((a, b) =>
+    `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`),
+  );
 }
 
 export async function listStages(organizationId: number): Promise<VehicleRequestApprovalStage[]> {

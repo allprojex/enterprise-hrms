@@ -16,7 +16,9 @@ import VehicleRequestApprovalsConfig from '@/pages/vehicle-request-approvals-con
 const { state, createMutateMock, deleteMutateAsyncMock } = vi.hoisted(() => ({
   state: {
     stages: [] as Record<string, unknown>[],
-    members: [] as Record<string, unknown>[],
+    candidates: [] as Record<string, unknown>[] | undefined,
+    candidatesLoading: false,
+    candidatesError: null as unknown,
     error: null as unknown,
   },
   createMutateMock: vi.fn(),
@@ -28,8 +30,12 @@ const me = { id: 1, firstName: 'Ada', lastName: 'Lovelace', email: 'ada@example.
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: me, isLoading: false }),
   getGetMeQueryKey: () => ['getMe'],
-  useListMembers: () => ({ data: state.members, isLoading: false }),
-  getListMembersQueryKey: () => ['members'],
+  useListVehicleRequestApprovalCandidates: () => ({
+    data: state.candidates,
+    isLoading: state.candidatesLoading,
+    error: state.candidatesError,
+  }),
+  getListVehicleRequestApprovalCandidatesQueryKey: () => ['vehicle-request-approval-candidates'],
   useListVehicleRequestApprovalStages: () => ({
     data: state.stages,
     isLoading: false,
@@ -55,9 +61,11 @@ const STAGES = [
   { id: 2, organizationId: 10, purpose: 'vehicle_request', stageOrder: 2, name: 'Transport Officer', resolverType: 'permission_holder', resolverConfig: { permissionKey: 'vehicle_request.approve' } },
 ];
 
-const MEMBERS = [
-  { membershipId: 77, firstName: 'Grace', lastName: 'Hopper', status: 'active' },
-  { membershipId: 88, firstName: 'Alan', lastName: 'Turing', status: 'revoked' },
+// The endpoint returns only eligible candidates, so the page never has to
+// filter: anyone listed here already holds vehicle_request.approve.
+const CANDIDATES = [
+  { membershipId: 77, firstName: 'Grace', lastName: 'Hopper' },
+  { membershipId: 91, firstName: 'Katherine', lastName: 'Johnson' },
 ];
 
 beforeEach(() => {
@@ -68,7 +76,9 @@ beforeEach(() => {
     return Promise.resolve(undefined);
   });
   state.stages = [...STAGES];
-  state.members = [...MEMBERS];
+  state.candidates = [...CANDIDATES];
+  state.candidatesLoading = false;
+  state.candidatesError = null;
   state.error = null;
 });
 
@@ -149,15 +159,47 @@ describe('Vehicle approval chain — naming a person', () => {
     expect(document.querySelector('input[type="number"]')).toBeNull();
   });
 
-  it('offers only members who are currently active', async () => {
+  it('offers the eligible approvers the server returned', async () => {
     renderPage();
     const user = userEvent.setup();
     await chooseNamedPerson(user);
     await user.click(screen.getByTestId('select-stage-membership'));
 
     expect(screen.getByRole('option', { name: 'Grace Hopper' })).toBeInTheDocument();
-    // Revoked: naming them would configure a stage that authorizes nobody.
-    expect(screen.queryByRole('option', { name: 'Alan Turing' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Katherine Johnson' })).toBeInTheDocument();
+  });
+
+  it('says so when the approver list could not be loaded, and does NOT blame the member', async () => {
+    state.candidatesError = new Error('403');
+    renderPage();
+    const user = userEvent.setup();
+    await chooseNamedPerson(user);
+
+    expect(screen.getByTestId('text-candidates-error')).toBeInTheDocument();
+    expect(screen.queryByTestId('select-stage-membership')).not.toBeInTheDocument();
+    expect(screen.getByTestId('button-add-stage')).toBeDisabled();
+  });
+
+  it('shows a loading state rather than an empty picker', async () => {
+    state.candidates = undefined;
+    state.candidatesLoading = true;
+    renderPage();
+    const user = userEvent.setup();
+    await chooseNamedPerson(user);
+
+    expect(screen.getByTestId('text-candidates-loading')).toBeInTheDocument();
+    expect(screen.queryByTestId('select-stage-membership')).not.toBeInTheDocument();
+  });
+
+  it('explains an empty result instead of offering a picker with nothing in it', async () => {
+    state.candidates = [];
+    renderPage();
+    const user = userEvent.setup();
+    await chooseNamedPerson(user);
+
+    expect(screen.getByTestId('text-candidates-empty')).toBeInTheDocument();
+    expect(screen.queryByTestId('select-stage-membership')).not.toBeInTheDocument();
+    expect(screen.getByTestId('button-add-stage')).toBeDisabled();
   });
 
   it('sends the chosen member as the resolver configuration', async () => {
@@ -204,14 +246,49 @@ describe('Vehicle approval chain — what a configured stage says it names', () 
     expect(screen.getByTestId('text-stage-detail-3')).not.toHaveTextContent('77');
   });
 
-  it('reads an unresolvable member as unknown rather than leaking the id', () => {
+  it('marks a saved member who is no longer eligible, without touching the stored configuration', () => {
+    // They were a valid approver when the stage was configured and are not one
+    // now — the permission was revoked, or their membership ended. The stage
+    // keeps its own resolverConfig; nothing is silently substituted.
     state.stages = [
       { id: 4, organizationId: 10, purpose: 'vehicle_request', stageOrder: 1, name: 'Final sign-off', resolverType: 'specific_membership', resolverConfig: { membershipId: 4242 } },
     ];
     renderPage();
 
-    expect(screen.getByTestId('text-stage-detail-4')).toHaveTextContent('Unknown member');
+    expect(screen.getByTestId('text-stage-detail-4')).toHaveTextContent('No longer an eligible approver');
     expect(screen.getByTestId('text-stage-detail-4')).not.toHaveTextContent('4242');
+    // No repair, no substitution, no write of any kind.
+    expect(createMutateMock).not.toHaveBeenCalled();
+    expect(deleteMutateAsyncMock).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call a failed candidate load an ineligible member', () => {
+    // A failed query has no data — which is exactly what makes this
+    // distinction easy to get wrong and worth pinning.
+    state.candidates = undefined;
+    state.candidatesError = new Error('403');
+    state.stages = [
+      { id: 5, organizationId: 10, purpose: 'vehicle_request', stageOrder: 1, name: 'Final sign-off', resolverType: 'specific_membership', resolverConfig: { membershipId: 77 } },
+    ];
+    renderPage();
+
+    const detail = screen.getByTestId('text-stage-detail-5');
+    expect(detail).toHaveTextContent('approver list unavailable');
+    expect(detail).not.toHaveTextContent('No longer an eligible approver');
+    expect(detail).not.toHaveTextContent('Unknown member');
+  });
+
+  it('does not accuse anyone while the list is still loading', () => {
+    state.candidates = undefined;
+    state.candidatesLoading = true;
+    state.stages = [
+      { id: 6, organizationId: 10, purpose: 'vehicle_request', stageOrder: 1, name: 'Final sign-off', resolverType: 'specific_membership', resolverConfig: { membershipId: 77 } },
+    ];
+    renderPage();
+
+    const detail = screen.getByTestId('text-stage-detail-6');
+    expect(detail).toHaveTextContent('Loading');
+    expect(detail).not.toHaveTextContent('No longer an eligible approver');
   });
 
   it('shows which permission a permission_holder stage names', () => {

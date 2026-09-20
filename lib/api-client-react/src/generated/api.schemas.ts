@@ -6505,6 +6505,16 @@ export interface PersonnelSearchResult {
   pifNumber: string | null;
 }
 
+/**
+ * VR-02A — a membership that may be named by a specific_membership approval stage. Deliberately minimal: the membership id that gets persisted in the resolver configuration, plus enough identity to show a person's name. No email, roles, Primary HR flag, application user id or employee record is exposed here.
+ */
+export interface VehicleRequestApprovalCandidate {
+  /** The canonical id persisted in the stage's resolverConfig. */
+  membershipId: number;
+  firstName: string;
+  lastName: string;
+}
+
 export type VehicleRequestApprovalStagePurpose = typeof VehicleRequestApprovalStagePurpose[keyof typeof VehicleRequestApprovalStagePurpose];
 
 

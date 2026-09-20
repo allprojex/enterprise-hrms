@@ -25,6 +25,7 @@ import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { requirePermission } from "../middlewares/requirePermission";
 import { ASSET_MANAGEMENT_MODULE_KEY } from "../lib/assetManagementAuthorization";
 import {
+  listApprovalCandidates,
   listStages,
   getStageById,
   createStage,
@@ -83,6 +84,35 @@ router.get(
   async (req: MembershipRequest, res): Promise<void> => {
     const stages = await listStages(req.membership!.organizationId);
     res.json(stages.map(formatStage));
+  },
+);
+
+// GET /organizations/:organizationId/vehicle-request-approval-stages/candidates
+//
+// ORDERING IS LOAD-BEARING: this literal sub-path is registered BEFORE
+// /:stageId below, or Express matches "candidates" as a stage id and this
+// route becomes unreachable. Same rule VR-01 recorded for /vehicles.
+//
+// Who may legitimately be named by a `specific_membership` stage. Same
+// authorization as the rest of this configuration surface — an administrator
+// choosing an approver, not a second door onto the membership directory:
+// `membership.read` neither grants access here nor is required for it.
+//
+// Response is the minimum identity the picker needs. No email, no roles, no
+// Primary HR flag, no user id, no employee record. There is deliberately no
+// lookup-by-id form, so this cannot be used to probe whether a given
+// membership id exists.
+router.get(
+  "/organizations/:organizationId/vehicle-request-approval-stages/candidates",
+  requireAuth as any,
+  requireMembership("organizationId"),
+  requireModuleEnabled(ASSET_MANAGEMENT_MODULE_KEY),
+  requirePermission("asset_management.manage"),
+  async (req: MembershipRequest, res): Promise<void> => {
+    // The organization is the caller's own resolved membership, never a
+    // client-supplied value.
+    const candidates = await listApprovalCandidates(req.membership!.organizationId);
+    res.json(candidates);
   },
 );
 

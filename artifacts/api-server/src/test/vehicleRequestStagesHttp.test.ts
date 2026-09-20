@@ -50,6 +50,9 @@ const { state, getModuleAccessMock, hasPermissionMock, serviceMocks } = vi.hoist
         resolverConfig: {},
       })),
       deleteStage: vi.fn(async () => undefined),
+      listApprovalCandidates: vi.fn(async () => [
+        { membershipId: 77, firstName: "Grace", lastName: "Hopper" },
+      ]),
     },
   };
 });
@@ -198,6 +201,85 @@ describe("stage configuration — permissions", () => {
     state.permissions = new Set(["vehicle_request.write.own"]);
     expect((await request(app).get(base).set(AUTH)).status).toBe(403);
     expect((await request(app).post(base).set(AUTH).send(VALID_BODY)).status).toBe(403);
+  });
+});
+
+describe("approval candidates — authorization", () => {
+  const candidatesUrl = `${base}/candidates`;
+
+  it("rejects an unauthenticated caller", async () => {
+    const res = await request(app).get(candidatesUrl);
+    expect(res.status).toBe(401);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
+  });
+
+  it("refuses another organization's path", async () => {
+    state.permissions = new Set(ADMIN);
+    const res = await request(app)
+      .get(`/organizations/${OTHER_ORG}/vehicle-request-approval-stages/candidates`)
+      .set(AUTH);
+    expect(res.status).toBe(403);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the asset_management module is disabled", async () => {
+    state.permissions = new Set(ADMIN);
+    state.moduleEnabled = false;
+    const res = await request(app).get(candidatesUrl).set(AUTH);
+    expect(res.status).toBe(403);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
+  });
+
+  it("allows asset_management.manage", async () => {
+    state.permissions = new Set(ADMIN);
+    const res = await request(app).get(candidatesUrl).set(AUTH);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([{ membershipId: 77, firstName: "Grace", lastName: "Hopper" }]);
+  });
+
+  it("does NOT accept membership.read — this is not a second door onto the directory", async () => {
+    state.permissions = new Set(["membership.read"]);
+    const res = await request(app).get(candidatesUrl).set(AUTH);
+    expect(res.status).toBe(403);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
+  });
+
+  it("does not accept the vehicle_request.* family either", async () => {
+    state.permissions = new Set([
+      "vehicle_request.write.own",
+      "vehicle_request.write.department",
+      "vehicle_request.approve",
+      "vehicle_request.read.all",
+    ]);
+    const res = await request(app).get(candidatesUrl).set(AUTH);
+    expect(res.status).toBe(403);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
+  });
+
+  it("passes only the server-resolved organization to the service", async () => {
+    state.permissions = new Set(ADMIN);
+    await request(app).get(candidatesUrl).set(AUTH);
+    // The organization comes from the caller's own membership, never the path.
+    expect(serviceMocks.listApprovalCandidates).toHaveBeenCalledWith(CALLER_ORG);
+  });
+});
+
+describe("approval candidates — route resolution", () => {
+  it("is not swallowed by /:stageId", async () => {
+    // Registered before the parameterised route; if that ordering is ever
+    // reversed, "candidates" is read as a stage id and this hits getStageById.
+    state.permissions = new Set(ADMIN);
+    const res = await request(app).get(`${base}/candidates`).set(AUTH);
+    expect(res.status).toBe(200);
+    expect(serviceMocks.listApprovalCandidates).toHaveBeenCalledTimes(1);
+    expect(serviceMocks.getStageById).not.toHaveBeenCalled();
+  });
+
+  it("exposes no lookup-by-id form, so it cannot probe for a membership", async () => {
+    state.permissions = new Set(ADMIN);
+    const res = await request(app).get(`${base}/candidates/77`).set(AUTH);
+    expect(res.status).not.toBe(200);
+    expect(serviceMocks.listApprovalCandidates).not.toHaveBeenCalled();
   });
 });
 

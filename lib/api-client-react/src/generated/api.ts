@@ -799,6 +799,7 @@ import type {
   Vacancy,
   VacancyListResponse,
   Vehicle,
+  VehicleRequestApprovalCandidate,
   VehicleRequestApprovalStage,
   VerifyDocumentRequirementBody,
   VerifyEmployeeSkillInput,
@@ -10103,6 +10104,88 @@ export const useCreateVehicleRequestApprovalStage = <TError = ErrorType<void>,
       > => {
       return useMutation(getCreateVehicleRequestApprovalStageMutationOptions(options));
     }
+
+export const getListVehicleRequestApprovalCandidatesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/vehicle-request-approval-stages/candidates`
+}
+
+/**
+ * Requires the asset_management module and asset_management.manage — the same authorization as the rest of the approval-chain configuration surface. It deliberately does NOT require membership.read: this is an administrator choosing an approver, not a second route onto the organization's membership directory.
+ *
+ * Returns active memberships that independently hold vehicle_request.approve. Anyone else could be named but could never resolve, because approval re-checks that permission at decision time — so a stage naming them would strand every request that reached it.
+ *
+ * The response carries only the identity the picker needs. There is no lookup-by-id form, so it cannot be used to probe whether a given membership id exists. Listing someone here grants them nothing.
+ * @summary List who may be named by a specific_membership stage (VR-02A)
+ */
+export const listVehicleRequestApprovalCandidates = async (organizationId: number, options?: RequestInit): Promise<VehicleRequestApprovalCandidate[]> => {
+
+  return customFetch<VehicleRequestApprovalCandidate[]>(getListVehicleRequestApprovalCandidatesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListVehicleRequestApprovalCandidatesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/vehicle-request-approval-stages/candidates`
+    ] as const;
+    }
+
+
+export const getListVehicleRequestApprovalCandidatesQueryOptions = <TData = Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListVehicleRequestApprovalCandidatesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>> = ({ signal }) => listVehicleRequestApprovalCandidates(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListVehicleRequestApprovalCandidatesQueryResult = NonNullable<Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>>
+export type ListVehicleRequestApprovalCandidatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List who may be named by a specific_membership stage (VR-02A)
+ */
+
+export function useListVehicleRequestApprovalCandidates<TData = Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listVehicleRequestApprovalCandidates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListVehicleRequestApprovalCandidatesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetVehicleRequestApprovalStageUrl = (organizationId: number,
     stageId: number,) => {
