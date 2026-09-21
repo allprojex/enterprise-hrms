@@ -38,6 +38,11 @@ tags:
     description: Primary HR assignment operations
   - name: vehicles
     description: VR-01 organizational vehicle register
+  - name: vehicle-request-approvals
+    description: >-
+      VR-02A — configuration of the Vehicle Request approval chain: an ordered
+      list of stages, each naming one of three server-defined authority
+      resolvers. Configuration only; no vehicle request can be created yet.
   - name: audit-events
     description: Audit log operations
   - name: invitations
@@ -4471,6 +4476,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vehicle-request-approval-stages:
+    get:
+      operationId: listVehicleRequestApprovalStages
+      tags: [vehicle-request-approvals]
+      summary: List the organization's Vehicle Request approval stages (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Returned in ascending stage order.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval stages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleRequestApprovalStage"
+    post:
+      operationId: createVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Add an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage. The
+        resolver configuration is validated against the resolver type, so a
+        stage that could authorize nobody is refused here rather than stranding
+        a request later.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleRequestApprovalStageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "400":
+          description: Invalid stage or resolver configuration
+        "409":
+          description: Another stage already occupies that position
+
+  /organizations/{organizationId}/vehicle-request-approval-stages/candidates:
+    get:
+      operationId: listVehicleRequestApprovalCandidates
+      tags: [vehicle-request-approvals]
+      summary: List who may be named by a specific_membership stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage — the
+        same authorization as the rest of the approval-chain configuration
+        surface. It deliberately does NOT require membership.read: this is an
+        administrator choosing an approver, not a second route onto the
+        organization's membership directory.
+
+
+        Returns active memberships that independently hold
+        vehicle_request.approve. Anyone else could be named but could never
+        resolve, because approval re-checks that permission at decision time —
+        so a stage naming them would strand every request that reached it.
+
+
+        The response carries only the identity the picker needs. There is no
+        lookup-by-id form, so it cannot be used to probe whether a given
+        membership id exists. Listing someone here grants them nothing.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Eligible approval candidates, ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleRequestApprovalCandidate"
+  /organizations/{organizationId}/vehicle-request-approval-stages/{stageId}:
+    get:
+      operationId: getVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Get one approval stage (VR-02A)
+      description: Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Amend an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Changing the resolver type revalidates its configuration. Reconfiguring
+        the chain never alters a request already in flight.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleRequestApprovalStageInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "400":
+          description: Invalid stage or resolver configuration
+        "404":
+          description: Not found
+        "409":
+          description: Another stage already occupies that position
+    delete:
+      operationId: deleteVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Remove an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Affects future requests only — an in-flight request carries its own
+        frozen stage count and its decisions keep their own stage snapshots.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
 
   /organizations/{organizationId}/vehicles:
     get:
@@ -38491,6 +38678,96 @@ components:
           type: ["string", "null"]
         pifNumber:
           type: ["string", "null"]
+
+    VehicleRequestApprovalCandidate:
+      type: object
+      description: >-
+        VR-02A — a membership that may be named by a specific_membership
+        approval stage. Deliberately minimal: the membership id that gets
+        persisted in the resolver configuration, plus enough identity to show a
+        person's name. No email, roles, Primary HR flag, application user id or
+        employee record is exposed here.
+      required: [membershipId, firstName, lastName]
+      properties:
+        membershipId:
+          type: integer
+          description: The canonical id persisted in the stage's resolverConfig.
+        firstName:
+          type: string
+        lastName:
+          type: string
+    VehicleRequestApprovalStage:
+      type: object
+      description: >-
+        VR-02A — one configured stage in an organization's Vehicle Request
+        approval chain. A stage NAMES a server-defined resolver and supplies its
+        data; it can never supply code.
+      required: [id, organizationId, purpose, stageOrder, name, resolverType, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        purpose:
+          type: string
+          enum: [vehicle_request]
+        stageOrder:
+          type: integer
+          description: 1-based position. Stages are decided strictly in ascending order.
+        name:
+          type: string
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
+          description: >-
+            permission_holder takes { permissionKey }; specific_membership takes
+            { membershipId }; department_head takes no configuration, because the
+            request itself supplies the department.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateVehicleRequestApprovalStageInput:
+      type: object
+      required: [stageOrder, name, resolverType]
+      properties:
+        stageOrder:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
+
+    UpdateVehicleRequestApprovalStageInput:
+      type: object
+      description: Every field is optional; only the fields supplied are changed.
+      properties:
+        stageOrder:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
 
     Vehicle:
       type: object

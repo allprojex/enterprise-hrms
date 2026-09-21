@@ -99,6 +99,11 @@ const CATEGORY_BY_PREFIX: Record<string, AuditCategory> = {
   // physical-resource registers; left unmapped it would fail closed to
   // "security" and disappear from the HR/assets audit view.
   vehicle: "assets_inventory",
+  // VR-02 — vehicle requests and their approval configuration. A SEPARATE
+  // prefix from `vehicle` above: resolveAuditCategory() splits on the first
+  // ".", so `vehicle_request.*` would otherwise fail closed to "security" and
+  // disappear from the assets/HR audit view.
+  vehicle_request: "assets_inventory",
   asset_assignment: "assets_inventory",
   asset_evidence: "assets_inventory",
   asset_incident: "assets_inventory",

@@ -180,3 +180,4 @@ export * from "./form-submission-links";
 
 // VR-01 — Vehicle Foundation: the organizational vehicle register.
 export * from "./vehicles";
+export * from "./vehicle-requests";

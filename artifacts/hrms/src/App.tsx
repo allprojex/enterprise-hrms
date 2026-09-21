@@ -55,6 +55,7 @@ import LearningDashboard from '@/pages/learning-dashboard';
 import LearningReports from '@/pages/learning-reports';
 import Assets from '@/pages/assets';
 import Vehicles from '@/pages/vehicles';
+import VehicleRequestApprovalsConfig from '@/pages/vehicle-request-approvals-config';
 import TeamAssets from '@/pages/team-assets';
 import AssetsDashboard from '@/pages/assets-dashboard';
 import AssetReports from '@/pages/asset-reports';
@@ -399,6 +400,12 @@ function Router() {
           own controls follow asset_management.manage, which the API re-checks. */}
       <Route path="/vehicles">
         {() => <SecureRoute component={Vehicles} moduleKey="asset_management" />}
+      </Route>
+      {/* VR-02A — who approves a vehicle request. Administration of the vehicle
+          domain, so the same asset_management gate as the register; the API
+          re-checks asset_management.manage on every stage route. */}
+      <Route path="/vehicle-request-approvals-config">
+        {() => <SecureRoute component={VehicleRequestApprovalsConfig} moduleKey="asset_management" />}
       </Route>
       <Route path="/team-assets">
         {() => <SecureRoute component={TeamAssets} moduleKey="asset_management" />}

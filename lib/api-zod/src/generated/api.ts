@@ -3897,6 +3897,149 @@ export const UpdateRecordsLocationResponse = zod.object({
 
 
 /**
+ * Requires the asset_management module and asset_management.manage. Returned in ascending stage order.
+ * @summary List the organization's Vehicle Request approval stages (VR-02A)
+ */
+export const ListVehicleRequestApprovalStagesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehicleRequestApprovalStagesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+export const ListVehicleRequestApprovalStagesResponse = zod.array(ListVehicleRequestApprovalStagesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. The resolver configuration is validated against the resolver type, so a stage that could authorize nobody is refused here rather than stranding a request later.
+ * @summary Add an approval stage (VR-02A)
+ */
+export const CreateVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+export const createVehicleRequestApprovalStageBodyNameMax = 120;
+
+
+
+export const CreateVehicleRequestApprovalStageBody = zod.object({
+  "stageOrder": zod.number().min(1),
+  "name": zod.string().min(1).max(createVehicleRequestApprovalStageBodyNameMax),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const CreateVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage — the same authorization as the rest of the approval-chain configuration surface. It deliberately does NOT require membership.read: this is an administrator choosing an approver, not a second route onto the organization's membership directory.
+ *
+ * Returns active memberships that independently hold vehicle_request.approve. Anyone else could be named but could never resolve, because approval re-checks that permission at decision time — so a stage naming them would strand every request that reached it.
+ *
+ * The response carries only the identity the picker needs. There is no lookup-by-id form, so it cannot be used to probe whether a given membership id exists. Listing someone here grants them nothing.
+ * @summary List who may be named by a specific_membership stage (VR-02A)
+ */
+export const ListVehicleRequestApprovalCandidatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehicleRequestApprovalCandidatesResponseItem = zod.object({
+  "membershipId": zod.number().describe('The canonical id persisted in the stage\'s resolverConfig.'),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+}).describe('VR-02A — a membership that may be named by a specific_membership approval stage. Deliberately minimal: the membership id that gets persisted in the resolver configuration, plus enough identity to show a person\'s name. No email, roles, Primary HR flag, application user id or employee record is exposed here.')
+export const ListVehicleRequestApprovalCandidatesResponse = zod.array(ListVehicleRequestApprovalCandidatesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
+ * @summary Get one approval stage (VR-02A)
+ */
+export const GetVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const GetVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Changing the resolver type revalidates its configuration. Reconfiguring the chain never alters a request already in flight.
+ * @summary Amend an approval stage (VR-02A)
+ */
+export const UpdateVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+
+export const updateVehicleRequestApprovalStageBodyNameMax = 120;
+
+
+
+export const UpdateVehicleRequestApprovalStageBody = zod.object({
+  "stageOrder": zod.number().min(1).optional(),
+  "name": zod.string().min(1).max(updateVehicleRequestApprovalStageBodyNameMax).optional(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']).optional(),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional()
+}).describe('Every field is optional; only the fields supplied are changed.')
+
+export const UpdateVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Affects future requests only — an in-flight request carries its own frozen stage count and its decisions keep their own stage snapshots.
+ * @summary Remove an approval stage (VR-02A)
+ */
+export const DeleteVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const DeleteVehicleRequestApprovalStageResponse = zod.void()
+
+
+/**
  * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
  * @summary List the organization's vehicles (VR-01)
  */

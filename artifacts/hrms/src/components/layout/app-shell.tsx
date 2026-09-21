@@ -210,6 +210,7 @@ const MODULE_BY_HREF: Record<string, string> = {
   '/assets-dashboard': 'asset_management',
   '/assets': 'asset_management',
   '/vehicles': 'asset_management',
+  '/vehicle-request-approvals-config': 'asset_management',
   '/team-assets': 'asset_management',
   '/asset-workspace': 'asset_management',
   '/asset-reports': 'asset_management',
@@ -779,6 +780,12 @@ export function AppShell({ children }: AppShellProps) {
         // and the module filter above hides it with the rest of the group
         // when asset_management is disabled.
         ...(isHrCapable ? [{ href: '/vehicles', label: 'Vehicles', icon: Car } satisfies NavItem] : []),
+        // VR-02A — configuring who approves a vehicle request is vehicle-domain
+        // administration, so it sits beside the register and the route re-checks
+        // asset_management.manage.
+        ...(isHrCapable
+          ? [{ href: '/vehicle-request-approvals-config', label: 'Vehicle Approvals', icon: ShieldCheck } satisfies NavItem]
+          : []),
       ],
     },
     {
