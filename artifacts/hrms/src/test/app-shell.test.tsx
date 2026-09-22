@@ -791,3 +791,49 @@ describe('AppShell — sidebar group expand/collapse reliability', () => {
     expect(drawer.getByTestId('link-nav-leave calendar')).toBeInTheDocument();
   });
 });
+
+// VR-02B — My Vehicle Requests is a deliberate exception to the unconditional
+// Self-Service rule: submission is an explicit, organization-controlled grant,
+// so the entry follows either submission key (and the asset_management module).
+// The server re-authorizes every submission; this only decides visibility.
+describe('AppShell — My Vehicle Requests visibility', () => {
+  function actAs(permissions: string[]) {
+    useListMyOrganizationsMock.mockReturnValue({
+      data: [{ organizationId: 10, organizationName: 'Acme HQ', organizationSlug: 'acme', status: 'active', roles: ['employee'], permissions, isPrimaryHr: false }],
+    });
+  }
+
+  async function selfServiceHrefs(user: ReturnType<typeof userEvent.setup>): Promise<string[]> {
+    await user.click(screen.getByTestId('button-nav-group-self-service'));
+    return Array.from(document.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '');
+  }
+
+  beforeEach(() => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service', 'asset_management'));
+  });
+
+  it('is hidden from an ordinary employee with no submission grant', async () => {
+    actAs([...EMPLOYEE_PERMISSIONS]);
+    renderShell();
+    expect(await selfServiceHrefs(userEvent.setup())).not.toContain('/my-vehicle-requests');
+  });
+
+  it.each([['vehicle_request.write.own'], ['vehicle_request.write.department']])('is shown to a holder of %s', async (key) => {
+    actAs([...EMPLOYEE_PERMISSIONS, key]);
+    renderShell();
+    expect(await selfServiceHrefs(userEvent.setup())).toContain('/my-vehicle-requests');
+  });
+
+  it('is not opened by approve or read.all', async () => {
+    actAs([...EMPLOYEE_PERMISSIONS, 'vehicle_request.approve', 'vehicle_request.read.all']);
+    renderShell();
+    expect(await selfServiceHrefs(userEvent.setup())).not.toContain('/my-vehicle-requests');
+  });
+
+  it('is hidden when asset_management is disabled, whatever the grant', async () => {
+    modulesMock.mockReturnValue(modulesEnabled('employee_self_service'));
+    actAs([...EMPLOYEE_PERMISSIONS, 'vehicle_request.write.own']);
+    renderShell();
+    expect(await selfServiceHrefs(userEvent.setup())).not.toContain('/my-vehicle-requests');
+  });
+});

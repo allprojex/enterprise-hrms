@@ -6515,6 +6515,114 @@ export interface VehicleRequestApprovalCandidate {
   lastName: string;
 }
 
+export type SubmitMyVehicleRequestInputRequestType = typeof SubmitMyVehicleRequestInputRequestType[keyof typeof SubmitMyVehicleRequestInputRequestType];
+
+
+export const SubmitMyVehicleRequestInputRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * VR-02B — a vehicle request. Carries no identity: the organization, requester, requesting department and submitter are resolved on the server from the authenticated caller.
+ */
+export interface SubmitMyVehicleRequestInput {
+  requestType: SubmitMyVehicleRequestInputRequestType;
+  /** The exact vehicle from this organization's VR-01 register. */
+  vehicleId: number;
+  /** @minLength 1 */
+  purpose: string;
+  /** @nullable */
+  destination?: string | null;
+  /** Must carry an explicit UTC offset and must not be in the past. */
+  plannedTimeOut: string;
+  /** The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut. */
+  plannedTimeIn: string;
+}
+
+export type MyVehicleRequestRequestType = typeof MyVehicleRequestRequestType[keyof typeof MyVehicleRequestRequestType];
+
+
+export const MyVehicleRequestRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type MyVehicleRequestStatus = typeof MyVehicleRequestStatus[keyof typeof MyVehicleRequestStatus];
+
+
+export const MyVehicleRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.
+ */
+export interface MyVehicleRequest {
+  id: number;
+  /** e.g. VR-00001 */
+  requestReference: string;
+  requestType: MyVehicleRequestRequestType;
+  status: MyVehicleRequestStatus;
+  /** @nullable */
+  requesterEmployeeId: number | null;
+  requestingDepartmentId: number;
+  requestingDepartmentName: string;
+  vehicleId: number;
+  vehicleRegistrationNumber: string;
+  /** @nullable */
+  vehicleMake: string | null;
+  /** @nullable */
+  vehicleModel: string | null;
+  purpose: string;
+  /** @nullable */
+  destination: string | null;
+  plannedTimeOut: string;
+  plannedTimeIn: string;
+  totalStages: number;
+  /** @nullable */
+  currentStageOrder: number | null;
+  submittedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type VehicleRequestSubmissionContextDepartment = {
+  id: number;
+  name: string;
+} | null;
+
+/**
+ * VR-02B — what the caller may submit and, when they cannot, why. Grants nothing; submission re-checks every term.
+ */
+export interface VehicleRequestSubmissionContext {
+  canSubmitEmployeeRequest: boolean;
+  canSubmitDepartmentRequest: boolean;
+  /** @nullable */
+  department: VehicleRequestSubmissionContextDepartment;
+  approvalWorkflowConfigured: boolean;
+  /** @nullable */
+  blockedReason: string | null;
+}
+
+/**
+ * VR-02B — enough to tell vehicles apart when choosing one. No driver, branch, asset link, notes or status history.
+ */
+export interface RequestableVehicle {
+  id: number;
+  registrationNumber: string;
+  /** @nullable */
+  make: string | null;
+  /** @nullable */
+  model: string | null;
+  /** @nullable */
+  description: string | null;
+}
+
 export type VehicleRequestApprovalStagePurpose = typeof VehicleRequestApprovalStagePurpose[keyof typeof VehicleRequestApprovalStagePurpose];
 
 

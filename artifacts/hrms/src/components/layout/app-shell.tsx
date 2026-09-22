@@ -87,7 +87,7 @@ import { resolveAdministrationNavEntries } from '@/lib/administration-access';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
-import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess } from '@/hooks/use-hr-capable';
+import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess, useHasAnyPermission } from '@/hooks/use-hr-capable';
 import { useCapabilities } from '@/hooks/use-capabilities';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -180,6 +180,9 @@ function groupSlug(label: string): string {
  * /unauthorized for an organization that has not enabled the module (e.g. the
  * platform's own System Administration org, which enables no HR modules).
  */
+/** VR-02B — the two independent Vehicle Request submission grants. */
+const VEHICLE_REQUEST_SUBMISSION_PERMISSIONS = ['vehicle_request.write.own', 'vehicle_request.write.department'] as const;
+
 const MODULE_BY_HREF: Record<string, string> = {
   '/self-service': 'employee_self_service',
   '/my-requests': 'employee_self_service',
@@ -211,6 +214,7 @@ const MODULE_BY_HREF: Record<string, string> = {
   '/assets': 'asset_management',
   '/vehicles': 'asset_management',
   '/vehicle-request-approvals-config': 'asset_management',
+  '/my-vehicle-requests': 'asset_management',
   '/team-assets': 'asset_management',
   '/asset-workspace': 'asset_management',
   '/asset-reports': 'asset_management',
@@ -501,6 +505,8 @@ export function AppShell({ children }: AppShellProps) {
   // preserves the existing Organisations control-plane entry; it adds no
   // console bypass.
   const administrationAccess = useAdministrationAccess(activeOrganizationId ?? 0, user?.role === 'super_admin');
+  // VR-02B — either explicit submission grant; the two keys are independent.
+  const canRequestVehicle = useHasAnyPermission(activeOrganizationId ?? 0, VEHICLE_REQUEST_SUBMISSION_PERMISSIONS);
   // Module enablement for the active organization, the same source ModuleGate
   // (frontend) and requireModuleEnabled (backend) use. A module-gated nav item
   // needs BOTH its module enabled here AND its existing role/permission below.
@@ -682,6 +688,17 @@ export function AppShell({ children }: AppShellProps) {
         // Gating it would make raising a request harder for exactly the people
         // it exists to serve, and no permission key exists for self-service.
         { href: '/my-requests', label: 'My Requests', icon: Inbox },
+        // VR-02B — a DELIBERATE exception to the unconditional Self-Service
+        // rule above. Vehicle Request submission is an explicit,
+        // organization-controlled grant (owner correction, 2026-09-21), so most
+        // employees will never hold it; an always-visible entry would lead them
+        // to a page they cannot use. Shown to holders of either submission key.
+        // The route itself stays reachable for anyone with the module, so a
+        // person whose grant is later withdrawn can still read the requests they
+        // submitted, and the API re-checks every submission regardless.
+        ...(canRequestVehicle
+          ? [{ href: '/my-vehicle-requests', label: 'My Vehicle Requests', icon: Car } satisfies NavItem]
+          : []),
         // WS-14 (§30.18) — every employee reaches their OWN skills here,
         // unconditionally, for the same reason as the Self-Service entries above:
         // the page resolves the caller's own employee record server-side. It

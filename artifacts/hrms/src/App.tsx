@@ -96,6 +96,7 @@ import EmployeeRelations from '@/pages/employee-relations';
 import Offboarding from '@/pages/offboarding';
 import MyGrievances from '@/pages/my-grievances';
 import MyRequests from '@/pages/my-requests';
+import MyVehicleRequests from '@/pages/my-vehicle-requests';
 import Requests from '@/pages/requests';
 import RequestSettings from '@/pages/request-settings';
 import SkillsSettings from '@/pages/skills-settings';
@@ -230,6 +231,15 @@ function Router() {
       */}
       <Route path="/my-requests">
         {() => <SecureRoute component={MyRequests} moduleKey="employee_self_service" />}
+      </Route>
+      {/*
+        VR-02B — Employee Self-Service vehicle requests. Gated only by the
+        asset_management module that owns vehicles: reading the requests you
+        submitted needs no permission, and every submission is re-authorized by
+        the API against the explicit vehicle_request.write.* grants.
+      */}
+      <Route path="/my-vehicle-requests">
+        {() => <SecureRoute component={MyVehicleRequests} moduleKey="asset_management" />}
       </Route>
       <Route path="/requests">
         {() => <SecureRoute component={Requests} />}
