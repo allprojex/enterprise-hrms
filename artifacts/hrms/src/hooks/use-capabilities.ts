@@ -42,6 +42,11 @@ export interface Capabilities {
   isDepartmentHead: boolean;
   /** At least one employee currently reports to them (structural). */
   hasDirectReports: boolean;
+  /**
+   * Currently holds valid delegated Office Inventory approval authority
+   * (structural — office_inventory.approve alone only gates "may attempt").
+   */
+  isInventoryApprovalDelegate: boolean;
   /** Structural authority over other people, from either tier. */
   isManager: boolean;
   /**
@@ -91,6 +96,7 @@ export function useCapabilities(organizationId: number): Capabilities {
 
     const isDepartmentHead = membership?.isDepartmentHead === true;
     const hasDirectReports = membership?.hasDirectReports === true;
+    const isInventoryApprovalDelegate = membership?.isInventoryApprovalDelegate === true;
 
     return {
       permissions,
@@ -98,6 +104,7 @@ export function useCapabilities(organizationId: number): Capabilities {
       canAny,
       isDepartmentHead,
       hasDirectReports,
+      isInventoryApprovalDelegate,
       isManager: isDepartmentHead || hasDirectReports,
       isHrOperational: canAny(...HR_OPERATIONAL_PERMISSIONS),
       isOrgAdministrator: canAny(...ORG_ADMINISTRATION_PERMISSIONS),

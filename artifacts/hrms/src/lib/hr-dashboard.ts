@@ -19,6 +19,17 @@ import { isModuleAccessible } from '@/lib/module-access';
  * destination actually requires (MembershipSummary.permissions — effective
  * keys, never role names). Missing data fails closed: no permissions or no
  * module list means no gated card.
+ *
+ * RELATIONSHIP-AWARE CARDS. Some keys only let the holder ATTEMPT an action or
+ * see a TEAM-scoped view: leave_request.approve and office_inventory.approve
+ * are held by every employee, but only a department head (or a valid inventory
+ * delegate) can actually act; the *.reports.read keys narrow to the caller's own
+ * and direct-report records. Advertising a manager or HR card to anyone holding
+ * such a key misleads an ordinary employee, so those keys open a card only
+ * together with the structural relationship that gives them meaning
+ * (MembershipSummary.isDepartmentHead / hasDirectReports /
+ * isInventoryApprovalDelegate). The organization-wide key (…manage) still opens
+ * the card on its own.
  */
 
 export type WorkspaceKey =
@@ -38,11 +49,23 @@ export type WorkspaceKey =
   | 'departments'
   | 'positions';
 
+/** Structural authority reported by MembershipSummary — never a permission, never a role name. */
+export type Relationship = 'isDepartmentHead' | 'hasDirectReports' | 'isInventoryApprovalDelegate';
+export type Relationships = Partial<Record<Relationship, boolean>>;
+
 interface Destination {
   href: string;
   moduleKey?: string;
-  /** The caller must hold at least one; an empty list means membership (plus module) suffices. */
+  /**
+   * The caller must hold at least one; an empty list (with no relationshipGated
+   * rule) means membership (plus module) suffices.
+   */
   anyPermission: readonly string[];
+  /**
+   * Attempt-only or team-scoped keys: they open the destination only when the
+   * caller ALSO holds one of the listed relationships.
+   */
+  relationshipGated?: { anyPermission: readonly string[]; anyRelationship: readonly Relationship[] };
 }
 
 export interface WorkspaceEntry extends Destination {
@@ -57,23 +80,54 @@ export interface WorkspaceEntry extends Destination {
  * the HR workspace deliberately advertises the management view (attendance,
  * master data) rather than the self-service one every member holds.
  */
+/** A department head or reporting manager — the relationships behind every team-scoped view. */
+const MANAGER_RELATIONSHIPS: readonly Relationship[] = ['isDepartmentHead', 'hasDirectReports'];
+
 export const HR_WORKSPACE: readonly WorkspaceEntry[] = [
   { key: 'employees', title: 'Employees', description: 'Directory and employee records', href: '/employees', anyPermission: ['employee.read'] },
-  { key: 'leave', title: 'Leave', description: 'Approvals, calendar and balances', href: '/leave-approvals', moduleKey: 'leave', anyPermission: ['leave_request.approve'] },
+  {
+    key: 'leave',
+    title: 'Leave',
+    description: 'Approvals, calendar and balances',
+    href: '/leave-approvals',
+    moduleKey: 'leave',
+    anyPermission: ['leave_request.manage'],
+    relationshipGated: { anyPermission: ['leave_request.approve'], anyRelationship: ['isDepartmentHead'] },
+  },
   { key: 'attendance', title: 'Attendance', description: "Today's attendance and exceptions", href: '/attendance-dashboard', moduleKey: 'attendance', anyPermission: ['attendance.manage'] },
   { key: 'forms', title: 'Forms', description: 'Submissions and workflow reviews', href: '/forms', anyPermission: ['form.read'] },
   { key: 'personnel_files', title: 'Personnel Files', description: 'File custody and personnel reports', href: '/personnel-reports', anyPermission: ['personnel_file.read'] },
   { key: 'performance', title: 'Performance', description: 'Review cycles and HR review', href: '/performance-reviews', moduleKey: 'performance', anyPermission: ['performance.manage'] },
-  { key: 'learning', title: 'Learning & Development', description: 'Courses, enrolments and training', href: '/learning', moduleKey: 'learning', anyPermission: ['learning.reports.read'] },
+  {
+    key: 'learning',
+    title: 'Learning & Development',
+    description: 'Courses, enrolments and training',
+    href: '/learning',
+    moduleKey: 'learning',
+    anyPermission: ['learning.manage'],
+    relationshipGated: { anyPermission: ['learning.reports.read'], anyRelationship: MANAGER_RELATIONSHIPS },
+  },
   { key: 'recruitment', title: 'Recruitment', description: 'Requisitions, vacancies and pipeline', href: '/recruitment', moduleKey: 'recruitment', anyPermission: ['recruitment.reports.read'] },
-  { key: 'assets', title: 'Asset Management', description: 'Assignments, returns and incidents', href: '/assets-dashboard', moduleKey: 'asset_management', anyPermission: ['asset_management.reports.read'] },
+  {
+    key: 'assets',
+    title: 'Asset Management',
+    description: 'Assignments, returns and incidents',
+    href: '/assets-dashboard',
+    moduleKey: 'asset_management',
+    anyPermission: ['asset_management.manage'],
+    relationshipGated: { anyPermission: ['asset_management.reports.read'], anyRelationship: MANAGER_RELATIONSHIPS },
+  },
   {
     key: 'office_inventory',
     title: 'Office Inventory',
     description: 'Stock, issuing and requests',
     href: '/office-inventory',
     moduleKey: 'office_inventory',
-    anyPermission: ['office_inventory.item.manage', 'office_inventory.reports.read', 'office_inventory.issue', 'office_inventory.approve'],
+    anyPermission: ['office_inventory.item.manage', 'office_inventory.reports.read', 'office_inventory.issue'],
+    relationshipGated: {
+      anyPermission: ['office_inventory.approve'],
+      anyRelationship: ['isDepartmentHead', 'isInventoryApprovalDelegate'],
+    },
   },
   { key: 'self_service', title: 'Employee Self-Service', description: 'Your own requests, leave and documents', href: '/self-service', moduleKey: 'employee_self_service', anyPermission: [] },
   { key: 'branches', title: 'Branches', description: 'Locations and regional offices', href: '/branches', anyPermission: ['branch.manage'] },
@@ -85,9 +139,24 @@ export const HR_WORKSPACE: readonly WorkspaceEntry[] = [
 export const REPORT_DESTINATIONS: readonly Destination[] = [
   { href: '/personnel-reports', anyPermission: ['personnel_file.read'] },
   { href: '/attendance-reports', moduleKey: 'attendance', anyPermission: ['attendance.manage'] },
-  { href: '/performance-reports', moduleKey: 'performance', anyPermission: ['performance.reports.read'] },
-  { href: '/learning-reports', moduleKey: 'learning', anyPermission: ['learning.reports.read'] },
-  { href: '/asset-reports', moduleKey: 'asset_management', anyPermission: ['asset_management.reports.read'] },
+  {
+    href: '/performance-reports',
+    moduleKey: 'performance',
+    anyPermission: ['performance.manage'],
+    relationshipGated: { anyPermission: ['performance.reports.read'], anyRelationship: MANAGER_RELATIONSHIPS },
+  },
+  {
+    href: '/learning-reports',
+    moduleKey: 'learning',
+    anyPermission: ['learning.manage'],
+    relationshipGated: { anyPermission: ['learning.reports.read'], anyRelationship: MANAGER_RELATIONSHIPS },
+  },
+  {
+    href: '/asset-reports',
+    moduleKey: 'asset_management',
+    anyPermission: ['asset_management.manage'],
+    relationshipGated: { anyPermission: ['asset_management.reports.read'], anyRelationship: MANAGER_RELATIONSHIPS },
+  },
   { href: '/recruitment-reports', moduleKey: 'recruitment', anyPermission: ['recruitment.reports.read'] },
 ];
 
@@ -95,11 +164,19 @@ export function canOpenDestination(
   destination: Destination,
   modules: readonly OrganizationModule[] | undefined,
   permissions: readonly string[] | undefined,
+  relationships?: Relationships,
 ): boolean {
   if (destination.moduleKey && (!modules || !isModuleAccessible([...modules], destination.moduleKey))) return false;
-  if (destination.anyPermission.length === 0) return true;
+  const gated = destination.relationshipGated;
+  if (destination.anyPermission.length === 0 && !gated) return true;
   if (!permissions) return false;
-  return destination.anyPermission.some((key) => permissions.includes(key));
+  if (destination.anyPermission.some((key) => permissions.includes(key))) return true;
+  // Missing relationship data means no relationship — fail closed.
+  return (
+    gated !== undefined &&
+    gated.anyPermission.some((key) => permissions.includes(key)) &&
+    gated.anyRelationship.some((r) => relationships?.[r] === true)
+  );
 }
 
 export type BadgeTone = 'warning' | 'neutral';
@@ -152,12 +229,13 @@ export function workspaceBadge(key: WorkspaceKey, summary: DashboardSummary | un
 export function resolveWorkspaceCards(input: {
   modules: readonly OrganizationModule[] | undefined;
   permissions: readonly string[] | undefined;
+  relationships?: Relationships;
   summary?: DashboardSummary;
   commandCentre?: HrCommandCentre;
 }): WorkspaceCard[] {
   const cards: WorkspaceCard[] = [];
   for (const entry of HR_WORKSPACE) {
-    if (!canOpenDestination(entry, input.modules, input.permissions)) continue;
+    if (!canOpenDestination(entry, input.modules, input.permissions, input.relationships)) continue;
     cards.push({
       key: entry.key,
       title: entry.title,
@@ -173,7 +251,7 @@ export function resolveWorkspaceCards(input: {
 }
 
 function pushReports(cards: WorkspaceCard[], input: Parameters<typeof resolveWorkspaceCards>[0], atEndOfOperational = false) {
-  const available = REPORT_DESTINATIONS.filter((d) => canOpenDestination(d, input.modules, input.permissions));
+  const available = REPORT_DESTINATIONS.filter((d) => canOpenDestination(d, input.modules, input.permissions, input.relationships));
   if (available.length === 0) return;
   const card: WorkspaceCard = {
     key: 'reports',

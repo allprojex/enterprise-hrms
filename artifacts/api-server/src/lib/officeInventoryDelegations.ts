@@ -273,6 +273,32 @@ export async function listDelegationsForDepartment(organizationId: number, depar
     .orderBy(officeInventoryApprovalDelegationsTable.validFrom);
 }
 
+/**
+ * True when `membershipId` currently holds VALID delegated approval authority
+ * for at least one department. It is decided per open delegation row by
+ * resolveApprovalAuthority itself — the single authority this file owns — so
+ * an inert row left behind by a former Head never counts. Informational only
+ * (it lets the dashboard offer the approval surface to a genuine delegate);
+ * every approval action re-resolves authority on its own.
+ */
+export async function isCurrentInventoryApprovalDelegate(organizationId: number, membershipId: number): Promise<boolean> {
+  const open = await db
+    .select({ departmentId: officeInventoryApprovalDelegationsTable.departmentId })
+    .from(officeInventoryApprovalDelegationsTable)
+    .where(
+      and(
+        eq(officeInventoryApprovalDelegationsTable.organizationId, organizationId),
+        eq(officeInventoryApprovalDelegationsTable.delegateMembershipId, membershipId),
+        isNull(officeInventoryApprovalDelegationsTable.validTo),
+      ),
+    );
+  for (const departmentId of new Set(open.map((r) => r.departmentId))) {
+    const authority = await resolveApprovalAuthority(organizationId, departmentId, membershipId);
+    if (authority?.capacity === "delegate") return true;
+  }
+  return false;
+}
+
 /** True only if `membershipId` is this department's CURRENT Head — used to gate delegation management routes (create/revoke/view), which are deliberately Head-only, never delegate-accessible (a delegate manages approvals, not who else may be delegated to). */
 export async function getCurrentDepartmentHeadCheck(organizationId: number, departmentId: number, membershipId: number): Promise<boolean> {
   const currentHead = await getCurrentDepartmentHead(organizationId, departmentId);

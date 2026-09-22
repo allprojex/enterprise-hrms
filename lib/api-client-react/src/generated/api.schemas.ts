@@ -2944,6 +2944,8 @@ export interface MembershipSummary {
   isDepartmentHead?: boolean;
   /** True when at least one employee currently reports to this membership's employee record. The same structural signal as isDepartmentHead, for the reporting-manager tier. No ids, counts or names are exposed — only whether the authority exists. */
   hasDirectReports?: boolean;
+  /** True when this membership currently holds VALID delegated Office Inventory approval authority for at least one department (decided by the same resolver every approval uses, so a delegation left behind by a former head never counts). office_inventory.approve alone gates may-attempt, never may-act; this lets the client offer the approval surface only to a genuine delegate. Informational — the server re-resolves authority on every approval. */
+  isInventoryApprovalDelegate?: boolean;
 }
 
 export interface SwitchOrganizationInput {

@@ -96,7 +96,17 @@ export default function Dashboard() {
 
   const tasks = commandCentre?.tasks ?? null;
   const attention = orderedAttention(commandCentre?.attention ?? []);
-  const workspaceCards = resolveWorkspaceCards({ modules: orgModules, permissions, summary, commandCentre });
+  const workspaceCards = resolveWorkspaceCards({
+    modules: orgModules,
+    permissions,
+    relationships: {
+      isDepartmentHead: capabilities.isDepartmentHead,
+      hasDirectReports: capabilities.hasDirectReports,
+      isInventoryApprovalDelegate: capabilities.isInventoryApprovalDelegate,
+    },
+    summary,
+    commandCentre,
+  });
   const unavailable = commandCentre?.unavailableSections ?? [];
   const showTasks = commandCentreQuery.isLoading || commandCentreQuery.isError || tasks != null;
 
@@ -170,7 +180,11 @@ export default function Dashboard() {
           icon={<CalendarDays aria-hidden="true" />}
           href={can('leave_request.read.own') ? '/leave-calendar' : null}
         />,
-        ...(can('leave_request.approve')
+        // leave_request.approve is held by every employee and only gates "may
+        // attempt"; the approval queue is real only for a department head or
+        // an HR holder of leave_request.manage — the same rule the sidebar's
+        // Leave Approvals entry uses.
+        ...(capabilities.isDepartmentHead || can('leave_request.manage')
           ? [
               <DashboardMetricLink
                 key="approvals"
