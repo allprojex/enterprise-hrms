@@ -30,6 +30,7 @@ const {
   auditEventsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
 } = vi.hoisted(() => {
@@ -60,6 +61,7 @@ const {
       "status",
     ]),
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
+    rolesTable: mockTable("roles", ["id", "key", "organizationId", "isSystemRole"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
   };
@@ -86,6 +88,7 @@ vi.mock("@workspace/db", () => ({
   auditEventsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   db: {
