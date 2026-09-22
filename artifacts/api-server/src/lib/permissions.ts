@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNull, or } from "drizzle-orm";
 import {
   db,
   membershipRolesTable,
@@ -7,6 +7,31 @@ import {
   rolePermissionsTable,
   permissionsTable,
 } from "@workspace/db";
+
+/**
+ * THE TENANT-OWNERSHIP RULE for anything derived from `membership_roles`: a
+ * role counts for a membership only if it is a system template (no owning
+ * organization) or is owned by the membership's OWN organization. A link to
+ * another organization's role counts for nothing, however it came to exist.
+ *
+ * Two forms of the same rule, so every permission-derived path applies it
+ * identically:
+ *   - roleCountsForMembership: for rows already read (roles and memberships
+ *     joined, owner columns selected), e.g. getEffectivePermissions and
+ *     GET /me/organizations;
+ *   - roleOwnedByMembershipOrganization: a WHERE predicate for set queries
+ *     that find "every member holding permission K" — the query must join both
+ *     `roles` (on membership_roles.role_id) and `organization_memberships`.
+ */
+export function roleCountsForMembership(roleOrganizationId: number | null, membershipOrganizationId: number): boolean {
+  // organization_memberships.organization_id is NOT NULL, so this is exact.
+  return roleOrganizationId === null || roleOrganizationId === membershipOrganizationId;
+}
+
+/** SQL form of roleCountsForMembership. A function, so importing this module never touches the schema. */
+export function roleOwnedByMembershipOrganization() {
+  return or(isNull(rolesTable.organizationId), eq(rolesTable.organizationId, organizationMembershipsTable.organizationId));
+}
 
 /**
  * The union of permission keys granted to a membership via all of its roles.
@@ -34,11 +59,8 @@ export async function getEffectivePermissions(membershipId: number): Promise<Set
     .innerJoin(rolesTable, eq(rolesTable.id, membershipRolesTable.roleId))
     .where(eq(membershipRolesTable.membershipId, membershipId));
 
-  // organization_memberships.organization_id is NOT NULL, so a role is kept
-  // only when it is a template (no owner) or its owner is exactly the
-  // membership's organization.
   const roleIds = roleRows
-    .filter((r) => r.roleOrganizationId === null || r.roleOrganizationId === r.membershipOrganizationId)
+    .filter((r) => roleCountsForMembership(r.roleOrganizationId, r.membershipOrganizationId))
     .map((r) => r.roleId);
   if (roleIds.length === 0) {
     return new Set();

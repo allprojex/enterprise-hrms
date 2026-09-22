@@ -23,12 +23,14 @@ import {
   vehicleRequestApprovalStagesTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   usersTable,
   type VehicleRequestApprovalStage,
 } from "@workspace/db";
 import { activeAndUnexpired } from "./membership";
+import { roleOwnedByMembershipOrganization } from "./permissions";
 import { recordAuditEvent } from "./auditLog";
 import { isUniqueViolation } from "./dbErrors";
 import {
@@ -179,6 +181,7 @@ export async function listApprovalCandidates(organizationId: number): Promise<Ve
     .from(organizationMembershipsTable)
     .innerJoin(usersTable, eq(organizationMembershipsTable.applicationUserId, usersTable.id))
     .innerJoin(membershipRolesTable, eq(membershipRolesTable.membershipId, organizationMembershipsTable.id))
+    .innerJoin(rolesTable, eq(rolesTable.id, membershipRolesTable.roleId))
     .innerJoin(rolePermissionsTable, eq(rolePermissionsTable.roleId, membershipRolesTable.roleId))
     .innerJoin(permissionsTable, eq(rolePermissionsTable.permissionId, permissionsTable.id))
     .where(
@@ -187,6 +190,8 @@ export async function listApprovalCandidates(organizationId: number): Promise<Ve
         // resolved membership, never from anything a client supplied.
         eq(organizationMembershipsTable.organizationId, organizationId),
         activeAndUnexpired(),
+        // A role another organization owns never makes a member a candidate.
+        roleOwnedByMembershipOrganization(),
         eq(permissionsTable.key, VEHICLE_REQUEST_APPROVE_PERMISSION),
       ),
     );

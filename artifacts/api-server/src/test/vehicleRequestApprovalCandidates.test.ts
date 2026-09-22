@@ -36,6 +36,7 @@ const { fixtures, tables } = vi.hoisted(() => {
       ]),
       usersTable: mk("users", ["id", "firstName", "lastName"]),
       membershipRolesTable: mk("membership_roles", ["membershipId", "roleId"]),
+      rolesTable: mk("roles", ["id", "organizationId"]),
       rolePermissionsTable: mk("role_permissions", ["roleId", "permissionId"]),
       permissionsTable: mk("permissions", ["id", "key"]),
       vehicleRequestApprovalStagesTable: mk("vehicle_request_approval_stages", ["id", "organizationId"]),
@@ -66,6 +67,10 @@ function evaluate(row: Record<string, unknown>, node: Node | undefined): boolean
       return (node.conds as Node[]).some((c) => evaluate(row, c));
     case "eq":
       return row[node.left as string] === node.right;
+    // Two columns compared in a WHERE (not an ON): the role-ownership rule,
+    // roles.organizationId = organization_memberships.organizationId.
+    case "join":
+      return row[node.left as string] === row[node.right as string];
     case "isNull":
       return row[node.col as string] == null;
     case "gt":
@@ -165,6 +170,14 @@ function seed() {
       { membershipId: 103, roleId: 50 },
       { membershipId: 104, roleId: 50 },
       { membershipId: 201, roleId: 50 },
+    ],
+    // 50 and 51 are system templates (no owner); 77 and 78 are custom roles
+    // this organization owns.
+    roles: [
+      { id: 50, organizationId: null },
+      { id: 51, organizationId: null },
+      { id: 77, organizationId: ORG },
+      { id: 78, organizationId: ORG },
     ],
     role_permissions: [
       { roleId: 50, permissionId: 900 },
@@ -267,6 +280,42 @@ describe("candidate query — tenant isolation", () => {
 
   it("returns nothing for an organization with no eligible members", async () => {
     await expect(listApprovalCandidates(999)).resolves.toEqual([]);
+  });
+});
+
+describe("candidate query — a role another organization owns counts for nothing", () => {
+  // membership_roles rows written directly, bypassing every assignment guard:
+  // a malformed link from one of THIS organization's members to a role the
+  // OTHER organization owns, carrying the approve permission.
+  function linkForeignApproveRole(membershipId: number, roleId = 90) {
+    fixtures.rows.roles.push({ id: roleId, organizationId: OTHER_ORG });
+    fixtures.rows.role_permissions.push({ roleId, permissionId: 900 });
+    fixtures.rows.membership_roles.push({ membershipId, roleId });
+  }
+
+  it("does not make a member a candidate through another organization's role", async () => {
+    linkForeignApproveRole(102);
+    const candidates = await listApprovalCandidates(ORG);
+    expect(candidates.map((c) => c.membershipId)).not.toContain(102);
+  });
+
+  it("keeps a legitimate holder when a foreign role is linked beside a valid one", async () => {
+    linkForeignApproveRole(101);
+    const candidates = await listApprovalCandidates(ORG);
+    expect(candidates).toEqual([{ membershipId: 101, firstName: "Grace", lastName: "Hopper" }]);
+  });
+
+  it("still counts a custom role this organization owns", async () => {
+    fixtures.rows.membership_roles.push({ membershipId: 102, roleId: 77 });
+    fixtures.rows.role_permissions.push({ roleId: 77, permissionId: 900 });
+    const candidates = await listApprovalCandidates(ORG);
+    expect(candidates.map((c) => c.membershipId)).toContain(102);
+  });
+
+  it("the foreign role's owner gains no candidate either", async () => {
+    linkForeignApproveRole(102);
+    const candidates = await listApprovalCandidates(OTHER_ORG);
+    expect(candidates.map((c) => c.membershipId)).toEqual([201]);
   });
 });
 
