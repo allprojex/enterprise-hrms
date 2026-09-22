@@ -209,4 +209,38 @@ describe("POST /api/organizations (onboarding)", () => {
 
     expect(res.status).toBe(409);
   });
+
+  it("assigns the resolved org_admin template's id to the creator", async () => {
+    mockSession({ id: 1 });
+    fixtures.roleRows = [{ id: 77, key: "org_admin" }];
+
+    const res = await request(app)
+      .post("/api/organizations")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Acme", slug: "acme", type: "business" });
+
+    expect(res.status).toBe(201);
+    const links = fixtures.inserted.filter((i) => i.table === "membership_roles").map((i) => i.values);
+    expect(links).toEqual([expect.objectContaining({ roleId: 77 })]);
+  });
+
+  it("fails closed when the SYSTEM org_admin template is missing: nothing is written", async () => {
+    mockSession({ id: 1 });
+    // The scoped template lookup (organization_id IS NULL AND is_system_role)
+    // finds nothing. Previously onboarding carried on and created an
+    // organization whose creator held no role at all.
+    fixtures.roleRows = [];
+
+    const res = await request(app)
+      .post("/api/organizations")
+      .set("Authorization", "Bearer valid-token")
+      .send({ name: "Acme", slug: "acme", type: "business" });
+
+    expect(res.status).toBe(500);
+    const tables = fixtures.inserted.map((i) => i.table);
+    expect(tables).not.toContain("organizations");
+    expect(tables).not.toContain("organization_memberships");
+    expect(tables).not.toContain("membership_roles");
+    expect(tables).not.toContain("primary_hr_assignments");
+  });
 });

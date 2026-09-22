@@ -35,13 +35,13 @@
 import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
-  rolesTable,
   membershipRolesTable,
   organizationMembershipsTable,
 } from "@workspace/db";
 import { DEPRECATED_ROLE_KEYS, CANONICAL_HR_ROLE_KEY } from "@workspace/db/seed/roles-permissions-definitions";
 import { authorizeActor } from "../src/lib/actorAuthorization";
 import { recordAuditEvent } from "../src/lib/auditLog";
+import { resolveSystemRoleTemplate, listSystemRoleTemplates } from "../src/lib/systemRoles";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -79,14 +79,14 @@ async function main() {
   });
   console.log(`Actor authorized: user ${actor.applicationUserId} via membership ${actor.membershipId} in org ${actor.organizationId}`);
 
-  const [canonical] = await db
-    .select()
-    .from(rolesTable)
-    .where(and(eq(rolesTable.key, CANONICAL_HR_ROLE_KEY), eq(rolesTable.isSystemRole, true)))
-    .limit(1);
-  if (!canonical) throw new Error(`The canonical "${CANONICAL_HR_ROLE_KEY}" role template is missing — run seed:roles first`);
+  // Both lookups are SYSTEM templates only (organization_id IS NULL AND
+  // is_system_role — see src/lib/systemRoles.ts). An organization may own its
+  // own roles keyed `hr`, `hr_manager` or `hr_administrator`; those are that
+  // organization's deliberate choices, never the canonical target and never a
+  // deprecated template to migrate its holders off.
+  const canonical = await resolveSystemRoleTemplate(db, CANONICAL_HR_ROLE_KEY);
 
-  const deprecated = await db.select().from(rolesTable).where(inArray(rolesTable.key, [...DEPRECATED_ROLE_KEYS]));
+  const deprecated = await listSystemRoleTemplates(db, DEPRECATED_ROLE_KEYS);
   const deprecatedById = new Map(deprecated.map((r) => [r.id, r]));
   if (deprecated.length === 0) {
     console.log("No deprecated HR role templates exist in this database. Nothing to do.");
