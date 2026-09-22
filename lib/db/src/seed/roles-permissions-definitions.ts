@@ -1088,11 +1088,15 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.read.own",
     "asset_management.write.own",
     "asset_management.reports.read",
-    // VR-02 — an ordinary employee may raise a vehicle request for themselves.
-    // ONLY this key: `write.department`, `approve` and `read.all` are
-    // deliberately absent from every template and are granted per organization,
-    // so no employee acquires departmental, approval or oversight reach here.
-    "vehicle_request.write.own",
+    // VR-02B (owner correction, 2026-09-21) — NO `vehicle_request.*` key here.
+    // Requesting a vehicle is an explicit, organization-controlled grant, not
+    // something every employee holds: an organization gives
+    // `vehicle_request.write.own` and/or `vehicle_request.write.department` to
+    // the specific people it chooses (a Head of Department, an assistant, an
+    // operations officer …) through its own organization roles. Being an
+    // employee, a department member or holding a job title authorizes nothing.
+    // Migration 0082 removes the grant VR-02A's seed had already written, since
+    // seed:roles only ever inserts and dropping the line here cannot undo it.
   ],
 };
 
