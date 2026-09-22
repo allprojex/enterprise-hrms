@@ -9,6 +9,7 @@
     "./seed/module-definitions": "./src/seed/module-definitions.ts",
     "./seed/master-data-definitions": "./src/seed/master-data-definitions.ts",
     "./seed/roles-permissions-definitions": "./src/seed/roles-permissions-definitions.ts",
+    "./seed/roles-permissions-seeder": "./src/seed/roles-permissions-seeder.ts",
     "./seed/report-definitions": "./src/seed/report-definitions.ts"
   },
   "scripts": {
