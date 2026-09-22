@@ -251,7 +251,12 @@ function insertSingleRow(table: { __name: string }, v: Record<string, unknown>):
 
 function insertRow(table: { __name: string }, v: Record<string, unknown> | Record<string, unknown>[]) {
   const rows = Array.isArray(v) ? v.map((item) => insertSingleRow(table, item)) : [insertSingleRow(table, v)];
-  return { returning: () => Promise.resolve(rows) };
+  const result = { returning: () => Promise.resolve(rows) };
+  // The numbering helper's first-allocation insert chains
+  // .onConflictDoNothing() — a plain passthrough here, as in
+  // employeeNumbering.test.ts (real conflict behavior is proved live in
+  // numberingSequencesLive.test.ts).
+  return { ...result, onConflictDoNothing: () => result };
 }
 
 function thenableResult(resultPromise: Promise<unknown>) {

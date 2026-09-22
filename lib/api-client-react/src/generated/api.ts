@@ -474,6 +474,7 @@ import type {
   MySkillGaps,
   MySkillOptions,
   MySkillsResponse,
+  MyVehicleRequest,
   NominateSuccessionCandidateInput,
   Notification,
   OffboardingDetail,
@@ -646,6 +647,7 @@ import type {
   RequestLearningEnrollmentInput,
   RequestReports,
   RequestServiceRequestInformationInput,
+  RequestableVehicle,
   RequisitionApproval,
   RescheduleScheduledJobBody,
   ResetPasswordInput,
@@ -721,6 +723,7 @@ import type {
   SubmitMyDataChangeRequestInput,
   SubmitMyGrievanceInput,
   SubmitMyServiceRequestInput,
+  SubmitMyVehicleRequestInput,
   SubmitPublicOfferResponse201,
   SubmitPublicOfferResponseBody,
   SubmitRestoreRequestInput,
@@ -801,6 +804,7 @@ import type {
   Vehicle,
   VehicleRequestApprovalCandidate,
   VehicleRequestApprovalStage,
+  VehicleRequestSubmissionContext,
   VerifyDocumentRequirementBody,
   VerifyEmployeeSkillInput,
   WaiveClearanceItemInput,
@@ -10418,6 +10422,396 @@ export const useDeleteVehicleRequestApprovalStage = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteVehicleRequestApprovalStageMutationOptions(options));
     }
+
+export const getListMyVehicleRequestsUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-vehicle-requests`
+}
+
+/**
+ * Requires the asset_management module and an active membership. No permission key: owning your own requests is not an operational grant, so losing a submission grant later never hides your history. "Mine" means every request this membership SUBMITTED — employee and department requests alike. It is never widened by department membership or by vehicle_request.read.all; organization-wide oversight is VR-02D.
+ * @summary List the vehicle requests I submitted (VR-02B)
+ */
+export const listMyVehicleRequests = async (organizationId: number, options?: RequestInit): Promise<MyVehicleRequest[]> => {
+
+  return customFetch<MyVehicleRequest[]>(getListMyVehicleRequestsUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyVehicleRequestsQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-vehicle-requests`
+    ] as const;
+    }
+
+
+export const getListMyVehicleRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listMyVehicleRequests>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyVehicleRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyVehicleRequestsQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyVehicleRequests>>> = ({ signal }) => listMyVehicleRequests(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyVehicleRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyVehicleRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyVehicleRequests>>>
+export type ListMyVehicleRequestsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List the vehicle requests I submitted (VR-02B)
+ */
+
+export function useListMyVehicleRequests<TData = Awaited<ReturnType<typeof listMyVehicleRequests>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyVehicleRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyVehicleRequestsQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitMyVehicleRequestUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-vehicle-requests`
+}
+
+/**
+ * An `employee` request requires vehicle_request.write.own; a `department` request requires vehicle_request.write.department. The two are independent, and approve/read.all never imply either. The organization, requester, requesting department and submitter are all resolved on the server from the authenticated caller — the body carries no identity. The caller must be a currently active employee with an active canonical department, the vehicle must be this organization's with status `available`, Planned Time Out must not be in the past, Expected Time In must be later than Planned Time Out, and at least one approval stage must be configured. Both timestamps must carry an explicit UTC offset. No approval, reservation or time-window availability check happens here.
+ * @summary Submit a vehicle request (VR-02B)
+ */
+export const submitMyVehicleRequest = async (organizationId: number,
+    submitMyVehicleRequestInput: SubmitMyVehicleRequestInput, options?: RequestInit): Promise<MyVehicleRequest> => {
+
+  return customFetch<MyVehicleRequest>(getSubmitMyVehicleRequestUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(submitMyVehicleRequestInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitMyVehicleRequestMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMyVehicleRequest>>, TError,{organizationId: number;data: BodyType<SubmitMyVehicleRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitMyVehicleRequest>>, TError,{organizationId: number;data: BodyType<SubmitMyVehicleRequestInput>}, TContext> => {
+
+const mutationKey = ['submitMyVehicleRequest'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitMyVehicleRequest>>, {organizationId: number;data: BodyType<SubmitMyVehicleRequestInput>}> = (props) => {
+          const {organizationId,data} = props ?? {};
+
+          return  submitMyVehicleRequest(organizationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitMyVehicleRequestMutationResult = NonNullable<Awaited<ReturnType<typeof submitMyVehicleRequest>>>
+    export type SubmitMyVehicleRequestMutationBody = BodyType<SubmitMyVehicleRequestInput>
+    export type SubmitMyVehicleRequestMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a vehicle request (VR-02B)
+ */
+export const useSubmitMyVehicleRequest = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitMyVehicleRequest>>, TError,{organizationId: number;data: BodyType<SubmitMyVehicleRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitMyVehicleRequest>>,
+        TError,
+        {organizationId: number;data: BodyType<SubmitMyVehicleRequestInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitMyVehicleRequestMutationOptions(options));
+    }
+
+export const getGetMyVehicleRequestContextUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-vehicle-requests/context`
+}
+
+/**
+ * Requires the asset_management module and an active membership. Reports which request types the caller's own permissions allow, their canonical department, whether an approval workflow is configured, and a reason when submission is currently impossible. Grants nothing: submission re-checks every term.
+ * @summary What the caller may submit, and why not if they cannot (VR-02B)
+ */
+export const getMyVehicleRequestContext = async (organizationId: number, options?: RequestInit): Promise<VehicleRequestSubmissionContext> => {
+
+  return customFetch<VehicleRequestSubmissionContext>(getGetMyVehicleRequestContextUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyVehicleRequestContextQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-vehicle-requests/context`
+    ] as const;
+    }
+
+
+export const getGetMyVehicleRequestContextQueryOptions = <TData = Awaited<ReturnType<typeof getMyVehicleRequestContext>>, TError = ErrorType<unknown>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequestContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyVehicleRequestContextQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyVehicleRequestContext>>> = ({ signal }) => getMyVehicleRequestContext(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequestContext>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyVehicleRequestContextQueryResult = NonNullable<Awaited<ReturnType<typeof getMyVehicleRequestContext>>>
+export type GetMyVehicleRequestContextQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary What the caller may submit, and why not if they cannot (VR-02B)
+ */
+
+export function useGetMyVehicleRequestContext<TData = Awaited<ReturnType<typeof getMyVehicleRequestContext>>, TError = ErrorType<unknown>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequestContext>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyVehicleRequestContextQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListRequestableVehiclesUrl = (organizationId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-vehicle-requests/requestable-vehicles`
+}
+
+/**
+ * Requires the asset_management module and vehicle_request.write.own OR vehicle_request.write.department. Returns this organization's vehicles whose VR-01 status is exactly `available` — nothing more: no time-window availability, no overlap with other requests, no reservation logic. Submission re-validates the chosen vehicle on the server.
+ * @summary Vehicles a requester may choose (VR-02B)
+ */
+export const listRequestableVehicles = async (organizationId: number, options?: RequestInit): Promise<RequestableVehicle[]> => {
+
+  return customFetch<RequestableVehicle[]>(getListRequestableVehiclesUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRequestableVehiclesQueryKey = (organizationId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-vehicle-requests/requestable-vehicles`
+    ] as const;
+    }
+
+
+export const getListRequestableVehiclesQueryOptions = <TData = Awaited<ReturnType<typeof listRequestableVehicles>>, TError = ErrorType<void>>(organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRequestableVehicles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRequestableVehiclesQueryKey(organizationId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRequestableVehicles>>> = ({ signal }) => listRequestableVehicles(organizationId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRequestableVehicles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRequestableVehiclesQueryResult = NonNullable<Awaited<ReturnType<typeof listRequestableVehicles>>>
+export type ListRequestableVehiclesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Vehicles a requester may choose (VR-02B)
+ */
+
+export function useListRequestableVehicles<TData = Awaited<ReturnType<typeof listRequestableVehicles>>, TError = ErrorType<void>>(
+ organizationId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRequestableVehicles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRequestableVehiclesQueryOptions(organizationId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyVehicleRequestUrl = (organizationId: number,
+    requestId: number,) => {
+
+
+
+
+  return `/api/organizations/${organizationId}/my-vehicle-requests/${requestId}`
+}
+
+/**
+ * Requires the asset_management module and an active membership. A request submitted by anyone else answers 404, indistinguishable from one that does not exist.
+ * @summary One vehicle request I submitted (VR-02B)
+ */
+export const getMyVehicleRequest = async (organizationId: number,
+    requestId: number, options?: RequestInit): Promise<MyVehicleRequest> => {
+
+  return customFetch<MyVehicleRequest>(getGetMyVehicleRequestUrl(organizationId,requestId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyVehicleRequestQueryKey = (organizationId: number,
+    requestId: number,) => {
+    return [
+    `/api/organizations/${organizationId}/my-vehicle-requests/${requestId}`
+    ] as const;
+    }
+
+
+export const getGetMyVehicleRequestQueryOptions = <TData = Awaited<ReturnType<typeof getMyVehicleRequest>>, TError = ErrorType<void>>(organizationId: number,
+    requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyVehicleRequestQueryKey(organizationId,requestId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyVehicleRequest>>> = ({ signal }) => getMyVehicleRequest(organizationId,requestId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: organizationId !== null && organizationId !== undefined && requestId !== null && requestId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequest>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyVehicleRequestQueryResult = NonNullable<Awaited<ReturnType<typeof getMyVehicleRequest>>>
+export type GetMyVehicleRequestQueryError = ErrorType<void>
+
+
+/**
+ * @summary One vehicle request I submitted (VR-02B)
+ */
+
+export function useGetMyVehicleRequest<TData = Awaited<ReturnType<typeof getMyVehicleRequest>>, TError = ErrorType<void>>(
+ organizationId: number,
+    requestId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyVehicleRequest>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyVehicleRequestQueryOptions(organizationId,requestId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListVehiclesUrl = (organizationId: number,
     params?: ListVehiclesParams,) => {

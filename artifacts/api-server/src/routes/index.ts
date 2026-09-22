@@ -17,6 +17,7 @@ import personnelFilesRouter from "./personnelFiles";
 import recordsLocationsRouter from "./recordsLocations";
 import vehiclesRouter from "./vehicles";
 import vehicleRequestApprovalStagesRouter from "./vehicleRequestApprovalStages";
+import vehicleRequestsRouter from "./vehicleRequests";
 import personnelFileCustodyRouter from "./personnelFileCustody";
 import personnelReportingRouter from "./personnelReporting";
 import legacyImportRouter from "./legacyImport";
@@ -169,6 +170,10 @@ router.use(vehiclesRouter);
 // (/vehicle-request-approval-stages), so it cannot be swallowed by, and cannot
 // swallow, the /vehicles routes above.
 router.use(vehicleRequestApprovalStagesRouter);
+// VR-02B — Employee Self-Service vehicle requests. Own path prefix
+// (/my-vehicle-requests), so it neither swallows nor is swallowed by the
+// /vehicles or /vehicle-request-approval-stages routes above.
+router.use(vehicleRequestsRouter);
 router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);

@@ -42,7 +42,12 @@ tags:
     description: >-
       VR-02A — configuration of the Vehicle Request approval chain: an ordered
       list of stages, each naming one of three server-defined authority
-      resolvers. Configuration only; no vehicle request can be created yet.
+      resolvers. Configuration only.
+  - name: vehicle-requests
+    description: >-
+      VR-02B — Employee Self-Service vehicle request submission and the
+      submitter's own requests. Submission requires an explicit
+      organization-controlled grant; no approval or reservation happens here.
   - name: audit-events
     description: Audit log operations
   - name: invitations
@@ -4656,6 +4661,159 @@ paths:
       responses:
         "204":
           description: Removed
+        "404":
+          description: Not found
+
+  /organizations/{organizationId}/my-vehicle-requests:
+    get:
+      operationId: listMyVehicleRequests
+      tags: [vehicle-requests]
+      summary: List the vehicle requests I submitted (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. No
+        permission key: owning your own requests is not an operational grant,
+        so losing a submission grant later never hides your history. "Mine"
+        means every request this membership SUBMITTED — employee and department
+        requests alike. It is never widened by department membership or by
+        vehicle_request.read.all; organization-wide oversight is VR-02D.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: My vehicle requests, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyVehicleRequest"
+    post:
+      operationId: submitMyVehicleRequest
+      tags: [vehicle-requests]
+      summary: Submit a vehicle request (VR-02B)
+      description: >-
+        An `employee` request requires vehicle_request.write.own; a `department`
+        request requires vehicle_request.write.department. The two are
+        independent, and approve/read.all never imply either. The organization,
+        requester, requesting department and submitter are all resolved on the
+        server from the authenticated caller — the body carries no identity.
+        The caller must be a currently active employee with an active canonical
+        department, the vehicle must be this organization's with status
+        `available`, Planned Time Out must not be in the past, Expected Time In
+        must be later than Planned Time Out, and at least one approval stage
+        must be configured. Both timestamps must carry an explicit UTC offset.
+        No approval, reservation or time-window availability check happens here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitMyVehicleRequestInput"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyVehicleRequest"
+        "400":
+          description: Invalid input, no linked employee, no department, or vehicle not found
+        "403":
+          description: Not authorized for this request type, or not a currently active employee
+        "409":
+          description: The vehicle is not available, or no approval workflow is configured
+
+  /organizations/{organizationId}/my-vehicle-requests/context:
+    get:
+      operationId: getMyVehicleRequestContext
+      tags: [vehicle-requests]
+      summary: What the caller may submit, and why not if they cannot (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. Reports
+        which request types the caller's own permissions allow, their canonical
+        department, whether an approval workflow is configured, and a reason
+        when submission is currently impossible. Grants nothing: submission
+        re-checks every term.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestSubmissionContext"
+
+  /organizations/{organizationId}/my-vehicle-requests/requestable-vehicles:
+    get:
+      operationId: listRequestableVehicles
+      tags: [vehicle-requests]
+      summary: Vehicles a requester may choose (VR-02B)
+      description: >-
+        Requires the asset_management module and vehicle_request.write.own OR
+        vehicle_request.write.department. Returns this organization's vehicles
+        whose VR-01 status is exactly `available` — nothing more: no time-window
+        availability, no overlap with other requests, no reservation logic.
+        Submission re-validates the chosen vehicle on the server.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requestable vehicles, ordered by registration number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequestableVehicle"
+        "403":
+          description: The caller holds neither submission permission
+
+  /organizations/{organizationId}/my-vehicle-requests/{requestId}:
+    get:
+      operationId: getMyVehicleRequest
+      tags: [vehicle-requests]
+      summary: One vehicle request I submitted (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. A request
+        submitted by anyone else answers 404, indistinguishable from one that
+        does not exist.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyVehicleRequest"
         "404":
           description: Not found
 
@@ -38696,6 +38854,145 @@ components:
           type: string
         lastName:
           type: string
+    SubmitMyVehicleRequestInput:
+      type: object
+      description: >-
+        VR-02B — a vehicle request. Carries no identity: the organization,
+        requester, requesting department and submitter are resolved on the
+        server from the authenticated caller.
+      required: [requestType, vehicleId, purpose, plannedTimeOut, plannedTimeIn]
+      properties:
+        requestType:
+          type: string
+          enum: [employee, department]
+        vehicleId:
+          type: integer
+          description: The exact vehicle from this organization's VR-01 register.
+        purpose:
+          type: string
+          minLength: 1
+        destination:
+          type: ["string", "null"]
+        plannedTimeOut:
+          type: string
+          format: date-time
+          description: Must carry an explicit UTC offset and must not be in the past.
+        plannedTimeIn:
+          type: string
+          format: date-time
+          description: The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut.
+    MyVehicleRequest:
+      type: object
+      description: >-
+        VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId
+        is null for a department request, whose requester is the department.
+      required:
+        - id
+        - requestReference
+        - requestType
+        - status
+        - requesterEmployeeId
+        - requestingDepartmentId
+        - requestingDepartmentName
+        - vehicleId
+        - vehicleRegistrationNumber
+        - vehicleMake
+        - vehicleModel
+        - purpose
+        - destination
+        - plannedTimeOut
+        - plannedTimeIn
+        - totalStages
+        - currentStageOrder
+        - submittedAt
+      properties:
+        id:
+          type: integer
+        requestReference:
+          type: string
+          description: e.g. VR-00001
+        requestType:
+          type: string
+          enum: [employee, department]
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        requesterEmployeeId:
+          type: ["integer", "null"]
+        requestingDepartmentId:
+          type: integer
+        requestingDepartmentName:
+          type: string
+        vehicleId:
+          type: integer
+        vehicleRegistrationNumber:
+          type: string
+        vehicleMake:
+          type: ["string", "null"]
+        vehicleModel:
+          type: ["string", "null"]
+        purpose:
+          type: string
+        destination:
+          type: ["string", "null"]
+        plannedTimeOut:
+          type: string
+          format: date-time
+        plannedTimeIn:
+          type: string
+          format: date-time
+        totalStages:
+          type: integer
+        currentStageOrder:
+          type: ["integer", "null"]
+        submittedAt:
+          type: string
+          format: date-time
+    VehicleRequestSubmissionContext:
+      type: object
+      description: >-
+        VR-02B — what the caller may submit and, when they cannot, why. Grants
+        nothing; submission re-checks every term.
+      required:
+        - canSubmitEmployeeRequest
+        - canSubmitDepartmentRequest
+        - department
+        - approvalWorkflowConfigured
+        - blockedReason
+      properties:
+        canSubmitEmployeeRequest:
+          type: boolean
+        canSubmitDepartmentRequest:
+          type: boolean
+        department:
+          type: ["object", "null"]
+          required: [id, name]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        approvalWorkflowConfigured:
+          type: boolean
+        blockedReason:
+          type: ["string", "null"]
+    RequestableVehicle:
+      type: object
+      description: >-
+        VR-02B — enough to tell vehicles apart when choosing one. No driver,
+        branch, asset link, notes or status history.
+      required: [id, registrationNumber, make, model, description]
+      properties:
+        id:
+          type: integer
+        registrationNumber:
+          type: string
+        make:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
     VehicleRequestApprovalStage:
       type: object
       description: >-

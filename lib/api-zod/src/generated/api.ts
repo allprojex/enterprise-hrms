@@ -4040,6 +4040,148 @@ export const DeleteVehicleRequestApprovalStageResponse = zod.void()
 
 
 /**
+ * Requires the asset_management module and an active membership. No permission key: owning your own requests is not an operational grant, so losing a submission grant later never hides your history. "Mine" means every request this membership SUBMITTED — employee and department requests alike. It is never widened by department membership or by vehicle_request.read.all; organization-wide oversight is VR-02D.
+ * @summary List the vehicle requests I submitted (VR-02B)
+ */
+export const ListMyVehicleRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyVehicleRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+export const ListMyVehicleRequestsResponse = zod.array(ListMyVehicleRequestsResponseItem)
+
+
+/**
+ * An `employee` request requires vehicle_request.write.own; a `department` request requires vehicle_request.write.department. The two are independent, and approve/read.all never imply either. The organization, requester, requesting department and submitter are all resolved on the server from the authenticated caller — the body carries no identity. The caller must be a currently active employee with an active canonical department, the vehicle must be this organization's with status `available`, Planned Time Out must not be in the past, Expected Time In must be later than Planned Time Out, and at least one approval stage must be configured. Both timestamps must carry an explicit UTC offset. No approval, reservation or time-window availability check happens here.
+ * @summary Submit a vehicle request (VR-02B)
+ */
+export const SubmitMyVehicleRequestParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const SubmitMyVehicleRequestBody = zod.object({
+  "requestType": zod.enum(['employee', 'department']),
+  "vehicleId": zod.number().describe('The exact vehicle from this organization\'s VR-01 register.'),
+  "purpose": zod.string().min(1),
+  "destination": zod.string().nullish(),
+  "plannedTimeOut": zod.coerce.date().describe('Must carry an explicit UTC offset and must not be in the past.'),
+  "plannedTimeIn": zod.coerce.date().describe('The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut.')
+}).describe('VR-02B — a vehicle request. Carries no identity: the organization, requester, requesting department and submitter are resolved on the server from the authenticated caller.')
+
+export const SubmitMyVehicleRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+
+
+/**
+ * Requires the asset_management module and an active membership. Reports which request types the caller's own permissions allow, their canonical department, whether an approval workflow is configured, and a reason when submission is currently impossible. Grants nothing: submission re-checks every term.
+ * @summary What the caller may submit, and why not if they cannot (VR-02B)
+ */
+export const GetMyVehicleRequestContextParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetMyVehicleRequestContextResponse = zod.object({
+  "canSubmitEmployeeRequest": zod.boolean(),
+  "canSubmitDepartmentRequest": zod.boolean(),
+  "department": zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}).nullable(),
+  "approvalWorkflowConfigured": zod.boolean(),
+  "blockedReason": zod.string().nullable()
+}).describe('VR-02B — what the caller may submit and, when they cannot, why. Grants nothing; submission re-checks every term.')
+
+
+/**
+ * Requires the asset_management module and vehicle_request.write.own OR vehicle_request.write.department. Returns this organization's vehicles whose VR-01 status is exactly `available` — nothing more: no time-window availability, no overlap with other requests, no reservation logic. Submission re-validates the chosen vehicle on the server.
+ * @summary Vehicles a requester may choose (VR-02B)
+ */
+export const ListRequestableVehiclesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRequestableVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "registrationNumber": zod.string(),
+  "make": zod.string().nullable(),
+  "model": zod.string().nullable(),
+  "description": zod.string().nullable()
+}).describe('VR-02B — enough to tell vehicles apart when choosing one. No driver, branch, asset link, notes or status history.')
+export const ListRequestableVehiclesResponse = zod.array(ListRequestableVehiclesResponseItem)
+
+
+/**
+ * Requires the asset_management module and an active membership. A request submitted by anyone else answers 404, indistinguishable from one that does not exist.
+ * @summary One vehicle request I submitted (VR-02B)
+ */
+export const GetMyVehicleRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const GetMyVehicleRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+
+
+/**
  * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
  * @summary List the organization's vehicles (VR-01)
  */

@@ -130,9 +130,12 @@ const dbMock: Record<string, unknown> = {
       if (table === employeesTable) fixtures.employeeRows = [row];
       else if (table === numberingSequencesTable) fixtures.numberingSequenceRows = [...fixtures.numberingSequenceRows, row];
       else if (table === employeeNumberAllocationsTable) fixtures.employeeNumberAllocationRows = [...fixtures.employeeNumberAllocationRows, row];
-      return {
-        returning: () => Promise.resolve([row]),
-      };
+      const result = { returning: () => Promise.resolve([row]) };
+      // The numbering helper's first-allocation insert chains
+      // .onConflictDoNothing() — a plain passthrough here, as in
+      // employeeNumbering.test.ts (real conflict behavior is proved live in
+      // numberingSequencesLive.test.ts).
+      return { ...result, onConflictDoNothing: () => result };
     },
   }),
   delete: (table: { __name: string }) => ({
