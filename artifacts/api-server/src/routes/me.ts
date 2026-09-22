@@ -14,6 +14,7 @@ import {
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
+import { roleCountsForMembership } from "../lib/permissions";
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { bindTenantContext } from "../lib/requestContext";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
@@ -116,11 +117,23 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
     .where(inArray(organizationsTable.id, organizationIds));
   const organizationById = new Map(organizations.map((o) => [o.id, o]));
 
-  const roleRows = await db
-    .select({ membershipId: membershipRolesTable.membershipId, roleId: membershipRolesTable.roleId, key: rolesTable.key })
-    .from(membershipRolesTable)
-    .innerJoin(rolesTable, eq(membershipRolesTable.roleId, rolesTable.id))
-    .where(inArray(membershipRolesTable.membershipId, membershipIds));
+  // A role another organization owns is dropped HERE, before either the role
+  // keys or the permission keys below are built from these rows, so it can
+  // neither appear as one of this membership's roles nor light up navigation
+  // (the same tenant-ownership rule getEffectivePermissions applies).
+  const organizationOfMembership = new Map(memberships.map((m) => [m.id, m.organizationId]));
+  const roleRows = (
+    await db
+      .select({
+        membershipId: membershipRolesTable.membershipId,
+        roleId: membershipRolesTable.roleId,
+        key: rolesTable.key,
+        roleOrganizationId: rolesTable.organizationId,
+      })
+      .from(membershipRolesTable)
+      .innerJoin(rolesTable, eq(membershipRolesTable.roleId, rolesTable.id))
+      .where(inArray(membershipRolesTable.membershipId, membershipIds))
+  ).filter((row) => roleCountsForMembership(row.roleOrganizationId, organizationOfMembership.get(row.membershipId)!));
   const rolesByMembership = new Map<number, string[]>();
   for (const row of roleRows) {
     const list = rolesByMembership.get(row.membershipId) ?? [];

@@ -47,6 +47,7 @@ const {
   sessionsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
@@ -83,6 +84,7 @@ const {
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
     organizationMembershipsTable: mockTable("organization_memberships", ["id", "applicationUserId", "organizationId", "status"]),
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
+    rolesTable: mockTable("roles", ["id", "key", "organizationId", "isSystemRole"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
     employeesTable: mockTable("employees", [
@@ -227,6 +229,7 @@ vi.mock("@workspace/db", () => ({
   sessionsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   employeesTable,

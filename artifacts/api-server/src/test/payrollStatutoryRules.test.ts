@@ -31,6 +31,7 @@ const {
   sessionsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   modulesTable,
@@ -65,6 +66,7 @@ const {
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
     organizationMembershipsTable: mockTable("organization_memberships", ["id", "applicationUserId", "organizationId", "status"]),
     membershipRolesTable: mockTable("membership_roles", ["membershipId", "roleId"]),
+    rolesTable: mockTable("roles", ["id", "key", "organizationId", "isSystemRole"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
     modulesTable: mockTable("modules", ["id", "key", "requiredModuleKeys"]),
@@ -123,7 +125,7 @@ function makeQueryClient(): Record<string, unknown> {
         }
         if (table === membershipRolesTable) {
           const rows = fixtures.membershipRoleRows;
-          const b = { where: () => Promise.resolve(rows), then: (resolve: (v: unknown) => void) => Promise.resolve(rows).then(resolve) };
+          const b = { innerJoin() { return this; }, where: () => Promise.resolve(rows), then: (resolve: (v: unknown) => void) => Promise.resolve(rows).then(resolve) };
           return b;
         }
         if (table === rolePermissionsTable) {
@@ -194,6 +196,7 @@ vi.mock("@workspace/db", () => ({
   sessionsTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   modulesTable,

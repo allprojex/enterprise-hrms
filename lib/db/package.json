@@ -10,7 +10,8 @@
     "./seed/master-data-definitions": "./src/seed/master-data-definitions.ts",
     "./seed/roles-permissions-definitions": "./src/seed/roles-permissions-definitions.ts",
     "./seed/roles-permissions-seeder": "./src/seed/roles-permissions-seeder.ts",
-    "./seed/report-definitions": "./src/seed/report-definitions.ts"
+    "./seed/report-definitions": "./src/seed/report-definitions.ts",
+    "./backfill/memberships-backfiller": "./src/backfill/memberships-backfiller.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate --config ./drizzle.config.ts",
