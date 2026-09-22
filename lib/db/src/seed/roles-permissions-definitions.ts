@@ -1065,16 +1065,21 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "leave_request.read.own",
     "leave_request.write.own",
     "leave_request.approve",
-    "requisition.read",
-    "vacancy.read",
-    "application.read",
-    "candidate.read",
-    "candidate.notes.read",
+    // Recruitment — interview-panel PARTICIPATION only. The service
+    // re-verifies panel membership: interviews are listed only where the
+    // caller sits on the panel, and a scorecard is written only by a panel
+    // member. An employee on no panel sees nothing.
+    //
+    // Deliberately ABSENT (security correction, 2026-09-22): requisition.read,
+    // vacancy.read, application.read, candidate.read, candidate.notes.read,
+    // offer.read, offer.manage and recruitment.reports.read. They opened
+    // organization-wide recruitment records — and offer WRITE — to every
+    // employee. Employee self-service needs none of them: the internal job
+    // board (/me/internal-vacancies) is gated by module enablement and
+    // membership alone. Migration 0083 removes the grants an earlier seed had
+    // already written, since seed:roles only ever inserts.
     "interview.read",
     "scorecard.submit",
-    "offer.read",
-    "offer.manage",
-    "recruitment.reports.read",
     "attendance.read.own",
     "attendance.clock.own",
     "performance.read.own",

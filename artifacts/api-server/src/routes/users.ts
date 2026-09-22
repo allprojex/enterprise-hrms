@@ -15,6 +15,7 @@ import {
 import { resolveActiveOrganizationId, getActiveMembership } from "../lib/membership";
 import { listOrganizationModules, getModuleAccess } from "../lib/organizationModules";
 import { hasPermission } from "../lib/permissions";
+import { hasOrgWideAssetAccess } from "../lib/assetManagementAuthorization";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import { listPendingApprovals, partitionPendingApprovalsForActor } from "../lib/leaveApprovals";
 import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
@@ -123,11 +124,19 @@ async function resolveAttendanceDashboardMetrics(
  * `.length`-over-a-filtered-select style the existing totalEmployees field
  * already uses — not a new reporting engine. "Active" excludes
  * retired/lost, matching everyday usage rather than a literal enum value.
+ *
+ * The asset count needs ORGANIZATION-WIDE asset authority
+ * (`asset_management.manage`, via hasOrgWideAssetAccess), not
+ * `asset_management.reports.read`. The reports key is held by every ordinary
+ * employee, and the Assets reports it opens are narrowed to the caller's own
+ * and direct-report records — yet this figure counts every asset in the
+ * organization, so gating it on the reports key handed an org-wide aggregate
+ * to all employees (security correction, 2026-09-22).
  */
 async function resolveAssetDashboardMetrics(organizationId: number, membershipId: number): Promise<{ activeAssets: number } | null> {
   const moduleAccess = await getModuleAccess(organizationId, "asset_management");
   if (!moduleAccess.enabled) return null;
-  if (!(await hasPermission(membershipId, "asset_management.reports.read"))) return null;
+  if (!(await hasOrgWideAssetAccess(membershipId, "asset_management.manage"))) return null;
 
   const rows = await db
     .select({ id: assetsTable.id })

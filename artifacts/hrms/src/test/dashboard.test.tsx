@@ -25,6 +25,7 @@ const { state } = vi.hoisted(() => ({
     refetch: vi.fn(),
     roles: ['hr'] as string[],
     permissions: [] as string[] | undefined,
+    isDepartmentHead: false,
     orgModules: [] as Record<string, unknown>[],
   },
 }));
@@ -42,7 +43,15 @@ vi.mock('@workspace/api-client-react', () => ({
   }),
   getGetHrCommandCentreQueryKey: () => ['hrCommandCentre', 10],
   useListMyOrganizations: () => ({
-    data: [{ organizationId: 10, organizationName: 'Acme Community Trust', roles: state.roles, permissions: state.permissions }],
+    data: [
+      {
+        organizationId: 10,
+        organizationName: 'Acme Community Trust',
+        roles: state.roles,
+        permissions: state.permissions,
+        isDepartmentHead: state.isDepartmentHead,
+      },
+    ],
   }),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
   useListOrganizationModules: () => ({ data: state.orgModules }),
@@ -145,6 +154,7 @@ beforeEach(() => {
   state.refetch = vi.fn();
   state.roles = ['hr'];
   state.permissions = HR_PERMISSIONS;
+  state.isDepartmentHead = false;
   state.orgModules = [];
 });
 
@@ -306,6 +316,63 @@ describe('Dashboard — Leave', () => {
     expect(screen.queryByTestId('card-leave-pending-approvals')).not.toBeInTheDocument();
     expect(screen.getByTestId('text-leave-metrics-scope')).toHaveTextContent('For you and your direct reports');
     expect(screen.getByTestId('text-leave-metrics-scope')).not.toHaveTextContent('organisation');
+  });
+
+  it('an ordinary employee holding the attempt-only leave_request.approve sees no approvals card', () => {
+    // Every employee holds leave_request.approve; only a department head (or HR
+    // via leave_request.manage) has a real approval queue.
+    state.roles = ['employee'];
+    state.permissions = ['employee.read', 'leave_request.read.own', 'leave_request.write.own', 'leave_request.approve'];
+    state.isDepartmentHead = false;
+    state.summary = summary({ leaveMetrics: { ...LEAVE_METRICS, scope: 'own_and_reports' } });
+    renderDashboard();
+
+    expect(screen.queryByTestId('card-leave-pending-approvals')).not.toBeInTheDocument();
+    expect(screen.getByTestId('card-leave-upcoming-approved')).toBeInTheDocument();
+  });
+
+  it('a department head with the same keys sees the approvals card', () => {
+    state.roles = ['employee'];
+    state.permissions = ['employee.read', 'leave_request.read.own', 'leave_request.write.own', 'leave_request.approve'];
+    state.isDepartmentHead = true;
+    state.summary = summary({ leaveMetrics: { ...LEAVE_METRICS, scope: 'own_and_reports' } });
+    renderDashboard();
+
+    expect(screen.getByTestId('card-leave-pending-approvals')).toHaveTextContent('1');
+  });
+
+  it('an ordinary employee is offered only the directory and self-service in Quick Access', () => {
+    state.roles = ['employee'];
+    state.permissions = [
+      'employee.read',
+      'leave_request.read.own',
+      'leave_request.approve',
+      'learning.reports.read',
+      'performance.reports.read',
+      'asset_management.reports.read',
+      'office_inventory.approve',
+    ];
+    state.isDepartmentHead = false;
+    state.orgModules = ['leave', 'learning', 'performance', 'asset_management', 'office_inventory', 'employee_self_service'].map((key) => ({
+      id: 1,
+      key,
+      name: key,
+      description: '',
+      category: 'hr',
+      version: '1.0.0',
+      status: 'active',
+      defaultEnabled: false,
+      requiredModuleKeys: [],
+      optionalModuleKeys: [],
+      enabled: true,
+    }));
+    renderDashboard();
+
+    for (const key of ['leave', 'learning', 'assets', 'office_inventory', 'reports', 'recruitment']) {
+      expect(screen.queryByTestId(`workspace-card-${key}`)).not.toBeInTheDocument();
+    }
+    expect(screen.getByTestId('workspace-card-employees')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-card-self_service')).toBeInTheDocument();
   });
 
   it('omits the Leave section entirely when leaveMetrics is null (module disabled)', () => {
