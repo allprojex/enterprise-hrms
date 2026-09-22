@@ -444,26 +444,23 @@ describeLive("VR-02B — vehicle request submission (live)", () => {
       expect([...refs].sort()).toEqual(Array.from({ length: 16 }, (_, i) => `VR-${String(i + 2).padStart(5, "0")}`));
     });
 
-    it("the first-ever allocation race fails CLOSED: no duplicate reference and no partial row", async () => {
-      // KNOWN, PRE-EXISTING limitation of the shared numbering helper (not
-      // introduced by VR-02B): when concurrent callers race to create an
-      // organization's FIRST counter row, the loser's INSERT raises a unique
-      // violation that aborts its transaction, so its recovery SELECT fails
-      // (25P02). That loser's submission errors out before any request row is
-      // written. This test pins the property that matters for VR-02B — never a
-      // duplicate, never a half-written request — whichever way the race goes.
+    it("sixteen simultaneous FIRST submissions in an organization all succeed as VR-00001..VR-00016", async () => {
+      // The organization has no counter row yet, so every one of these races
+      // to create it. The shared numbering helper used to fail every caller but
+      // the winner here (25P02); it now lets each loser lock and increment the
+      // winner's row, so all sixteen succeed with distinct, contiguous numbers.
       const fresh = await makeOrg("VR02B FirstRace");
       const d = await makeDepartment(fresh);
       const v = await makeVehicle(fresh);
       await addStage(fresh, 1);
       const people = await Promise.all(
-        Array.from({ length: 6 }, () => makePerson({ organizationId: fresh, keys: ["vehicle_request.write.own"], departmentId: d })),
+        Array.from({ length: 16 }, () => makePerson({ organizationId: fresh, keys: ["vehicle_request.write.own"], departmentId: d })),
       );
-      const settled = await Promise.allSettled(people.map((p) => svc.submitVehicleRequest(actorOf(p), input({ vehicleId: v }))));
-      const refs = settled.filter((s) => s.status === "fulfilled").map((s) => (s as PromiseFulfilledResult<{ requestReference: string }>).value.requestReference);
-      expect(refs.length).toBeGreaterThanOrEqual(1);
-      expect(new Set(refs).size).toBe(refs.length);
-      expect(await requestCount(fresh)).toBe(refs.length);
+      const created = await Promise.all(people.map((p) => svc.submitVehicleRequest(actorOf(p), input({ vehicleId: v }))));
+      const refs = created.map((c) => c.requestReference);
+      expect([...refs].sort()).toEqual(Array.from({ length: 16 }, (_, i) => `VR-${String(i + 1).padStart(5, "0")}`));
+      expect(await requestCount(fresh)).toBe(16);
+      expect(await sequenceValue(fresh)).toBe(16);
     });
   });
 

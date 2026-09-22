@@ -163,33 +163,48 @@ async function lockAndIncrementSequenceIn(
     eq(numberingSequencesTable.periodKey, params.periodKey),
   );
 
-  const [existing] = await tx.select().from(numberingSequencesTable).where(where).for("update");
-  if (existing) {
-    const nextValue = existing.currentValue + 1;
-    await tx.update(numberingSequencesTable).set({ currentValue: nextValue }).where(eq(numberingSequencesTable.id, existing.id));
+  const incrementLocked = async (): Promise<number | null> => {
+    const [row] = await tx.select().from(numberingSequencesTable).where(where).for("update");
+    if (!row) return null;
+    const nextValue = row.currentValue + 1;
+    await tx.update(numberingSequencesTable).set({ currentValue: nextValue }).where(eq(numberingSequencesTable.id, row.id));
     return nextValue;
-  }
+  };
 
-  try {
-    const [inserted] = await tx
-      .insert(numberingSequencesTable)
-      .values({
-        organizationId: params.organizationId,
-        sequenceKey: params.sequenceKey,
-        periodKey: params.periodKey,
-        currentValue: params.startingSequence,
-      })
-      .returning();
-    return inserted.currentValue;
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    // Lost a race with a concurrent first allocation for this period — the
-    // row now exists; lock and increment it instead of double-creating it.
-    const [raced] = await tx.select().from(numberingSequencesTable).where(where).for("update");
-    const nextValue = raced!.currentValue + 1;
-    await tx.update(numberingSequencesTable).set({ currentValue: nextValue }).where(eq(numberingSequencesTable.id, raced!.id));
-    return nextValue;
+  const existingNext = await incrementLocked();
+  if (existingNext !== null) return existingNext;
+
+  // First use for this (organization, sequenceKey, periodKey). ON CONFLICT DO
+  // NOTHING is what makes a concurrent first allocation safe: it never raises.
+  // If another transaction is inserting the same row, Postgres waits for it,
+  // and when it commits this statement simply returns no row — leaving THIS
+  // transaction healthy. (The previous plain INSERT raised a unique violation
+  // instead, which aborts a Postgres transaction, so the recovery SELECT that
+  // followed it always failed with 25P02.) The loser then locks and increments
+  // the winner's row exactly as an existing-row caller would, so every caller
+  // gets a distinct value and the first one is still `startingSequence`.
+  const [inserted] = await tx
+    .insert(numberingSequencesTable)
+    .values({
+      organizationId: params.organizationId,
+      sequenceKey: params.sequenceKey,
+      periodKey: params.periodKey,
+      currentValue: params.startingSequence,
+    })
+    .onConflictDoNothing({
+      target: [numberingSequencesTable.organizationId, numberingSequencesTable.sequenceKey, numberingSequencesTable.periodKey],
+    })
+    .returning();
+  if (inserted) return inserted.currentValue;
+
+  const racedNext = await incrementLocked();
+  if (racedNext === null) {
+    // Unreachable unless the winning row was deleted between its commit and
+    // this statement — no code path deletes a counter row. Fail loudly rather
+    // than guess a value.
+    throw new Error("Numbering sequence row disappeared during first allocation");
   }
+  return racedNext;
 }
 
 /**
