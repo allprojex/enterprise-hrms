@@ -7,7 +7,7 @@ import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
 import { isUniqueViolation } from "../lib/dbErrors";
 import { listCandidates, getVisibleCandidateById, resolveCandidateVisibilityContext } from "../lib/candidates";
-import { listCandidateNotes, createCandidateNote, InvalidCandidateNoteError } from "../lib/candidateNotes";
+import { listCandidateNotes, createCandidateNote, canAccessCandidateNotes, InvalidCandidateNoteError } from "../lib/candidateNotes";
 import { listCandidateTags, addCandidateTag, removeCandidateTag, InvalidCandidateTagError, DuplicateCandidateTagError, CandidateTagNotFoundError } from "../lib/candidateTags";
 
 const router = Router();
@@ -111,6 +111,11 @@ router.get(
       res.status(404).json({ error: "Candidate not found" });
       return;
     }
+    // Seeing the candidate (e.g. as hiring manager) is not enough — notes are recruitment-only.
+    if (!canAccessCandidateNotes(visibility)) {
+      res.status(403).json({ error: "Candidate notes are restricted to recruitment staff" });
+      return;
+    }
     const notes = await listCandidateNotes(organizationId, candidateId);
     res.json(notes);
   },
@@ -138,6 +143,10 @@ router.post(
     const candidate = await getVisibleCandidateById(organizationId, candidateId, visibility);
     if (!candidate) {
       res.status(404).json({ error: "Candidate not found" });
+      return;
+    }
+    if (!canAccessCandidateNotes(visibility)) {
+      res.status(403).json({ error: "Candidate notes are restricted to recruitment staff" });
       return;
     }
     const parsed = CreateCandidateNoteBody.safeParse(req.body);

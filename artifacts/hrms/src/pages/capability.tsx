@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -109,6 +110,7 @@ export default function Capability() {
   const [reqSkillId, setReqSkillId] = useState('');
   const [reqLevelId, setReqLevelId] = useState('');
   const [reqMandatory, setReqMandatory] = useState(true);
+  const [withdrawTarget, setWithdrawTarget] = useState<{ id: number; skillName: string } | null>(null);
 
   const [actionOpen, setActionOpen] = useState(false);
   const [actionText, setActionText] = useState('');
@@ -694,7 +696,9 @@ export default function Capability() {
                           size="sm"
                           variant="outline"
                           disabled={removeRequirement.isPending}
-                          onClick={() => removeRequirement.mutate({ organizationId, requirementId: r.id })}
+                          onClick={() =>
+                            setWithdrawTarget({ id: r.id, skillName: skillsById.get(r.skillId)?.name ?? `Skill #${r.skillId}` })
+                          }
                           data-testid={`button-remove-requirement-${r.id}`}
                         >
                           Withdraw
@@ -705,6 +709,28 @@ export default function Capability() {
               )}
             </CardContent>
           </Card>
+          {/* Withdrawal sets the requirement inactive (never deletes it); the
+              hook's own onSuccess/onError toast and refresh. */}
+          <ConfirmActionDialog
+            open={withdrawTarget !== null}
+            onOpenChange={(o) => {
+              if (!o) setWithdrawTarget(null);
+            }}
+            title="Withdraw requirement?"
+            description={
+              <p>
+                {`“${withdrawTarget?.skillName}” will no longer be required for “${
+                  (positions.data ?? []).find((p) => p.id === positionNum)?.title ?? 'this position'
+                }” and will stop counting in gap analysis.`}{' '}
+                The requirement is kept for audit history, and adding the same skill again reinstates it.
+              </p>
+            }
+            confirmLabel="Withdraw Requirement"
+            onConfirm={() =>
+              withdrawTarget ? removeRequirement.mutateAsync({ organizationId, requirementId: withdrawTarget.id }) : undefined
+            }
+            testId="dialog-withdraw-requirement"
+          />
         </TabsContent>
 
         {/* --- Gap analysis (row 10) --- */}

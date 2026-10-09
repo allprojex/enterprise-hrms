@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, asc, eq, desc, isNotNull, lte } from "drizzle-orm";
 import {
   db,
   employeesTable,
@@ -146,6 +146,38 @@ export async function resolveProbationEnd(
   return employee.probationEndDate
     ? { probationEndDate: employee.probationEndDate, source: "employee_record" }
     : { probationEndDate: null, source: "none" };
+}
+
+/**
+ * Employees still on probation whose expected end falls on or before
+ * `onOrBefore` (already-passed ends included — an unconfirmed probation past
+ * its end is the most urgent case, not a resolved one).
+ *
+ * Batch counterpart of resolveProbationEnd for list surfaces. It reads
+ * `employees.probationEndDate` directly, which is sound because
+ * extendProbation moves that column in the same operation that writes the
+ * registered extension event (§27.9) — the two agree by construction — and
+ * it avoids one event lookup per employee.
+ */
+export async function listProbationsEndingOnOrBefore(organizationId: number, onOrBefore: Date) {
+  return db
+    .select({
+      id: employeesTable.id,
+      firstName: employeesTable.firstName,
+      lastName: employeesTable.lastName,
+      probationEndDate: employeesTable.probationEndDate,
+      createdAt: employeesTable.createdAt,
+    })
+    .from(employeesTable)
+    .where(
+      and(
+        eq(employeesTable.organizationId, organizationId),
+        eq(employeesTable.employmentStatus, "probation"),
+        isNotNull(employeesTable.probationEndDate),
+        lte(employeesTable.probationEndDate, onOrBefore),
+      ),
+    )
+    .orderBy(asc(employeesTable.probationEndDate), asc(employeesTable.id));
 }
 
 /**

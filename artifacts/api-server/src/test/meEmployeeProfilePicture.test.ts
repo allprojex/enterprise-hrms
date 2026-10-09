@@ -23,6 +23,7 @@ const {
   departmentsTable,
   branchesTable,
   positionsTable,
+  auditEventsTable,
 } = vi.hoisted(() => {
   function mockTable(name: string, columns: string[]) {
     const table: Record<string, string> & { __name: string } = { __name: name } as never;
@@ -40,7 +41,9 @@ const {
       departmentRows: [] as Record<string, unknown>[],
       branchRows: [] as Record<string, unknown>[],
       positionRows: [] as Record<string, unknown>[],
+      audits: [] as Record<string, unknown>[],
     },
+    auditEventsTable: mockTable("audit_events", ["id"]),
     usersTable: mockTable("users", ["id", "email"]),
     sessionsTable: mockTable("sessions", ["token", "userId", "expiresAt"]),
     organizationMembershipsTable: mockTable("organization_memberships", [
@@ -93,7 +96,14 @@ vi.mock("@workspace/db", () => ({
   departmentsTable,
   branchesTable,
   positionsTable,
+  auditEventsTable,
   db: {
+    insert: (table: { __name: string }) => ({
+      values: (v: Record<string, unknown>) => {
+        if (table === auditEventsTable) fixtures.audits.push(v);
+        return Promise.resolve();
+      },
+    }),
     select: () => ({
       from(table: { __name: string }) {
         if (table === sessionsTable) {
@@ -259,6 +269,7 @@ beforeEach(() => {
   fixtures.departmentRows = [];
   fixtures.branchRows = [];
   fixtures.positionRows = [];
+  fixtures.audits = [];
   mockSession();
   mockActiveMembership();
   mockEssModuleEnabled(true);
@@ -323,6 +334,44 @@ describe("POST /api/me/employee/profile-picture", () => {
     expect(res.body.employee.id).toBe(EMPLOYEE_ID);
     expect(res.body.employee.hasProfilePicture).toBe(true);
   });
+
+  it("audits the change — actor, employee and path only, never the image, key or URL", async () => {
+    mockLinkedEmployee("avatars/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.jpg");
+    const pngBytes = await sharp({ create: { width: 64, height: 64, channels: 3, background: { r: 10, g: 20, b: 30 } } }).png().toBuffer();
+
+    const res = await request(app)
+      .post("/api/me/employee/profile-picture")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", pngBytes, { filename: "photo.png", contentType: "image/png" });
+
+    expect(res.status).toBe(200);
+    expect(fixtures.audits).toHaveLength(1);
+    const audit = fixtures.audits[0]!;
+    expect(audit).toMatchObject({
+      eventType: "employee.profile_picture_updated",
+      category: "hr",
+      organizationId: ORG_ID,
+      actorApplicationUserId: 1,
+      actorMembershipId: 5,
+      targetType: "employee",
+      targetId: String(EMPLOYEE_ID),
+      metadata: { via: "self_service", replacedExisting: true },
+    });
+    const serialized = JSON.stringify(audit);
+    expect(serialized).not.toContain("avatars/");
+    expect(serialized).not.toContain(".jpg");
+    expect(serialized).not.toContain("http");
+  });
+
+  it("does not audit a rejected upload", async () => {
+    mockLinkedEmployee();
+    const res = await request(app)
+      .post("/api/me/employee/profile-picture")
+      .set("Authorization", `Bearer ${REAL_TOKEN}`)
+      .attach("file", Buffer.from("not an image"), { filename: "photo.png", contentType: "image/png" });
+    expect(res.status).toBe(400);
+    expect(fixtures.audits).toHaveLength(0);
+  });
 });
 
 describe("GET /api/me/employee/profile-picture", () => {
@@ -360,5 +409,23 @@ describe("DELETE /api/me/employee/profile-picture", () => {
     const res = await request(app).delete("/api/me/employee/profile-picture").set("Authorization", `Bearer ${REAL_TOKEN}`);
     expect(res.status).toBe(200);
     expect(res.body.employee.hasProfilePicture).toBe(false);
+    expect(fixtures.audits).toHaveLength(1);
+    expect(fixtures.audits[0]).toMatchObject({
+      eventType: "employee.profile_picture_removed",
+      category: "hr",
+      organizationId: ORG_ID,
+      actorApplicationUserId: 1,
+      actorMembershipId: 5,
+      targetId: String(EMPLOYEE_ID),
+      metadata: { via: "self_service" },
+    });
+    expect(JSON.stringify(fixtures.audits[0])).not.toContain("avatars/");
+  });
+
+  it("does not audit a removal when there was no picture to remove", async () => {
+    mockLinkedEmployee(null);
+    const res = await request(app).delete("/api/me/employee/profile-picture").set("Authorization", `Bearer ${REAL_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(fixtures.audits).toHaveLength(0);
   });
 });

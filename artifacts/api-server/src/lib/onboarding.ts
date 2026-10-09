@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
-import { db, organizationsTable, organizationMembershipsTable, membershipRolesTable, rolesTable, primaryHrAssignmentsTable } from "@workspace/db";
+import { db, organizationsTable, organizationMembershipsTable, membershipRolesTable, primaryHrAssignmentsTable } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
+import { resolveSystemRoleTemplate } from "./systemRoles";
 
 type OrgType = "business" | "church" | "ngo" | "school" | "hospital" | "hotel" | "government" | "other";
 
@@ -10,6 +10,13 @@ type OrgType = "business" | "church" | "ngo" | "school" | "hospital" | "hotel" |
  * appoints them as Primary HR. This is the only way an organization comes
  * into existence with a working admin — never insert into `organizations`
  * directly from a route.
+ *
+ * The creator always receives the SYSTEM `org_admin` template, resolved by
+ * system identity (systemRoles.ts) — never by key alone, which could select a
+ * role that some other organization owns under the same key. If the template
+ * cannot be resolved the whole transaction fails: no organization, membership,
+ * role link or Primary HR row is left behind, because an organization with no
+ * administrator is not a valid outcome.
  */
 export async function onboardOrganization(params: {
   name: string;
@@ -18,6 +25,9 @@ export async function onboardOrganization(params: {
   creatorApplicationUserId: number;
 }) {
   const result = await db.transaction(async (tx) => {
+    // Before anything is written, so a missing template aborts cleanly.
+    const orgAdminTemplate = await resolveSystemRoleTemplate(tx, "org_admin");
+
     const [organization] = await tx
       .insert(organizationsTable)
       .values({ name: params.name, slug: params.slug, type: params.type })
@@ -33,10 +43,7 @@ export async function onboardOrganization(params: {
       })
       .returning();
 
-    const [orgAdminRole] = await tx.select().from(rolesTable).where(eq(rolesTable.key, "org_admin")).limit(1);
-    if (orgAdminRole) {
-      await tx.insert(membershipRolesTable).values({ membershipId: membership.id, roleId: orgAdminRole.id });
-    }
+    await tx.insert(membershipRolesTable).values({ membershipId: membership.id, roleId: orgAdminTemplate.id });
 
     const [primaryHr] = await tx
       .insert(primaryHrAssignmentsTable)

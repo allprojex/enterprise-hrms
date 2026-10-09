@@ -36,6 +36,18 @@ tags:
     description: Organization membership management
   - name: primary-hr
     description: Primary HR assignment operations
+  - name: vehicles
+    description: VR-01 organizational vehicle register
+  - name: vehicle-request-approvals
+    description: >-
+      VR-02A — configuration of the Vehicle Request approval chain: an ordered
+      list of stages, each naming one of three server-defined authority
+      resolvers. Configuration only.
+  - name: vehicle-requests
+    description: >-
+      VR-02B — Employee Self-Service vehicle request submission and the
+      submitter's own requests. Submission requires an explicit
+      organization-controlled grant; no approval or reservation happens here.
   - name: audit-events
     description: Audit log operations
   - name: invitations
@@ -2763,7 +2775,10 @@ paths:
         identity fields on each row are nulled with
         `sensitiveFieldsRedacted: true` unless the caller holds
         employee.sensitive.read or the row is their own record — see the
-        Employee schema.
+        Employee schema. `search` matches directory fields only (first,
+        last and preferred name, employee number, work email); personal
+        email is matched only for callers holding employee.sensitive.read,
+        so a redacted value can never be confirmed by searching for it.
       parameters:
         - name: organizationId
           in: path
@@ -2818,6 +2833,24 @@ paths:
       operationId: createEmployee
       tags: [employees]
       summary: Create an employee
+      description: >-
+        Gated employee.write. Creates the employee RECORD only — never a login
+        account, membership or invitation; linking a login is a separate
+        action (POST .../link-user). Writing any sensitive field (gender, date
+        of birth, marital status, nationality, national ID, passport,
+        personal email, phone numbers, residential address, emergency
+        contacts) additionally requires employee.sensitive.write, and writing
+        `notes` requires employee.notes.read; a body mixing an unauthorized
+        field with permitted ones is rejected as a whole (403, nothing
+        applied). Email and phone values are format-checked; date of birth
+        cannot be in the future, hire date cannot precede it, probation end
+        cannot precede the hire date. The reporting manager must belong to
+        this organization and must not be separated. National ID and
+        passport number must be unique within the organization (409).
+        `employmentStatus` may only be an administrative state (active,
+        probation, on_leave, suspended) — a record is never created already
+        separated. Audited as employee.created (field names; sensitive values
+        masked).
       parameters:
         - name: organizationId
           in: path
@@ -2838,13 +2871,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Employee"
         "400":
-          description: Invalid input, or a referenced department/branch/position/manager is invalid
+          description: Invalid input, inconsistent dates, an ineligible reporting manager, a non-administrative initial status, or a referenced department/branch/position/manager is invalid
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Forbidden
+          description: Forbidden — no employee.write, or the body writes a sensitive field (or notes) without employee.sensitive.write (or employee.notes.read); the refused field names are listed, no value is echoed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The employee number, national ID or passport number is already recorded for another employee in this organization
           content:
             application/json:
               schema:
@@ -2888,6 +2927,25 @@ paths:
       operationId: updateEmployee
       tags: [employees]
       summary: Update an employee
+      description: >-
+        Gated employee.write. The generic profile update. It never performs a
+        lifecycle transition: `employmentStatus` may move only between the
+        administrative states (active, probation, on_leave, suspended) and
+        never into `terminated` (use .../separate), out of `terminated` (use
+        .../rehire) or from `probation` to `active` (use .../confirm) — such
+        a request is refused with 400 naming the governed action; an
+        unchanged status is a no-op. Sensitive fields and `notes` follow the
+        same authorization as createEmployee (403, whole body refused).
+        Validation runs on the RESULTING record (stored row merged with the
+        patch) for date consistency, so a partial update cannot leave the
+        dates inconsistent; email/phone formats apply to the fields sent.
+        A reporting manager may not be the employee themself, a separated
+        employee, another organization's employee, or anyone whose reporting
+        line already leads back to this employee (no cycles of any length;
+        checked and written atomically). Audited as employee.updated (changed
+        field names, masked before/after values) plus the pre-existing
+        employee.status_changed when the status changes; a body that changes
+        nothing records nothing.
       parameters:
         - name: organizationId
           in: path
@@ -2913,7 +2971,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Employee"
         "400":
-          description: Invalid input, or a referenced department/branch/position/manager is invalid
+          description: Invalid input, inconsistent dates, a lifecycle transition that must use its governed action, an ineligible or circular reporting manager, or a referenced department/branch/position/manager is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Forbidden — no employee.write, or the body writes a sensitive field (or notes) without employee.sensitive.write (or employee.notes.read); the refused field names are listed, no value is echoed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: The national ID or passport number is already recorded for another employee in this organization
           content:
             application/json:
               schema:
@@ -3366,6 +3436,9 @@ paths:
       description: >-
         One row per separation cycle — an employee separated, rehired, and
         separated again gets a new exit process each time, most recent first.
+        Gated employee.write (the same key as creating/updating an exit
+        process): exit records are HR data, so the directory grant
+        employee.read is not sufficient (2026-09-15).
       parameters:
         - name: organizationId
           in: path
@@ -3386,6 +3459,12 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/EmployeeExitProcess"
+        "403":
+          description: Forbidden — requires employee.write
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Employee not found
           content:
@@ -4456,6 +4535,498 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "404":
           description: Records location not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vehicle-request-approval-stages:
+    get:
+      operationId: listVehicleRequestApprovalStages
+      tags: [vehicle-request-approvals]
+      summary: List the organization's Vehicle Request approval stages (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Returned in ascending stage order.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval stages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleRequestApprovalStage"
+    post:
+      operationId: createVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Add an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage. The
+        resolver configuration is validated against the resolver type, so a
+        stage that could authorize nobody is refused here rather than stranding
+        a request later.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleRequestApprovalStageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "400":
+          description: Invalid stage or resolver configuration
+        "409":
+          description: Another stage already occupies that position
+
+  /organizations/{organizationId}/vehicle-request-approval-stages/candidates:
+    get:
+      operationId: listVehicleRequestApprovalCandidates
+      tags: [vehicle-request-approvals]
+      summary: List who may be named by a specific_membership stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage — the
+        same authorization as the rest of the approval-chain configuration
+        surface. It deliberately does NOT require membership.read: this is an
+        administrator choosing an approver, not a second route onto the
+        organization's membership directory.
+
+
+        Returns active memberships that independently hold
+        vehicle_request.approve. Anyone else could be named but could never
+        resolve, because approval re-checks that permission at decision time —
+        so a stage naming them would strand every request that reached it.
+
+
+        The response carries only the identity the picker needs. There is no
+        lookup-by-id form, so it cannot be used to probe whether a given
+        membership id exists. Listing someone here grants them nothing.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Eligible approval candidates, ordered by name
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleRequestApprovalCandidate"
+  /organizations/{organizationId}/vehicle-request-approval-stages/{stageId}:
+    get:
+      operationId: getVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Get one approval stage (VR-02A)
+      description: Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Approval stage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Amend an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Changing the resolver type revalidates its configuration. Reconfiguring
+        the chain never alters a request already in flight.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleRequestApprovalStageInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestApprovalStage"
+        "400":
+          description: Invalid stage or resolver configuration
+        "404":
+          description: Not found
+        "409":
+          description: Another stage already occupies that position
+    delete:
+      operationId: deleteVehicleRequestApprovalStage
+      tags: [vehicle-request-approvals]
+      summary: Remove an approval stage (VR-02A)
+      description: >-
+        Requires the asset_management module and asset_management.manage.
+        Affects future requests only — an in-flight request carries its own
+        frozen stage count and its decisions keep their own stage snapshots.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: stageId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "404":
+          description: Not found
+
+  /organizations/{organizationId}/my-vehicle-requests:
+    get:
+      operationId: listMyVehicleRequests
+      tags: [vehicle-requests]
+      summary: List the vehicle requests I submitted (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. No
+        permission key: owning your own requests is not an operational grant,
+        so losing a submission grant later never hides your history. "Mine"
+        means every request this membership SUBMITTED — employee and department
+        requests alike. It is never widened by department membership or by
+        vehicle_request.read.all; organization-wide oversight is VR-02D.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: My vehicle requests, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MyVehicleRequest"
+    post:
+      operationId: submitMyVehicleRequest
+      tags: [vehicle-requests]
+      summary: Submit a vehicle request (VR-02B)
+      description: >-
+        An `employee` request requires vehicle_request.write.own; a `department`
+        request requires vehicle_request.write.department. The two are
+        independent, and approve/read.all never imply either. The organization,
+        requester, requesting department and submitter are all resolved on the
+        server from the authenticated caller — the body carries no identity.
+        The caller must be a currently active employee with an active canonical
+        department, the vehicle must be this organization's with status
+        `available`, Planned Time Out must not be in the past, Expected Time In
+        must be later than Planned Time Out, and at least one approval stage
+        must be configured. Both timestamps must carry an explicit UTC offset.
+        No approval, reservation or time-window availability check happens here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitMyVehicleRequestInput"
+      responses:
+        "201":
+          description: Submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyVehicleRequest"
+        "400":
+          description: Invalid input, no linked employee, no department, or vehicle not found
+        "403":
+          description: Not authorized for this request type, or not a currently active employee
+        "409":
+          description: The vehicle is not available, or no approval workflow is configured
+
+  /organizations/{organizationId}/my-vehicle-requests/context:
+    get:
+      operationId: getMyVehicleRequestContext
+      tags: [vehicle-requests]
+      summary: What the caller may submit, and why not if they cannot (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. Reports
+        which request types the caller's own permissions allow, their canonical
+        department, whether an approval workflow is configured, and a reason
+        when submission is currently impossible. Grants nothing: submission
+        re-checks every term.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Submission context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleRequestSubmissionContext"
+
+  /organizations/{organizationId}/my-vehicle-requests/requestable-vehicles:
+    get:
+      operationId: listRequestableVehicles
+      tags: [vehicle-requests]
+      summary: Vehicles a requester may choose (VR-02B)
+      description: >-
+        Requires the asset_management module and vehicle_request.write.own OR
+        vehicle_request.write.department. Returns this organization's vehicles
+        whose VR-01 status is exactly `available` — nothing more: no time-window
+        availability, no overlap with other requests, no reservation logic.
+        Submission re-validates the chosen vehicle on the server.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Requestable vehicles, ordered by registration number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RequestableVehicle"
+        "403":
+          description: The caller holds neither submission permission
+
+  /organizations/{organizationId}/my-vehicle-requests/{requestId}:
+    get:
+      operationId: getMyVehicleRequest
+      tags: [vehicle-requests]
+      summary: One vehicle request I submitted (VR-02B)
+      description: >-
+        Requires the asset_management module and an active membership. A request
+        submitted by anyone else answers 404, indistinguishable from one that
+        does not exist.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MyVehicleRequest"
+        "404":
+          description: Not found
+
+  /organizations/{organizationId}/vehicles:
+    get:
+      operationId: listVehicles
+      tags: [vehicles]
+      summary: List the organization's vehicles (VR-01)
+      description: >-
+        Requires the asset_management module and asset_management.manage. Optional status
+        and search filters; search matches registration number, make or model.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [available, maintenance, inactive]
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The organization's vehicles, ordered by registration number
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+    post:
+      operationId: createVehicle
+      tags: [vehicles]
+      summary: Register a vehicle (VR-01)
+      description: >-
+        Requires the asset_management module and asset_management.manage. The
+        registration number is normalized (trimmed, single-spaced; case preserved)
+        and must be unique within the organization. A new vehicle always starts
+        available.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleInput"
+      responses:
+        "201":
+          description: The newly registered vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Invalid field, or a branch or employee from another organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: That registration number is already registered in this organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /organizations/{organizationId}/vehicles/{vehicleId}:
+    get:
+      operationId: getVehicle
+      tags: [vehicles]
+      summary: Get one vehicle (VR-01)
+      description: Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+    patch:
+      operationId: updateVehicle
+      tags: [vehicles]
+      summary: Update a vehicle's register details or status (VR-01)
+      description: >-
+        Requires the asset_management module and asset_management.manage. Status
+        is the register's own administrative state: available, maintenance or
+        inactive. Whether a vehicle is physically out is derived from the VR-02
+        movement record and is never set here.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleInput"
+      responses:
+        "200":
+          description: The updated vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Invalid field, disallowed status, or a branch or employee from another organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: That registration number is already registered in this organization
           content:
             application/json:
               schema:
@@ -7435,6 +8006,15 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CandidateNote"
+        "403":
+          description: >-
+            Forbidden — requires candidate.notes.read, and notes are restricted to
+            organization-wide recruitment authority (candidate.manage); a hiring
+            manager or assigned recruiter who can see the candidate cannot read them
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Candidate not found (or not visible to this caller)
           content:
@@ -10983,6 +11563,50 @@ paths:
               schema:
                 $ref: "#/components/schemas/DashboardSummary"
 
+  /organizations/{organizationId}/dashboard/command-centre:
+    get:
+      operationId: getHrCommandCentre
+      tags: [users]
+      summary: HR dashboard command centre — tasks, attention, holidays, recent activity
+      description: >-
+        One aggregated, read-only call composing the owning modules' existing
+        services (Action Centre providers, form engine stage resolver,
+        Performance, Employment Lifecycle, personnel custody, Assets,
+        Attendance, public holidays, HR-category audit events). The
+        organization comes from the caller's verified membership, never from
+        client input. Each section is authorized by its own module enablement
+        and permission: a section the caller may not see is omitted entirely
+        (no card, no count, no zero), indistinguishably from the module being
+        disabled. `tasks` holds only work the caller can perform now —
+        monitor-only items (e.g. a leave request still with its Department
+        Head, a form at another stage) are never tasks. No permission is
+        minted; a break-glass grant without a membership receives 403.
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Command centre sections the caller is authorized for
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HrCommandCentre"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Not an active member of the organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
   /roles:
     get:
       operationId: listRoles
@@ -11848,7 +12472,11 @@ paths:
       description: >-
         Computes a registered report scoped to this organization. Permission
         required varies by report (see GET /reports). Pass ?format=csv for a
-        CSV download instead of JSON.
+        CSV download instead of JSON. The required permission is resolved from
+        the server code registry, not the stored report row, and a report the
+        registry does not define is refused (403). The organization-wide
+        workforce aggregates (headcount, workforce_status) require
+        employee.write (2026-09-15).
 
 
         WS-15 P3 (§31.30) — consolidated execution. Every registered report is
@@ -18375,12 +19003,14 @@ paths:
     get:
       operationId: getCurrentDepartmentHead
       tags: [department-heads]
-      summary: Get the current Department Head, if any (Office Inventory Workstream 1)
+      summary: Get the current Department Head, if any — gated department.head.read
       description: >-
         General organizational-authority primitive
         (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not
         Inventory-specific. Returns 200 with a null body when the
         department is vacant; vacancy is never auto-resolved.
+        Requires department.head.read (department.head.manage also grants it). Reading an assignment is not Department Head authority;
+        assigning or revoking one still requires department.head.manage.
       parameters:
         - name: organizationId
           in: path
@@ -18496,7 +19126,9 @@ paths:
     get:
       operationId: listDepartmentHeadHistory
       tags: [department-heads]
-      summary: Full Department Head assignment history, oldest first
+      summary: Full Department Head assignment history, oldest first — gated department.head.read
+      description: >-
+        Requires department.head.read (department.head.manage also grants it).
       parameters:
         - name: organizationId
           in: path
@@ -18535,6 +19167,8 @@ paths:
       operationId: resolveDepartmentHeadAsOf
       tags: [department-heads]
       summary: "Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)"
+      description: >-
+        Requires department.head.read (department.head.manage also grants it).
       parameters:
         - name: organizationId
           in: path
@@ -22995,7 +23629,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/HireAuthorizationDetail"
         "403":
-          description: Forbidden — requires application.read
+          description: Forbidden — requires application.read and the recruitment module
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: >-
+            Application not found, or not visible to this caller — visible only
+            with organization-wide application authority, as the requisition's
+            recruiter or hiring manager, or as a configured approver of a raised
+            hire authorization's stages
           content:
             application/json:
               schema:
@@ -23173,13 +23817,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/OfferVersionState"
         "403":
-          description: Forbidden — requires offer.read
+          description: Forbidden — requires offer.read and the recruitment module
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Not found
+          description: Not found, or not visible to this caller (org-wide offer authority or the requisition's recruiter/hiring manager only)
           content:
             application/json:
               schema:
@@ -23432,13 +24076,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/EmploymentParticularsDetail"
         "403":
-          description: Forbidden — requires offer.read
+          description: Forbidden — requires offer.read and the recruitment module
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Not found
+          description: Not found, or not visible to this caller (org-wide offer authority or the requisition's recruiter/hiring manager only)
           content:
             application/json:
               schema:
@@ -30872,7 +31516,7 @@ paths:
     post:
       operationId: createFormSubmission
       tags: [forms]
-      summary: Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+      summary: Start a form (WS-26) — for oneself via the employee link, or on behalf of another employee with form_submission.create_on_behalf where the template version permits it
       parameters:
         - name: organizationId
           in: path
@@ -33311,6 +33955,16 @@ components:
       properties:
         error:
           type: string
+        code:
+          type: string
+          description: >-
+            Optional stable machine-readable reason. Present on refusals a
+            client should recognise rather than parse: `self_administration_forbidden`
+            (403) — the acting user is linked to the employee record the
+            administrative action targets, so the change must be made by
+            another authorized HR officer or organisation administrator, or
+            requested through the governed data-change workflow. Such a
+            response may also carry `employeeId` (integer) naming the record.
       required:
         - error
 
@@ -34485,6 +35139,23 @@ components:
             type: string
         isPrimaryHr:
           type: boolean
+        isDepartmentHead:
+          type: boolean
+          description: >-
+            True when this membership is the CURRENT head of at least one
+            department. Structural authority, not a permission: a department head
+            acts on their department because of a live department_heads row, while
+            leave_request.approve is held by every employee and gates may-attempt,
+            never may-act. Self-scoped and informational — it lets the client offer
+            a manager surface only to someone who actually holds one. The server
+            re-resolves the same primitive on every request and stays authoritative.
+        hasDirectReports:
+          type: boolean
+          description: >-
+            True when at least one employee currently reports to this membership's
+            employee record. The same structural signal as isDepartmentHead, for the
+            reporting-manager tier. No ids, counts or names are exposed — only
+            whether the authority exists.
 
     SwitchOrganizationInput:
       type: object
@@ -37256,7 +37927,7 @@ components:
 
     ConversionResult:
       type: object
-      required: [link, employeeId, reusedExistingEmployee]
+      required: [link, employeeId, reusedExistingEmployee, sensitiveFieldsOmitted]
       properties:
         link:
           $ref: "#/components/schemas/CandidateEmployeeLink"
@@ -37265,6 +37936,18 @@ components:
         reusedExistingEmployee:
           type: boolean
           description: True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created.
+        sensitiveFieldsOmitted:
+          type: array
+          items:
+            type: string
+          description: >-
+            Candidate fields that are sensitive on the employee record
+            (personalEmail, phoneNumber, nationality, residentialAddress) and
+            were NOT copied because the converting actor lacks
+            employee.sensitive.write. The conversion still succeeds; the
+            candidate record keeps the values and an authorized HR user
+            completes the profile. Empty when everything was copied or an
+            existing employee was reused.
 
     PublicOrganization:
       type: object
@@ -37819,11 +38502,13 @@ components:
       description: >-
         WWM Employee Access Remediation (2026-09-07): `gender`,
         `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`,
-        `passportNumber`, `personalEmail`, `alternatePhoneNumber`,
-        `residentialAddress`, `emergencyContacts` and `separationReason`
-        are returned only to a caller holding employee.sensitive.read or
-        viewing their own record; otherwise they are null and
-        `sensitiveFieldsRedacted` is true. `notes` keeps its own
+        `passportNumber`, `personalEmail`, `phoneNumber`,
+        `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts`
+        and `separationReason` are returned only to a caller holding
+        employee.sensitive.read or viewing their own record; otherwise they are
+        null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this
+        set on 2026-09-15 because the field is not constrained to a work line;
+        `workEmail` remains the directory contact field. `notes` keeps its own
         employee.notes.read gate.
       required: [id, organizationId, firstName, lastName, employmentStatus, createdAt, updatedAt]
       properties:
@@ -38231,6 +38916,343 @@ components:
           type: ["string", "null"]
         pifNumber:
           type: ["string", "null"]
+
+    VehicleRequestApprovalCandidate:
+      type: object
+      description: >-
+        VR-02A — a membership that may be named by a specific_membership
+        approval stage. Deliberately minimal: the membership id that gets
+        persisted in the resolver configuration, plus enough identity to show a
+        person's name. No email, roles, Primary HR flag, application user id or
+        employee record is exposed here.
+      required: [membershipId, firstName, lastName]
+      properties:
+        membershipId:
+          type: integer
+          description: The canonical id persisted in the stage's resolverConfig.
+        firstName:
+          type: string
+        lastName:
+          type: string
+    SubmitMyVehicleRequestInput:
+      type: object
+      description: >-
+        VR-02B — a vehicle request. Carries no identity: the organization,
+        requester, requesting department and submitter are resolved on the
+        server from the authenticated caller.
+      required: [requestType, vehicleId, purpose, plannedTimeOut, plannedTimeIn]
+      properties:
+        requestType:
+          type: string
+          enum: [employee, department]
+        vehicleId:
+          type: integer
+          description: The exact vehicle from this organization's VR-01 register.
+        purpose:
+          type: string
+          minLength: 1
+        destination:
+          type: ["string", "null"]
+        plannedTimeOut:
+          type: string
+          format: date-time
+          description: Must carry an explicit UTC offset and must not be in the past.
+        plannedTimeIn:
+          type: string
+          format: date-time
+          description: The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut.
+    MyVehicleRequest:
+      type: object
+      description: >-
+        VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId
+        is null for a department request, whose requester is the department.
+      required:
+        - id
+        - requestReference
+        - requestType
+        - status
+        - requesterEmployeeId
+        - requestingDepartmentId
+        - requestingDepartmentName
+        - vehicleId
+        - vehicleRegistrationNumber
+        - vehicleMake
+        - vehicleModel
+        - purpose
+        - destination
+        - plannedTimeOut
+        - plannedTimeIn
+        - totalStages
+        - currentStageOrder
+        - submittedAt
+      properties:
+        id:
+          type: integer
+        requestReference:
+          type: string
+          description: e.g. VR-00001
+        requestType:
+          type: string
+          enum: [employee, department]
+        status:
+          type: string
+          enum: [pending, approved, rejected, cancelled]
+        requesterEmployeeId:
+          type: ["integer", "null"]
+        requestingDepartmentId:
+          type: integer
+        requestingDepartmentName:
+          type: string
+        vehicleId:
+          type: integer
+        vehicleRegistrationNumber:
+          type: string
+        vehicleMake:
+          type: ["string", "null"]
+        vehicleModel:
+          type: ["string", "null"]
+        purpose:
+          type: string
+        destination:
+          type: ["string", "null"]
+        plannedTimeOut:
+          type: string
+          format: date-time
+        plannedTimeIn:
+          type: string
+          format: date-time
+        totalStages:
+          type: integer
+        currentStageOrder:
+          type: ["integer", "null"]
+        submittedAt:
+          type: string
+          format: date-time
+    VehicleRequestSubmissionContext:
+      type: object
+      description: >-
+        VR-02B — what the caller may submit and, when they cannot, why. Grants
+        nothing; submission re-checks every term.
+      required:
+        - canSubmitEmployeeRequest
+        - canSubmitDepartmentRequest
+        - department
+        - approvalWorkflowConfigured
+        - blockedReason
+      properties:
+        canSubmitEmployeeRequest:
+          type: boolean
+        canSubmitDepartmentRequest:
+          type: boolean
+        department:
+          type: ["object", "null"]
+          required: [id, name]
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        approvalWorkflowConfigured:
+          type: boolean
+        blockedReason:
+          type: ["string", "null"]
+    RequestableVehicle:
+      type: object
+      description: >-
+        VR-02B — enough to tell vehicles apart when choosing one. No driver,
+        branch, asset link, notes or status history.
+      required: [id, registrationNumber, make, model, description]
+      properties:
+        id:
+          type: integer
+        registrationNumber:
+          type: string
+        make:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+    VehicleRequestApprovalStage:
+      type: object
+      description: >-
+        VR-02A — one configured stage in an organization's Vehicle Request
+        approval chain. A stage NAMES a server-defined resolver and supplies its
+        data; it can never supply code.
+      required: [id, organizationId, purpose, stageOrder, name, resolverType, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        purpose:
+          type: string
+          enum: [vehicle_request]
+        stageOrder:
+          type: integer
+          description: 1-based position. Stages are decided strictly in ascending order.
+        name:
+          type: string
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
+          description: >-
+            permission_holder takes { permissionKey }; specific_membership takes
+            { membershipId }; department_head takes no configuration, because the
+            request itself supplies the department.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateVehicleRequestApprovalStageInput:
+      type: object
+      required: [stageOrder, name, resolverType]
+      properties:
+        stageOrder:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
+
+    UpdateVehicleRequestApprovalStageInput:
+      type: object
+      description: Every field is optional; only the fields supplied are changed.
+      properties:
+        stageOrder:
+          type: integer
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        resolverType:
+          type: string
+          enum: [department_head, permission_holder, specific_membership]
+        resolverConfig:
+          type: object
+          additionalProperties: true
+
+    Vehicle:
+      type: object
+      description: >-
+        VR-01 — one organizational vehicle, identified by the registration
+        ("car") number the organization already uses. Its own register, not an
+        asset-custody record: asset custody is open-ended possession, while a
+        vehicle is booked for a period by the VR-02 flow. An organization that
+        also carries the vehicle in its capital-asset register may link the two
+        through assetId; the link is optional and creates no asset custody.
+      required: [id, organizationId, registrationNumber, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        registrationNumber:
+          type: string
+          description: Normalized (trimmed, single-spaced; case preserved) and unique within the organization.
+        make:
+          type: ["string", "null"]
+        model:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+          description: Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.
+        branchId:
+          type: ["integer", "null"]
+        assetId:
+          type: ["integer", "null"]
+          description: >-
+            Optional link to the same organization's capital-asset register. At
+            most one vehicle may link to a given asset. Linking records no asset
+            custody and changes no asset history.
+        status:
+          type: string
+          enum: [available, maintenance, inactive]
+          description: >-
+            The register's own administrative state. Whether a vehicle is
+            physically out is derived from the VR-02 movement record, never
+            stored here.
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateVehicleInput:
+      type: object
+      required: [registrationNumber]
+      properties:
+        registrationNumber:
+          type: string
+          minLength: 1
+          maxLength: 32
+        make:
+          type: ["string", "null"]
+          maxLength: 120
+        model:
+          type: ["string", "null"]
+          maxLength: 120
+        description:
+          type: ["string", "null"]
+          maxLength: 500
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        assetId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+
+    UpdateVehicleInput:
+      type: object
+      description: Every field is optional; only the fields supplied are changed.
+      properties:
+        registrationNumber:
+          type: string
+          minLength: 1
+          maxLength: 32
+        make:
+          type: ["string", "null"]
+          maxLength: 120
+        model:
+          type: ["string", "null"]
+          maxLength: 120
+        description:
+          type: ["string", "null"]
+          maxLength: 500
+        defaultDriverEmployeeId:
+          type: ["integer", "null"]
+        branchId:
+          type: ["integer", "null"]
+        assetId:
+          type: ["integer", "null"]
+        notes:
+          type: ["string", "null"]
+          maxLength: 500
+        status:
+          type: string
+          enum: [available, maintenance, inactive]
 
     RecordsLocation:
       type: object
@@ -38838,8 +39860,16 @@ components:
 
     DashboardSummary:
       type: object
-      required: [totalEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
+      required: [totalEmployees, activeEmployees, activeModules, unreadNotifications, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics]
       properties:
+        activeEmployees:
+          description: >-
+            Employees whose employment status is active, probation or on_leave
+            (suspended and terminated excluded). Same employee.write gate as
+            totalEmployees — null, never zero, without it.
+          anyOf:
+            - type: integer
+            - type: "null"
         totalEmployees:
           description: >-
             Null when the caller lacks employee.write (the same
@@ -38890,6 +39920,176 @@ components:
           anyOf:
             - $ref: "#/components/schemas/InventoryDashboardMetrics"
             - type: "null"
+
+    HrTask:
+      type: object
+      required: [sourceModule, sourceType, sourceId, actionKind, title, status, createdAt, deepLink, context]
+      description: >-
+        A task the caller can perform now. The Action Centre's safe pointer
+        shape (§31.6) plus a short context line; read-only (no inline
+        commands). No narrative, no priority.
+      properties:
+        sourceModule:
+          type: string
+          enum:
+            [
+              leave,
+              learning,
+              onboarding,
+              skills,
+              performance,
+              recruitment,
+              employee_requests,
+              employee_relations,
+              succession,
+              employment_lifecycle,
+              forms,
+            ]
+        sourceType:
+          type: string
+        sourceId:
+          type: integer
+        actionKind:
+          $ref: "#/components/schemas/ActionKind"
+        title:
+          type: string
+        employeeId:
+          type: integer
+          nullable: true
+        employeeFirstName:
+          type: string
+          nullable: true
+        employeeLastName:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+        dueAt:
+          type: string
+          nullable: true
+        overdue:
+          type: boolean
+          nullable: true
+          description: Null where dueAt is null — never false (§31.16).
+        context:
+          type: string
+          nullable: true
+          description: Safe context such as the current workflow stage or a probation end date.
+        deepLink:
+          type: string
+
+    HrTaskList:
+      type: object
+      required: [items, total, overdue, unavailableSources]
+      properties:
+        items:
+          type: array
+          description: At most 25 tasks, overdue first, then due soon, then undated oldest first.
+          items:
+            $ref: "#/components/schemas/HrTask"
+        total:
+          type: integer
+        overdue:
+          type: integer
+        unavailableSources:
+          type: array
+          description: Authorized task sources whose work could not be loaded.
+          items:
+            type: string
+
+    HrAttentionCard:
+      type: object
+      required: [key, count, secondaryCount, deepLink]
+      properties:
+        key:
+          type: string
+          enum:
+            [
+              attendance_exceptions,
+              probation_reviews_due,
+              performance_reviews_due,
+              personnel_files_attention,
+              assets_awaiting_return,
+              forms_awaiting_review,
+            ]
+        count:
+          type: integer
+        secondaryCount:
+          type: integer
+          nullable: true
+          description: Monitoring figure where the source has one (forms waiting at other stages).
+        deepLink:
+          type: string
+
+    HrUpcomingHoliday:
+      type: object
+      required: [id, name, date]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        date:
+          type: string
+          description: ISO calendar date (YYYY-MM-DD).
+
+    HrActivityItem:
+      type: object
+      required: [id, occurredAt, eventType, targetType, actorName]
+      description: HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.
+      properties:
+        id:
+          type: integer
+        occurredAt:
+          type: string
+        eventType:
+          type: string
+        targetType:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+
+    HrCommandCentre:
+      type: object
+      required: [organizationId, generatedAt, tasks, attention, upcomingHolidays, recentActivity, unavailableSections]
+      properties:
+        organizationId:
+          type: integer
+        generatedAt:
+          type: string
+        tasks:
+          description: Null when the caller is authorized for no task source at all.
+          anyOf:
+            - $ref: "#/components/schemas/HrTaskList"
+            - type: "null"
+        attention:
+          type: array
+          description: Only cards whose module is enabled and whose permission the caller holds.
+          items:
+            $ref: "#/components/schemas/HrAttentionCard"
+        upcomingHolidays:
+          description: Next 60 days (max 5). Null without public_holiday.read or with Leave disabled.
+          anyOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/HrUpcomingHoliday"
+            - type: "null"
+        recentActivity:
+          description: Latest HR-category audit events. Null without audit.read or audit.read.hr.
+          anyOf:
+            - type: array
+              items:
+                $ref: "#/components/schemas/HrActivityItem"
+            - type: "null"
+        unavailableSections:
+          type: array
+          description: Authorized sections whose data could not be loaded.
+          items:
+            type: string
 
     AttendanceDashboardMetrics:
       type: object
@@ -38942,6 +40142,8 @@ components:
         - employeesOnLeave
         - upcomingApprovedLeave
         - pendingApprovalCount
+        - awaitingMyActionCount
+        - awaitingOtherStageCount
         - upcomingPublicHolidays
         - leaveUtilizationPercent
         - expiringCarryForwardBalances
@@ -38966,6 +40168,19 @@ components:
         pendingApprovalCount:
           type: integer
           description: Pending leave requests the viewer is authorized to approve — same scope GET .../leave-requests/pending-approvals (W35) uses.
+        awaitingMyActionCount:
+          type: integer
+          description: >-
+            Of pendingApprovalCount, requests at a stage this viewer can decide
+            now — `pending` only for the employee's current Department Head,
+            `pending_hr` only for a leave_request.manage holder, never the
+            viewer's own request.
+        awaitingOtherStageCount:
+          type: integer
+          description: >-
+            Of pendingApprovalCount, requests the viewer can see but which wait
+            on another approver (e.g. HR monitoring a request still with the
+            Department Head). Monitoring only — not an action for this viewer.
         upcomingPublicHolidays:
           type: integer
           description: Organization-wide public holiday occurrences within the next 30 days.
@@ -48164,6 +49379,9 @@ components:
       type: object
       required: [id, templateKey, formType, title, status, createdAt, updatedAt, versions]
       properties:
+        allowsOnBehalfSubmission:
+          type: boolean
+          description: True when this template's PUBLISHED version permits an authorized HR user to complete it on an employee's behalf. Absent policy is false.
         id:
           type: integer
         templateKey:
@@ -48329,8 +49547,20 @@ components:
 
     FormSubmissionSummary:
       type: object
-      required: [id, organizationId, templateId, templateKey, templateTitle, formType, templateVersionId, versionNumber, subjectEmployeeId, subjectName, status, createdByMembershipId, createdAt, updatedAt]
+      required: [id, organizationId, templateId, templateKey, templateTitle, formType, templateVersionId, versionNumber, subjectEmployeeId, subjectName, status, createdByMembershipId, assisted, createdAt, updatedAt]
       properties:
+        assisted:
+          type: boolean
+          description: True when an authorized HR user completed this form on the subject employee's behalf.
+        assistanceReason:
+          allOf:
+            - $ref: "#/components/schemas/FormAssistanceReason"
+          nullable: true
+          description: Category only. The operator's free-text notes are deliberately not part of any summary.
+        currentStageName:
+          type: string
+          nullable: true
+          description: Name of the workflow stage the submission is waiting at (e.g. "Employee Confirmation & Signature"); null unless pending approval.
         id:
           type: integer
         organizationId:
@@ -48497,10 +49727,16 @@ components:
 
     FormSubmissionDetail:
       type: object
-      required: [submission, template, version, stages, currentRevision, revisions, events, viewer]
+      required: [submission, subjectHasAccount, template, version, stages, currentRevision, revisions, events, viewer]
       properties:
         submission:
           $ref: "#/components/schemas/FormSubmissionSummary"
+        subjectHasAccount:
+          type: boolean
+          description: >-
+            False when the subject employee has no linked login account. A stage that
+            resolves to the subject employee therefore has no actor until an account is
+            linked, and the form waits. Deliberately a boolean: no account identifier is exposed.
         template:
           type: object
           required: [id, templateKey, title, formType]
@@ -48557,6 +49793,26 @@ components:
         subjectEmployeeId:
           type: integer
           nullable: true
+        # Required only when subjectEmployeeId is another employee. The caller must
+        # hold form_submission.create_on_behalf AND the template version's policy
+        # must set allowOnBehalfSubmission; absent policy fails closed.
+        assistanceReason:
+          $ref: "#/components/schemas/FormAssistanceReason"
+        assistanceNotes:
+          type: string
+          nullable: true
+          maxLength: 2000
+          description: Supporting detail. Required when assistanceReason is "other". May contain sensitive detail and is never returned in list projections.
+
+    FormAssistanceReason:
+      type: string
+      description: Why a form was completed by someone other than its subject employee.
+      enum:
+        - system_access_unavailable
+        - medical_or_incapacity
+        - accessibility_assistance
+        - administrative_assistance
+        - other
 
     SaveFormSubmissionDraftBody:
       type: object

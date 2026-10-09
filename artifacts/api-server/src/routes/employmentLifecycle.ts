@@ -66,6 +66,7 @@ import {
   InvalidProbationReviewError,
 } from "../lib/employmentLifecycle/probation";
 import { scheduleProbationReminder, scheduleContractExpiryReminder } from "../lib/employmentLifecycle/reminders";
+import { forbidSelfAdministration, targetFromEmploymentTerm, targetFromEmploymentAssignment } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -289,6 +290,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("employment_term.create"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CreateEmploymentTermBody.safeParse(req.body);
     if (!parsed.success) {
@@ -330,6 +332,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("employment_term.renew", targetFromEmploymentTerm("termId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = RenewEmploymentTermBody.safeParse(req.body);
     if (!parsed.success) {
@@ -371,6 +374,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("employment_term.close", targetFromEmploymentTerm("termId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CloseEmploymentTermBody.safeParse(req.body ?? {});
     if (!parsed.success) {
@@ -402,6 +406,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("probation.extend"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = ExtendProbationBody.safeParse(req.body);
     if (!parsed.success) {
@@ -447,6 +452,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("probation.unsuccessful"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = RecordUnsuccessfulProbationBody.safeParse(req.body);
     if (!parsed.success) {
@@ -501,6 +507,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("employment_assignment.start"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = StartEmploymentAssignmentBody.safeParse(req.body);
     if (!parsed.success) {
@@ -539,6 +546,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employment_lifecycle.manage"),
+  forbidSelfAdministration("employment_assignment.end", targetFromEmploymentAssignment("assignmentId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = EndEmploymentAssignmentBody.safeParse(req.body);
     if (!parsed.success) {

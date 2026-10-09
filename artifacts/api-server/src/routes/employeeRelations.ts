@@ -41,6 +41,7 @@ import * as offboarding from "../lib/employeeRelations/offboarding";
 import * as clearance from "../lib/employeeRelations/clearance";
 import * as exitInterview from "../lib/employeeRelations/exitInterview";
 import * as readModels from "../lib/employeeRelations/readModels";
+import { forbidSelfAdministration, targetFromExitProcess, targetFromExitInterview } from "../lib/employeeSelfAdministration";
 
 /**
  * WS-12 — Employee Relations & Offboarding Clearance routes (§28).
@@ -937,6 +938,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.initiate"),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = InitiateOffboardingBody.safeParse(req.body);
     if (!parsed.success) {
@@ -963,6 +965,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.final_clearance", targetFromExitProcess("exitProcessId")),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
       // Grants clearance. Terminates nobody (§28.7).
@@ -984,6 +987,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.cancel", targetFromExitProcess("exitProcessId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CancelOffboardingBody.safeParse(req.body);
     if (!parsed.success) {
@@ -1014,6 +1018,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.clearance_item.add", targetFromExitProcess("exitProcessId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = AddClearanceItemBody.safeParse(req.body);
     if (!parsed.success) {
@@ -1142,6 +1147,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.exit_interview.create", targetFromExitProcess("exitProcessId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = ScheduleExitInterviewBody.safeParse(req.body);
     if (!parsed.success) {
@@ -1169,6 +1175,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.exit_interview.complete", targetFromExitInterview("interviewId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CompleteExitInterviewBody.safeParse(req.body);
     if (!parsed.success) {
@@ -1197,6 +1204,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("offboarding.manage"),
+  forbidSelfAdministration("offboarding.exit_interview.cancel", targetFromExitInterview("interviewId")),
   async (req: MembershipRequest, res): Promise<void> => {
     const parsed = CancelExitInterviewBody.safeParse(req.body);
     if (!parsed.success) {

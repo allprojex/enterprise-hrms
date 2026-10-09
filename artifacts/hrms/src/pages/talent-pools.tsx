@@ -36,34 +36,24 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
 }
 
-function MemberRow({ organizationId, poolId, candidateId, memberId, onRemoved }: { organizationId: number; poolId: number; candidateId: number; memberId: number; onRemoved: () => void }) {
-  const { toast } = useToast();
+function MemberRow({ organizationId, candidateId, memberId, removePending, onRequestRemove }: { organizationId: number; candidateId: number; memberId: number; removePending: boolean; onRequestRemove: (candidateName: string) => void }) {
   const { data: candidate } = useGetCandidate(organizationId, candidateId, {
     query: { queryKey: getGetCandidateQueryKey(organizationId, candidateId), enabled: organizationId > 0 && candidateId > 0 },
   });
-  const removeMutation = useRemoveTalentPoolMember();
-
-  const handleRemove = () => {
-    removeMutation.mutate(
-      { organizationId, poolId, candidateId },
-      {
-        onSuccess: () => { onRemoved(); toast({ title: 'Candidate removed from pool' }); },
-        onError: (err) => toast({ title: 'Could not remove candidate', description: errorMessage(err), variant: 'destructive' }),
-      },
-    );
-  };
+  const candidateName = candidate ? `${candidate.firstName} ${candidate.lastName}` : `Candidate #${candidateId}`;
 
   return (
     <TableRow data-testid={`row-pool-member-${memberId}`}>
-      <TableCell className="font-medium">{candidate ? `${candidate.firstName} ${candidate.lastName}` : `Candidate #${candidateId}`}</TableCell>
+      <TableCell className="font-medium">{candidateName}</TableCell>
       <TableCell className="text-muted-foreground">{candidate?.email ?? '—'}</TableCell>
       <TableCell className="text-right">
-        <Button size="sm" variant="ghost" onClick={handleRemove} disabled={removeMutation.isPending} data-testid={`button-remove-member-${memberId}`}>
+        <Button size="sm" variant="ghost" onClick={() => onRequestRemove(candidateName)} disabled={removePending} data-testid={`button-remove-member-${memberId}`}>
           <X className="h-4 w-4" aria-hidden="true" />
         </Button>
       </TableCell>
@@ -86,6 +76,8 @@ function ManageMembersDialog({ organizationId, pool, open, onOpenChange }: { org
   });
 
   const addMutation = useAddTalentPoolMember();
+  const removeMutation = useRemoveTalentPoolMember();
+  const [removeTarget, setRemoveTarget] = useState<{ candidateId: number; name: string } | null>(null);
 
   const invalidateMembers = () => queryClient.invalidateQueries({ queryKey: getListTalentPoolMembersQueryKey(organizationId, pool.id) });
 
@@ -161,7 +153,14 @@ function ManageMembersDialog({ organizationId, pool, open, onOpenChange }: { org
                 </TableHeader>
                 <TableBody>
                   {members.map((m) => (
-                    <MemberRow key={m.id} organizationId={organizationId} poolId={pool.id} candidateId={m.candidateId} memberId={m.id} onRemoved={invalidateMembers} />
+                    <MemberRow
+                      key={m.id}
+                      organizationId={organizationId}
+                      candidateId={m.candidateId}
+                      memberId={m.id}
+                      removePending={removeMutation.isPending}
+                      onRequestRemove={(candidateName) => setRemoveTarget({ candidateId: m.candidateId, name: candidateName })}
+                    />
                   ))}
                 </TableBody>
               </Table>
@@ -169,6 +168,26 @@ function ManageMembersDialog({ organizationId, pool, open, onOpenChange }: { org
           </div>
         </div>
       </DialogContent>
+
+      <ConfirmActionDialog
+        open={removeTarget !== null}
+        onOpenChange={(o) => { if (!o) setRemoveTarget(null); }}
+        title="Remove candidate from talent pool?"
+        description={<p>“{removeTarget?.name}” will be removed from “{pool.name}”. The candidate's record and applications are not affected, and they can be added to the pool again later.</p>}
+        confirmLabel="Remove Candidate"
+        onConfirm={() =>
+          removeTarget
+            ? removeMutation.mutateAsync(
+                { organizationId, poolId: pool.id, candidateId: removeTarget.candidateId },
+                {
+                  onSuccess: () => { invalidateMembers(); toast({ title: 'Candidate removed from pool' }); },
+                  onError: (err) => toast({ title: 'Could not remove candidate', description: errorMessage(err), variant: 'destructive' }),
+                },
+              )
+            : undefined
+        }
+        testId="dialog-remove-pool-member"
+      />
     </Dialog>
   );
 }
@@ -196,6 +215,8 @@ export default function TalentPools() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [managingPool, setManagingPool] = useState<TalentPool | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<TalentPool | null>(null);
+  const [reactivateTarget, setReactivateTarget] = useState<TalentPool | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListTalentPoolsQueryKey(organizationId) });
 
@@ -217,25 +238,23 @@ export default function TalentPools() {
     );
   };
 
-  const handleArchive = (poolId: number) => {
-    archiveMutation.mutate(
+  const handleArchive = (poolId: number) =>
+    archiveMutation.mutateAsync(
       { organizationId, poolId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Talent pool archived' }); },
         onError: (err) => toast({ title: 'Could not archive talent pool', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
-  const handleReactivate = (poolId: number) => {
-    reactivateMutation.mutate(
+  const handleReactivate = (poolId: number) =>
+    reactivateMutation.mutateAsync(
       { organizationId, poolId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Talent pool reactivated' }); },
         onError: (err) => toast({ title: 'Could not reactivate talent pool', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   return (
     <div className="p-6 lg:p-8 space-y-8">
@@ -322,11 +341,11 @@ export default function TalentPools() {
                         Members
                       </Button>
                       {pool.isActive ? (
-                        <Button size="sm" variant="ghost" onClick={() => handleArchive(pool.id)} disabled={archiveMutation.isPending} data-testid={`button-archive-pool-${pool.id}`}>
+                        <Button size="sm" variant="ghost" onClick={() => setArchiveTarget(pool)} disabled={archiveMutation.isPending} data-testid={`button-archive-pool-${pool.id}`}>
                           <Archive className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       ) : (
-                        <Button size="sm" variant="ghost" onClick={() => handleReactivate(pool.id)} disabled={reactivateMutation.isPending} data-testid={`button-reactivate-pool-${pool.id}`}>
+                        <Button size="sm" variant="ghost" onClick={() => setReactivateTarget(pool)} disabled={reactivateMutation.isPending} data-testid={`button-reactivate-pool-${pool.id}`}>
                           <ArchiveRestore className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       )}
@@ -342,6 +361,27 @@ export default function TalentPools() {
       {managingPool && (
         <ManageMembersDialog organizationId={organizationId} pool={managingPool} open={!!managingPool} onOpenChange={(open) => !open && setManagingPool(null)} />
       )}
+
+      <ConfirmActionDialog
+        open={archiveTarget !== null}
+        onOpenChange={(o) => { if (!o) setArchiveTarget(null); }}
+        title="Archive talent pool?"
+        description={<p>“{archiveTarget?.name}” will be marked archived. Its members are kept, and you can reactivate the pool later.</p>}
+        confirmLabel="Archive Talent Pool"
+        onConfirm={() => (archiveTarget ? handleArchive(archiveTarget.id) : undefined)}
+        testId="dialog-archive-talent-pool"
+      />
+
+      <ConfirmActionDialog
+        open={reactivateTarget !== null}
+        onOpenChange={(o) => { if (!o) setReactivateTarget(null); }}
+        title="Reactivate talent pool?"
+        description={<p>“{reactivateTarget?.name}” will be marked active again, with its existing members.</p>}
+        confirmLabel="Reactivate Talent Pool"
+        tone="default"
+        onConfirm={() => (reactivateTarget ? handleReactivate(reactivateTarget.id) : undefined)}
+        testId="dialog-reactivate-talent-pool"
+      />
     </div>
   );
 }

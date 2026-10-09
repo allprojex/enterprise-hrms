@@ -38,8 +38,9 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { useIsHrCapable } from '@/hooks/use-hr-capable';
+import { useIsHrCapable, useHasAnyPermission } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const NONE = '__none__';
 
@@ -51,16 +52,37 @@ function errorMessage(err: unknown): string | undefined {
 // organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_
 // PLAN.md §5), deliberately NOT namespaced under office_inventory and NOT
 // gated by that module — it lives here on the existing Departments page,
-// gated only by department.head.manage, independent of Office Inventory's
-// own enablement state for the organization.
-function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
+// independent of Office Inventory's own enablement state.
+//
+// ROLE-02 (2026-09-15): reading and managing are separate capabilities, and
+// both are resolved from the caller's EFFECTIVE permission keys, never from a
+// role name. Previously this cell fetched unconditionally and rendered the
+// assign/revoke controls for anyone who reached the page, so an org_admin — who
+// may now read but still may not manage — produced one 403 per department and
+// was offered controls the server refuses. We fetch only with read capability
+// and render the controls only with manage capability. The server stays
+// authoritative; this only decides which affordances to show.
+function DepartmentHeadCell({
+  organizationId,
+  departmentId,
+  departmentName,
+}: {
+  organizationId: number;
+  departmentId: number;
+  departmentName: string;
+}) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [revokeOpen, setRevokeOpen] = useState(false);
   const [selectedMembershipId, setSelectedMembershipId] = useState('');
 
+  // department.head.manage implies its own read, matching the route gate.
+  const canRead = useHasAnyPermission(organizationId, ['department.head.read', 'department.head.manage']);
+  const canManage = useHasAnyPermission(organizationId, ['department.head.manage']);
+
   const { data: currentHead, isLoading } = useGetCurrentDepartmentHead(organizationId, departmentId, {
-    query: { queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId), enabled: organizationId > 0 },
+    query: { queryKey: getGetCurrentDepartmentHeadQueryKey(organizationId, departmentId), enabled: organizationId > 0 && canRead },
   });
   const { data: members } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 && pickerOpen },
@@ -87,8 +109,10 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
     );
   };
 
-  const handleRevoke = () => {
-    revokeMutation.mutate(
+  // Revoking end-dates the open appointment (validTo = now) — the history row
+  // stays. The promise is returned so the confirmation stays open on failure.
+  const handleRevoke = () =>
+    revokeMutation.mutateAsync(
       { organizationId, departmentId },
       {
         onSuccess: () => {
@@ -98,7 +122,16 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
         onError: (err) => toast({ title: 'Could not revoke Department Head', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
+
+  // Without read capability the request is never issued, so there is nothing
+  // to wait for and nothing to show.
+  if (!canRead) {
+    return (
+      <span className="text-sm text-muted-foreground" data-testid={`text-department-head-hidden-${departmentId}`}>
+        —
+      </span>
+    );
+  }
 
   if (isLoading) return <Skeleton className="h-6 w-32" />;
 
@@ -109,22 +142,44 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
           <span className="text-sm text-foreground" data-testid={`text-department-head-${departmentId}`}>
             {currentHeadMember ? `${currentHeadMember.firstName} ${currentHeadMember.lastName}` : `Membership #${currentHead.headMembershipId}`}
           </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={handleRevoke}
-            disabled={revokeMutation.isPending}
-            aria-label="Revoke Department Head"
-            data-testid={`button-revoke-head-${departmentId}`}
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </Button>
+          {canManage ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={() => setRevokeOpen(true)}
+              disabled={revokeMutation.isPending}
+              aria-label="Revoke Department Head"
+              data-testid={`button-revoke-head-${departmentId}`}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
+          ) : null}
         </>
       ) : (
         <span className="text-sm text-muted-foreground" data-testid={`text-department-head-vacant-${departmentId}`}>Vacant</span>
       )}
 
+      {/* Mounted outside the head/vacant branch so the refetch that empties the
+          cell after a successful revoke cannot unmount the dialog mid-close. */}
+      {canManage ? (
+        <ConfirmActionDialog
+          open={revokeOpen}
+          onOpenChange={setRevokeOpen}
+          title="Revoke department head?"
+          description={
+            <p>
+              {currentHeadMember ? `“${currentHeadMember.firstName} ${currentHeadMember.lastName}”` : 'The current head'} will no
+              longer be head of “{departmentName}” from now on, and the department will be vacant. The appointment history is kept.
+            </p>
+          }
+          confirmLabel="Revoke Department Head"
+          onConfirm={handleRevoke}
+          testId={`dialog-revoke-head-${departmentId}`}
+        />
+      ) : null}
+
+      {canManage ? (
       <Dialog open={pickerOpen} onOpenChange={(o) => { setPickerOpen(o); if (!o) setSelectedMembershipId(''); }}>
         <DialogTrigger asChild>
           <Button size="icon" variant="ghost" className="h-6 w-6" aria-label={currentHead ? 'Replace Department Head' : 'Assign Department Head'} data-testid={`button-open-assign-head-${departmentId}`}>
@@ -156,6 +211,7 @@ function DepartmentHeadCell({ organizationId, departmentId }: { organizationId: 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      ) : null}
     </div>
   );
 }
@@ -223,9 +279,13 @@ export default function Departments() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<{ id: number; name: string; status: string } | null>(null);
+
+  // Returned so the confirmation stays open (with the error toast) when the
+  // server refuses, e.g. a department that still has child departments.
   const handleToggleStatus = (department: { id: number; status: string }) => {
     const mutation = department.status === 'inactive' ? reactivateMutation : archiveMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, id: department.id },
       {
         onSuccess: () => {
@@ -422,7 +482,7 @@ export default function Departments() {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <DepartmentHeadCell organizationId={organizationId} departmentId={department.id} />
+                    <DepartmentHeadCell organizationId={organizationId} departmentId={department.id} departmentName={department.name} />
                   </TableCell>
                   <TableCell>
                     <Badge variant={department.status === 'active' ? 'secondary' : 'outline'} className="capitalize">
@@ -443,7 +503,7 @@ export default function Departments() {
                       <Button
                         size="sm"
                         variant={department.status === 'inactive' ? 'default' : 'destructive'}
-                        onClick={() => handleToggleStatus(department)}
+                        onClick={() => setStatusTarget(department)}
                         disabled={archiveMutation.isPending || reactivateMutation.isPending}
                         data-testid={`button-toggle-department-status-${department.id}`}
                       >
@@ -458,6 +518,31 @@ export default function Departments() {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.status === 'inactive' ? 'Reactivate department?' : 'Archive department?'}
+        description={
+          statusTarget?.status === 'inactive' ? (
+            <p>“{statusTarget?.name}” will be marked active again.</p>
+          ) : (
+            <>
+              <p>
+                “{statusTarget?.name}” will be archived (marked inactive). Its historical records will be preserved, and it can be
+                reactivated later.
+              </p>
+              <p>A department that still has child departments or positions cannot be archived.</p>
+            </>
+          )
+        }
+        confirmLabel={statusTarget?.status === 'inactive' ? 'Reactivate Department' : 'Archive Department'}
+        tone={statusTarget?.status === 'inactive' ? 'default' : 'destructive'}
+        onConfirm={() => (statusTarget ? handleToggleStatus(statusTarget) : undefined)}
+        testId="dialog-department-status"
+      />
 
       <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent>

@@ -62,6 +62,7 @@ vi.mock("@workspace/db", async () => {
     sessionsTable: h.TABLES.sessions,
     organizationMembershipsTable: h.TABLES.organizationMemberships,
     membershipRolesTable: h.TABLES.membershipRoles,
+    rolesTable: h.TABLES.roles,
     rolePermissionsTable: h.TABLES.rolePermissions,
     permissionsTable: h.TABLES.permissions,
     modulesTable: h.TABLES.modules,

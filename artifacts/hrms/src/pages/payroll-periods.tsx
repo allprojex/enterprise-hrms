@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ConfirmActionDialog } from '@/components/foundation';
 import {
   useGetMe,
   getGetMeQueryKey,
@@ -44,6 +45,7 @@ import {
   getGetPaymentBatchQueryKey,
   useDeletePaymentBatch,
   getExportPaymentBatchUrl,
+  type PayrollInputReference,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -106,6 +108,8 @@ export default function PayrollPeriods() {
   const [payslipLineId, setPayslipLineId] = useState<number | null>(null);
   const [isExportingBatch, setIsExportingBatch] = useState(false);
   const [batchExcludedLines, setBatchExcludedLines] = useState<{ employeeId: number; netPay: string; reason: string }[] | null>(null);
+  const [deleteBatchOpen, setDeleteBatchOpen] = useState(false);
+  const [deleteInputTarget, setDeleteInputTarget] = useState<PayrollInputReference | null>(null);
 
   const createPeriodMutation = useCreatePayrollPeriod();
   const createRunMutation = useCreatePayrollRun();
@@ -200,7 +204,7 @@ export default function PayrollPeriods() {
 
   const handleDeletePaymentBatch = () => {
     if (!selectedRun || !paymentBatch) return;
-    deletePaymentBatchMutation.mutate(
+    return deletePaymentBatchMutation.mutateAsync(
       { organizationId, id: paymentBatch.id },
       {
         onSuccess: () => {
@@ -386,7 +390,7 @@ export default function PayrollPeriods() {
 
   const handleDeleteInput = (id: number) => {
     if (!selectedPeriodId) return;
-    deleteInputMutation.mutate(
+    return deleteInputMutation.mutateAsync(
       { organizationId, periodId: selectedPeriodId, id },
       {
         onSuccess: () => {
@@ -836,7 +840,7 @@ export default function PayrollPeriods() {
                 ) : (
                   <div className="flex items-center gap-2">
                     {paymentBatch.status === 'draft' && (
-                      <Button size="sm" variant="ghost" onClick={handleDeletePaymentBatch} disabled={deletePaymentBatchMutation.isPending} data-testid="button-delete-payment-batch">
+                      <Button size="sm" variant="ghost" onClick={() => setDeleteBatchOpen(true)} disabled={deletePaymentBatchMutation.isPending} data-testid="button-delete-payment-batch">
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         Delete
                       </Button>
@@ -975,7 +979,7 @@ export default function PayrollPeriods() {
                           {i.amount} {i.currency}
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => handleDeleteInput(i.id)} disabled={deleteInputMutation.isPending} data-testid={`button-delete-oneoff-${i.id}`}>
+                          <Button size="sm" variant="ghost" onClick={() => setDeleteInputTarget(i)} disabled={deleteInputMutation.isPending} data-testid={`button-delete-oneoff-${i.id}`}>
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </Button>
                         </TableCell>
@@ -988,6 +992,43 @@ export default function PayrollPeriods() {
           </Card>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={deleteBatchOpen}
+        onOpenChange={(o) => {
+          if (!o) setDeleteBatchOpen(false);
+        }}
+        title="Delete payment batch?"
+        description={
+          <>
+            <p>
+              Draft payment batch “{paymentBatch?.reference}” and all of its payment lines will be permanently deleted.
+              This cannot be undone.
+            </p>
+            <p>No payment has been exported from this draft, and a new batch can be prepared for this run afterwards.</p>
+          </>
+        }
+        confirmLabel="Delete Payment Batch"
+        onConfirm={handleDeletePaymentBatch}
+        testId="dialog-delete-payment-batch"
+      />
+
+      <ConfirmActionDialog
+        open={deleteInputTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteInputTarget(null);
+        }}
+        title="Delete one-off input?"
+        description={
+          <p>
+            The {deleteInputTarget?.category} “{deleteInputTarget?.componentTypeCode}” of {deleteInputTarget?.amount} {deleteInputTarget?.currency} for
+            employee #{deleteInputTarget?.employeeId} will be permanently deleted from this payroll period. This cannot be undone.
+          </p>
+        }
+        confirmLabel="Delete Input"
+        onConfirm={() => (deleteInputTarget ? handleDeleteInput(deleteInputTarget.id) : undefined)}
+        testId="dialog-delete-oneoff-input"
+      />
     </div>
   );
 }

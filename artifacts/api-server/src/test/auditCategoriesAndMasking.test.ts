@@ -42,6 +42,23 @@ describe("resolveAuditCategory", () => {
     expect(resolveAuditCategory("module.enabled")).toBe("platform_configuration");
   });
 
+  it("files WS-26 form events under HR/documents instead of the fail-closed security default", () => {
+    for (const event of ["form.created", "form.approved", "form.returned", "form.rejected", "form.finalized", "form.signature_applied", "form.downloaded"]) {
+      expect(resolveAuditCategory(event)).toBe("hr");
+    }
+    for (const event of ["form_template.created", "form_template.version_published", "form_template.activation_run"]) {
+      expect(resolveAuditCategory(event)).toBe("documents");
+    }
+    expect(resolveAuditCategory("signature_asset.uploaded")).toBe("documents");
+    expect(resolveAuditCategory("signature_asset.revoked")).toBe("documents");
+  });
+
+  it("files account-profile and profile-picture changes", () => {
+    expect(resolveAuditCategory("user.profile_updated")).toBe("security");
+    expect(resolveAuditCategory("employee.profile_picture_updated")).toBe("hr");
+    expect(resolveAuditCategory("employee.profile_picture_removed")).toBe("hr");
+  });
+
   it("fails closed to 'security' for an unrecognized/future prefix", () => {
     expect(resolveAuditCategory("some_brand_new_event_type.created")).toBe("security");
     expect(resolveAuditCategory("support_access.granted")).toBe("security");

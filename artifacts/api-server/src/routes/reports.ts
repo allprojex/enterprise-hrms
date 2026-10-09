@@ -11,8 +11,23 @@ import {
   ReportParameterError,
   type ReportParams,
 } from "../lib/reporting";
+import { REPORT_DEFINITIONS } from "@workspace/db/seed/report-definitions";
 
 const router = Router();
+
+const REQUIRED_PERMISSION_BY_REPORT_KEY = new Map(REPORT_DEFINITIONS.map((r) => [r.key, r.requiredPermissionKey]));
+
+/**
+ * The permission a report run requires, from the code registry
+ * (lib/db/src/seed/report-definitions.ts). The `reports` table carries a copy
+ * of this key, but seed-reports only ever INSERTs (onConflictDoNothing), so a
+ * key tightened in code never reaches an already-seeded database — trusting
+ * the row would silently keep the old, broader gate. Null for a report the
+ * registry does not define, which the caller must refuse.
+ */
+export function resolveRequiredReportPermissionKey(reportKey: string): string | null {
+  return REQUIRED_PERMISSION_BY_REPORT_KEY.get(reportKey) ?? null;
+}
 
 /**
  * WS-15 P3 (§31.30) — explicit, typed report parameters.
@@ -88,7 +103,12 @@ router.get(
       return;
     }
 
-    const allowed = await hasPermission(req.membership!.id, definition.requiredPermissionKey);
+    // The required key comes from the code registry, never the row's stored
+    // copy: seed-reports is insert-only, so a database seeded before a key was
+    // tightened keeps the old, broader key. A report the registry does not
+    // know is refused rather than trusted from its row (fail closed).
+    const requiredPermissionKey = resolveRequiredReportPermissionKey(definition.key);
+    const allowed = requiredPermissionKey !== null && (await hasPermission(req.membership!.id, requiredPermissionKey));
     if (!allowed) {
       res.status(403).json({ error: "Forbidden" });
       return;

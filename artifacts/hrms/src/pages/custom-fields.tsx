@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import {
   useGetMe,
@@ -58,6 +59,7 @@ export default function CustomFields() {
   const [showArchived, setShowArchived] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: number; label: string; active: boolean } | null>(null);
 
   const metaQuery = useGetCustomFieldMeta(organizationId, {
     query: { queryKey: getGetCustomFieldMetaQueryKey(organizationId), enabled },
@@ -461,18 +463,7 @@ export default function CustomFields() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          archiveMutation.mutate(
-                            { organizationId, definitionId: f.definition.id, data: { archived: f.definition.status === 'active' } },
-                            {
-                              onSuccess: () => {
-                                void listQuery.refetch();
-                                toast({ title: f.definition.status === 'active' ? 'Field archived' : 'Field restored' });
-                              },
-                              onError: (err) => toast({ title: 'Could not update', description: errorMessage(err, ''), variant: 'destructive' }),
-                            },
-                          )
-                        }
+                        onClick={() => setArchiveTarget({ id: f.definition.id, label: f.version.label, active: f.definition.status === 'active' })}
                       >
                         {f.definition.status === 'active' ? (
                           <>
@@ -496,6 +487,43 @@ export default function CustomFields() {
           )}
         </CardContent>
       </Card>
+
+      {/* One dialog for both directions: archiving refuses new values but never
+          deletes captured ones (lib/customFields/values.ts), and Restore reverses it. */}
+      <ConfirmActionDialog
+        open={archiveTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setArchiveTarget(null);
+        }}
+        title={archiveTarget?.active === false ? 'Restore custom field?' : 'Archive custom field?'}
+        description={
+          archiveTarget?.active === false ? (
+            <p>“{archiveTarget?.label}” will be available for new entries again.</p>
+          ) : (
+            <p>
+              “{archiveTarget?.label}” will no longer accept new entries. Values already captured are kept, and the field can be restored
+              later.
+            </p>
+          )
+        }
+        confirmLabel={archiveTarget?.active === false ? 'Restore Field' : 'Archive Field'}
+        tone={archiveTarget?.active === false ? 'default' : 'destructive'}
+        onConfirm={() => {
+          if (!archiveTarget) return;
+          const archiving = archiveTarget.active;
+          return archiveMutation.mutateAsync(
+            { organizationId, definitionId: archiveTarget.id, data: { archived: archiving } },
+            {
+              onSuccess: () => {
+                void listQuery.refetch();
+                toast({ title: archiving ? 'Field archived' : 'Field restored' });
+              },
+              onError: (err) => toast({ title: 'Could not update', description: errorMessage(err, ''), variant: 'destructive' }),
+            },
+          );
+        }}
+        testId="dialog-archive-custom-field"
+      />
 
       <Dialog open={creating} onOpenChange={(o) => !o && setCreating(false)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">

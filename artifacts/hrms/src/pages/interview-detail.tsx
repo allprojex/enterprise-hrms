@@ -24,6 +24,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -82,18 +83,18 @@ export default function InterviewDetail() {
   const [newMemberId, setNewMemberId] = useState('');
   const [externalName, setExternalName] = useState('');
   const [externalEmail, setExternalEmail] = useState('');
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetInterviewQueryKey(organizationId, interviewId) });
 
-  const handleCancel = () => {
-    cancelMutation.mutate(
+  const handleCancel = () =>
+    cancelMutation.mutateAsync(
       { organizationId, id: interviewId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Interview cancelled' }); },
         onError: (err) => toast({ title: 'Could not cancel interview', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   const openOutcome = (status: 'completed' | 'no_show') => {
     setOutcomeText('');
@@ -240,7 +241,7 @@ export default function InterviewDetail() {
               <UserX className="h-4 w-4" aria-hidden="true" />
               No-Show
             </Button>
-            <Button variant="destructive" onClick={handleCancel} disabled={cancelMutation.isPending} data-testid="button-cancel-interview">
+            <Button variant="destructive" onClick={() => setCancelConfirmOpen(true)} disabled={cancelMutation.isPending} data-testid="button-cancel-interview">
               <XCircle className="h-4 w-4" aria-hidden="true" />
               Cancel
             </Button>
@@ -441,6 +442,22 @@ export default function InterviewDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        title="Cancel interview?"
+        description={
+          <p>
+            Are you sure you want to cancel the interview for Application #{interview.applicationId} scheduled for{' '}
+            {new Date(interview.scheduledAt).toLocaleString()}? A cancelled interview cannot be rescheduled or reopened.
+          </p>
+        }
+        confirmLabel="Cancel Interview"
+        cancelLabel="Keep Interview"
+        onConfirm={handleCancel}
+        testId="dialog-cancel-interview"
+      />
     </div>
   );
 }

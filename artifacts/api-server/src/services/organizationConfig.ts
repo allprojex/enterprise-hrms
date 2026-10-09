@@ -342,6 +342,36 @@ const employmentLifecycleConfigSchema = z
   })
   .passthrough();
 
+// VR-02 — Vehicle Requests, gated by the EXISTING asset_management module.
+//
+// Scoped to the REQUEST domain, not to the whole vehicle register: VR-01's
+// register carries no organization configuration, and naming this namespace
+// after the register would claim ground that has nothing in it.
+//
+// `requestNumber` is registered here in VR-02A under the same "register once,
+// wire up as each workstream lands" convention Payroll and Office Inventory
+// both follow. VR-02A allocates no reference itself — VR-02B's submission path
+// is the first and only consumer. The default is spelled out in full rather
+// than left to the numbering engine's own fallbacks, because `formatGeneratedNumber`
+// pads to `sequenceLength ?? 4` and would otherwise yield VR-0001 instead of
+// the locked VR-00001.
+const vehicleRequestNumberConfigSchema = z
+  .object({
+    prefix: z.string().max(20).optional(),
+    suffix: z.string().max(20).optional(),
+    separator: z.string().max(5).optional(),
+    sequenceLength: z.number().int().min(1).max(10).optional(),
+    startingSequence: z.number().int().min(0).optional(),
+    resetPolicy: z.enum(["never", "yearly", "monthly"]).optional(),
+  })
+  .passthrough();
+
+const vehicleRequestsConfigSchema = z
+  .object({
+    requestNumber: vehicleRequestNumberConfigSchema.optional(),
+  })
+  .passthrough();
+
 export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
   employment_lifecycle: {
     schemaVersion: 1,
@@ -540,6 +570,24 @@ export const CONFIG_NAMESPACES: Record<string, NamespaceDefinition> = {
       receiptConfirmationRequired: true,
     }),
     moduleKey: "office_inventory",
+  },
+  // VR-02A — Vehicle Requests. The module gate is the EXISTING
+  // asset_management, exactly as VR-01's register uses: VR-02 introduces no
+  // module of its own, so an organization that has not enabled Assets cannot
+  // reach this namespace at all.
+  vehicle_requests: {
+    schemaVersion: 1,
+    schema: vehicleRequestsConfigSchema,
+    defaults: () => ({
+      requestNumber: {
+        prefix: "VR",
+        separator: "-",
+        sequenceLength: 5,
+        startingSequence: 1,
+        resetPolicy: "never",
+      },
+    }),
+    moduleKey: "asset_management",
   },
   // WS-3 (Owner Decision #19) — no moduleKey: audit retention policy applies
   // platform-wide for an organization, independent of which HR modules are

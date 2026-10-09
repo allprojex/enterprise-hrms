@@ -28,6 +28,7 @@ import { recordSensitiveRead } from "../lib/sensitiveRead";
 import * as catalogue from "../lib/skills/catalogue";
 import * as capability from "../lib/skills/capability";
 import * as succession from "../lib/skills/succession";
+import { forbidSelfAdministration, targetFromSkillRecord } from "../lib/employeeSelfAdministration";
 
 /**
  * WS-14 — Skills, Competency Framework & Succession routes (§30).
@@ -277,6 +278,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee_skill.manage"),
+  forbidSelfAdministration("employee_skill_record.add"),
   guard(async (req, res) => {
     const parsed = ClaimEmployeeSkillBody.safeParse(req.body);
     if (!parsed.success) {
@@ -313,6 +315,7 @@ router.post(
   "/organizations/:organizationId/employee-skills/:recordId/assess",
   requireAuth as any,
   requireMembership("organizationId"),
+  forbidSelfAdministration("employee_skill_record.assess", targetFromSkillRecord("recordId")),
   guard(async (req, res) => {
     const parsed = AssessEmployeeSkillBody.safeParse(req.body);
     if (!parsed.success) {
@@ -355,6 +358,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("skill_verification.decide"),
+  forbidSelfAdministration("employee_skill_record.verify", targetFromSkillRecord("recordId")),
   guard(async (req, res) => {
     const parsed = VerifyEmployeeSkillBody.safeParse(req.body);
     if (!parsed.success) {
@@ -382,6 +386,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("skill_verification.decide"),
+  forbidSelfAdministration("employee_skill_record.reject", targetFromSkillRecord("recordId")),
   guard(async (req, res) => {
     const parsed = RejectEmployeeSkillBody.safeParse(req.body);
     if (!parsed.success) {

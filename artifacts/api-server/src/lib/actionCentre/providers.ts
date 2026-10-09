@@ -11,7 +11,8 @@ import {
 import { getModuleAccess } from "../organizationModules";
 import { hasPermission } from "../permissions";
 import { listDepartmentsHeadedByMembership } from "../departmentHeads";
-import { listPendingApprovals } from "../leaveApprovals";
+import { listPendingApprovals, partitionPendingApprovalsForActor } from "../leaveApprovals";
+import { resolveOwnEmployeeId } from "../leaveRequests";
 import { resolveLearningActorEmployeeId } from "../learningAuthorization";
 import { listTeamEnrollments } from "../learningEnrollments";
 import { resolvePerformanceActorEmployeeId } from "../performanceAuthorization";
@@ -75,7 +76,7 @@ function offerExpiry(value: string | null): Date | null {
 }
 
 /** Batch-joins employee names once per provider, never per item. */
-async function nameMap(organizationId: number, employeeIds: number[]) {
+export async function nameMap(organizationId: number, employeeIds: number[]) {
   const ids = [...new Set(employeeIds.filter((id) => Number.isInteger(id) && id > 0))];
   if (ids.length === 0) return new Map<number, { firstName: string; lastName: string }>();
   const rows = await db
@@ -85,7 +86,7 @@ async function nameMap(organizationId: number, employeeIds: number[]) {
   return new Map(rows.map((r) => [r.id, { firstName: r.firstName, lastName: r.lastName }]));
 }
 
-function withName(
+export function withName(
   names: Map<number, { firstName: string; lastName: string }>,
   employeeId: number | null,
 ): Pick<ActionItem, "employeeId" | "employeeFirstName" | "employeeLastName"> {
@@ -118,7 +119,22 @@ const leaveProvider: ActionProvider = {
       : await listDepartmentsHeadedByMembership(ctx.organizationId, ctx.membershipId);
     if (!isOrgWideHr && headedDepartmentIds.length === 0) return [];
 
-    const requests = await listPendingApprovals(ctx.organizationId, { isOrgWideHr, headedDepartmentIds });
+    const visible = await listPendingApprovals(ctx.organizationId, { isOrgWideHr, headedDepartmentIds });
+    // My Actions carries only requests at a stage THIS actor can decide: a
+    // request still with the Department Head is visible to HR but is not
+    // HR's to approve, and offering inline approve/reject on it would only
+    // earn a NotAuthorizedForStageError. Oversight keeps the full visible
+    // queue, deep-link only.
+    const isOversight = ctx.scope === "oversight";
+    const requests = isOversight
+      ? visible
+      : (
+          await partitionPendingApprovalsForActor(ctx.organizationId, visible, {
+            membershipId: ctx.membershipId,
+            employeeId: await resolveOwnEmployeeId(ctx.organizationId, ctx.applicationUserId),
+            isHr: isOrgWideHr,
+          })
+        ).actionable;
     const names = await nameMap(
       ctx.organizationId,
       requests.map((r) => r.employeeId),
@@ -136,7 +152,7 @@ const leaveProvider: ActionProvider = {
       dueAt: null,
       overdue: null,
       deepLink: "/leave-approvals",
-      inlineCommands: ["leave.approve", "leave.reject"] as const satisfies readonly string[] as never,
+      inlineCommands: (isOversight ? [] : ["leave.approve", "leave.reject"]) as never,
     }));
   },
 };

@@ -31,6 +31,7 @@ import {
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const STAGE_VARIANT: Record<string, 'secondary' | 'outline' | 'destructive'> = {
   awaiting_department_head: 'outline',
@@ -87,6 +88,12 @@ export default function MyLeave() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
+  const [requestToWithdraw, setRequestToWithdraw] = useState<{
+    id: number;
+    leaveTypeName: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListLeaveRequestsQueryKey(organizationId, employeeId) });
 
@@ -113,8 +120,8 @@ export default function MyLeave() {
     );
   };
 
-  const handleCancel = (id: number) => {
-    cancelMutation.mutate(
+  const handleCancel = (id: number) =>
+    cancelMutation.mutateAsync(
       { organizationId, employeeId, id },
       {
         onSuccess: () => {
@@ -127,7 +134,6 @@ export default function MyLeave() {
         },
       },
     );
-  };
 
   if (employeeLoading) {
     return (
@@ -279,7 +285,14 @@ export default function MyLeave() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleCancel(request.id)}
+                          onClick={() =>
+                            setRequestToWithdraw({
+                              id: request.id,
+                              leaveTypeName,
+                              startDate: request.startDate,
+                              endDate: request.endDate,
+                            })
+                          }
                           disabled={cancelMutation.isPending}
                           aria-label="Withdraw request"
                           data-testid={`button-cancel-leave-request-${request.id}`}
@@ -295,6 +308,30 @@ export default function MyLeave() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={requestToWithdraw !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setRequestToWithdraw(null);
+        }}
+        title="Withdraw leave request?"
+        description={
+          requestToWithdraw ? (
+            <p>
+              Are you sure you want to withdraw your “{requestToWithdraw.leaveTypeName}” request for{' '}
+              {new Date(requestToWithdraw.startDate).toLocaleDateString()} –{' '}
+              {new Date(requestToWithdraw.endDate).toLocaleDateString()}? It will no longer be considered for approval.
+              To take this leave later, submit a new request.
+            </p>
+          ) : (
+            ''
+          )
+        }
+        confirmLabel="Withdraw Request"
+        tone="destructive"
+        onConfirm={() => (requestToWithdraw ? handleCancel(requestToWithdraw.id) : undefined)}
+        testId="dialog-withdraw-leave-request"
+      />
     </div>
   );
 }

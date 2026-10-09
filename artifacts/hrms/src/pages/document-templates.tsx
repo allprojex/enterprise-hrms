@@ -41,6 +41,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -343,6 +344,8 @@ export default function DocumentTemplates() {
   const [content, setContent] = useState('');
 
   const [versionsFor, setVersionsFor] = useState<DocumentTemplate | null>(null);
+  const [statusTarget, setStatusTarget] = useState<DocumentTemplate | null>(null);
+  const deactivating = statusTarget?.status === 'active';
 
   const invalidateTemplates = () => {
     queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/document-templates`] });
@@ -381,8 +384,11 @@ export default function DocumentTemplates() {
     );
   };
 
-  const handleToggleStatus = (template: DocumentTemplate) => {
-    statusMutation.mutate(
+  // Runs only from the confirmation dialog. The backend (setTemplateStatus)
+  // flips the status and nothing more; generation does not yet check it, so the
+  // dialog copy deliberately promises nothing beyond "marked inactive".
+  const handleToggleStatus = (template: DocumentTemplate) =>
+    statusMutation.mutateAsync(
       {
         organizationId,
         templateId: template.id,
@@ -398,7 +404,6 @@ export default function DocumentTemplates() {
         },
       },
     );
-  };
 
   const categoryLabel = (code: string) => categories?.find((c) => c.categoryCode === code)?.label ?? code;
 
@@ -549,7 +554,7 @@ export default function DocumentTemplates() {
                         <Button
                           size="sm"
                           variant={template.status === 'active' ? 'destructive' : 'default'}
-                          onClick={() => handleToggleStatus(template)}
+                          onClick={() => setStatusTarget(template)}
                           disabled={statusMutation.isPending}
                           data-testid={`button-toggle-template-${template.id}`}
                         >
@@ -564,6 +569,28 @@ export default function DocumentTemplates() {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setStatusTarget(null);
+        }}
+        title={deactivating ? 'Deactivate document template?' : 'Activate document template?'}
+        description={
+          deactivating ? (
+            <p>
+              “{statusTarget?.name}” will be marked inactive. Its versions and any documents already generated from it are preserved, and it
+              can be activated again later.
+            </p>
+          ) : (
+            <p>“{statusTarget?.name}” will be marked active again.</p>
+          )
+        }
+        confirmLabel={deactivating ? 'Deactivate Template' : 'Activate Template'}
+        tone={deactivating ? 'destructive' : 'default'}
+        onConfirm={() => statusTarget && handleToggleStatus(statusTarget)}
+        testId="dialog-toggle-document-template"
+      />
 
       {versionsFor && (
         <TemplateVersionsDialog

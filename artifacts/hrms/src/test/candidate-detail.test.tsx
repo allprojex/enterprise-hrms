@@ -4,12 +4,15 @@
  * hook level — no real network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import CandidateDetail from '@/pages/candidate-detail';
 import type { Candidate, CandidateNote, CandidateTag } from '@workspace/api-client-react';
+
+type MutateOpts = { onSuccess?: (data?: unknown) => void; onError?: (err: unknown) => void };
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -18,6 +21,7 @@ const { state } = vi.hoisted(() => ({
     error: undefined as unknown,
     notes: [] as CandidateNote[],
     tags: [] as CandidateTag[],
+    removeTagAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
   },
 }));
 
@@ -32,7 +36,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListCandidateTags: () => ({ data: state.tags, isLoading: false }),
   getListCandidateTagsQueryKey: (orgId: number, id: number) => ['candidateTags', orgId, id],
   useAddCandidateTag: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveCandidateTag: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveCandidateTag: () => ({ mutate: vi.fn(), mutateAsync: state.removeTagAsync, isPending: false }),
 }));
 
 function baseCandidate(overrides: Partial<Candidate> = {}): Candidate {
@@ -146,5 +150,64 @@ describe('Candidate detail page', () => {
     renderPage();
     expect(screen.getByTestId('button-add-note')).toBeDisabled();
     expect(screen.getByTestId('button-add-tag')).toBeDisabled();
+  });
+
+  describe('remove tag confirmation', () => {
+    function setup() {
+      state.candidate = baseCandidate();
+      state.isLoading = false;
+      state.error = undefined;
+      state.notes = [];
+      state.tags = [{ id: 1, organizationId: 10, candidateId: 200, tag: 'senior', createdAt: new Date().toISOString() }];
+    }
+
+    it('asks before removing a tag, and Cancel removes nothing', async () => {
+      setup();
+      state.removeTagAsync = vi.fn(() => Promise.resolve());
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-remove-tag-1'));
+      const dialog = screen.getByTestId('dialog-remove-candidate-tag');
+      expect(dialog).toHaveTextContent('Remove tag?');
+      expect(dialog).toHaveTextContent('remove the tag “senior” from Jane Doe');
+      expect(state.removeTagAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-remove-candidate-tag-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-candidate-tag')).not.toBeInTheDocument());
+      expect(state.removeTagAsync).not.toHaveBeenCalled();
+    });
+
+    it('removes the tag exactly once on confirm, invalidates the tag list, and closes', async () => {
+      setup();
+      state.removeTagAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        opts?.onSuccess?.();
+        return Promise.resolve();
+      });
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-remove-tag-1'));
+      await userEvent.click(screen.getByTestId('dialog-remove-candidate-tag-confirm'));
+
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-candidate-tag')).not.toBeInTheDocument());
+      expect(state.removeTagAsync).toHaveBeenCalledTimes(1);
+      expect(state.removeTagAsync).toHaveBeenCalledWith({ organizationId: 10, id: 200, tagId: 1 }, expect.anything());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['candidateTags', 10, 200] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the dialog open and the tag rendered when removal fails', async () => {
+      setup();
+      state.removeTagAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        const err = { error: 'boom' };
+        opts?.onError?.(err);
+        return Promise.reject(err);
+      });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-remove-tag-1'));
+      await userEvent.click(screen.getByTestId('dialog-remove-candidate-tag-confirm'));
+
+      await waitFor(() => expect(state.removeTagAsync).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('dialog-remove-candidate-tag')).toBeInTheDocument();
+      expect(screen.getByTestId('badge-tag-1')).toBeInTheDocument();
+    });
   });
 });

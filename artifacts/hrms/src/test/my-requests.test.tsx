@@ -18,16 +18,22 @@ import { Router } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import MyRequests from '@/pages/my-requests';
 
-const { state, submitData, submitService, withdrawData } = vi.hoisted(() => ({
+type HookMutationOptions = { mutation?: { onSuccess?: () => void; onError?: (err: unknown) => void } };
+
+const { state, submitData, submitService, withdrawData, withdrawDataAsync } = vi.hoisted(() => ({
   state: {
     fields: [] as unknown[],
     dataRequests: [] as unknown[],
     types: [] as unknown[],
     serviceRequests: [] as unknown[],
+    // The page passes its toast/invalidate callbacks to the hook itself; the
+    // mutateAsync mock below runs them, as TanStack Query would.
+    withdrawHookOptions: undefined as HookMutationOptions | undefined,
   },
   submitData: vi.fn(),
   submitService: vi.fn(),
   withdrawData: vi.fn(),
+  withdrawDataAsync: vi.fn(),
 }));
 
 vi.mock('@workspace/api-client-react', () => ({
@@ -38,7 +44,10 @@ vi.mock('@workspace/api-client-react', () => ({
   useListMyDataChangeRequests: () => ({ data: state.dataRequests, isLoading: false, error: null, refetch: vi.fn() }),
   getListMyDataChangeRequestsQueryKey: (o: number) => ['myDcRequests', o],
   useSubmitMyDataChangeRequest: () => ({ mutate: submitData, isPending: false }),
-  useWithdrawMyDataChangeRequest: () => ({ mutate: withdrawData, isPending: false }),
+  useWithdrawMyDataChangeRequest: (options?: HookMutationOptions) => {
+    state.withdrawHookOptions = options;
+    return { mutate: withdrawData, mutateAsync: withdrawDataAsync, isPending: false };
+  },
   useListMyServiceRequestTypes: () => ({ data: state.types, isLoading: false, error: null, refetch: vi.fn() }),
   getListMyServiceRequestTypesQueryKey: (o: number) => ['myTypes', o],
   useListMyServiceRequests: () => ({ data: state.serviceRequests, isLoading: false, error: null, refetch: vi.fn() }),
@@ -70,6 +79,11 @@ describe('My Requests (ESS)', () => {
     submitData.mockClear();
     submitService.mockClear();
     withdrawData.mockClear();
+    withdrawDataAsync.mockReset();
+    withdrawDataAsync.mockImplementation(() => {
+      state.withdrawHookOptions?.mutation?.onSuccess?.();
+      return Promise.resolve(undefined);
+    });
   });
 
   it('offers both submission paths, because §29.17 freezes them as user actions', () => {
@@ -122,27 +136,70 @@ describe('My Requests (ESS)', () => {
     expect(payload.data).not.toHaveProperty('employeeId');
   });
 
-  it('shows the employee their own requests and lets them withdraw a pending one', async () => {
+  const pendingPhoneRequest = {
+    id: 3,
+    status: 'pending',
+    reason: 'Moved house',
+    requestedAt: '2026-08-01T00:00:00.000Z',
+    effectiveDate: null,
+    decidedAt: null,
+    appliedAt: null,
+    fields: [{ fieldKey: 'phoneNumber', label: 'Phone number', requestedValue: '024', staleDetectedAt: null }],
+  };
+
+  it('shows the employee their own requests and lets them withdraw a pending one after confirming', async () => {
     const user = userEvent.setup();
-    state.dataRequests = [
-      {
-        id: 3,
-        status: 'pending',
-        reason: 'Moved house',
-        requestedAt: '2026-08-01T00:00:00.000Z',
-        effectiveDate: null,
-        decidedAt: null,
-        appliedAt: null,
-        fields: [{ fieldKey: 'phoneNumber', label: 'Phone number', requestedValue: '024', staleDetectedAt: null }],
-      },
-    ];
+    state.dataRequests = [pendingPhoneRequest];
+    const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
     renderPage();
 
     expect(screen.getByTestId('card-my-data-change-3')).toBeInTheDocument();
     expect(screen.getByText('Awaiting decision')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('button-withdraw-data-change-3'));
-    await waitFor(() => expect(withdrawData).toHaveBeenCalledWith({ organizationId: 10, requestId: 3 }));
+    expect(screen.getByTestId('dialog-withdraw-data-change')).toBeInTheDocument();
+    expect(screen.getByText(/withdraw your request to change “Phone number”/)).toBeInTheDocument();
+    expect(withdrawDataAsync).not.toHaveBeenCalled();
+    expect(withdrawData).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('dialog-withdraw-data-change-confirm'));
+    expect(withdrawDataAsync).toHaveBeenCalledTimes(1);
+    expect(withdrawDataAsync).toHaveBeenCalledWith({ organizationId: 10, requestId: 3 });
+    await waitFor(() => expect(screen.queryByTestId('dialog-withdraw-data-change')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['myDcRequests', 10] });
+    invalidateSpy.mockRestore();
+  });
+
+  it('does not withdraw when the confirmation is cancelled', async () => {
+    const user = userEvent.setup();
+    state.dataRequests = [pendingPhoneRequest];
+    renderPage();
+
+    await user.click(screen.getByTestId('button-withdraw-data-change-3'));
+    await user.click(screen.getByTestId('dialog-withdraw-data-change-cancel'));
+
+    expect(screen.queryByTestId('dialog-withdraw-data-change')).not.toBeInTheDocument();
+    expect(withdrawDataAsync).not.toHaveBeenCalled();
+    expect(withdrawData).not.toHaveBeenCalled();
+  });
+
+  it('keeps the confirmation open and the request listed when withdrawal fails', async () => {
+    const user = userEvent.setup();
+    state.dataRequests = [pendingPhoneRequest];
+    withdrawDataAsync.mockImplementation(() => {
+      const err = new Error('nope');
+      state.withdrawHookOptions?.mutation?.onError?.(err);
+      return Promise.reject(err);
+    });
+    renderPage();
+
+    await user.click(screen.getByTestId('button-withdraw-data-change-3'));
+    await user.click(screen.getByTestId('dialog-withdraw-data-change-confirm'));
+
+    expect(withdrawDataAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-withdraw-data-change-confirm')).toBeEnabled());
+    expect(screen.getByTestId('dialog-withdraw-data-change')).toBeInTheDocument();
+    expect(screen.getByTestId('card-my-data-change-3')).toBeInTheDocument();
   });
 
   it('does not offer withdrawal once a change has been applied', () => {

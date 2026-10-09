@@ -34,6 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -84,6 +85,8 @@ export default function PublicHolidays() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PublicHoliday | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [statusTarget, setStatusTarget] = useState<PublicHoliday | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PublicHoliday | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListPublicHolidaysQueryKey(organizationId) });
 
@@ -138,13 +141,19 @@ export default function PublicHolidays() {
   };
 
   const handleDeactivate = (id: number) => {
-    deactivateMutation.mutate({ organizationId, id }, { onSuccess: () => { invalidate(); toast({ title: 'Holiday deactivated' }); } });
+    return deactivateMutation.mutateAsync({ organizationId, id }, {
+      onSuccess: () => { invalidate(); toast({ title: 'Holiday deactivated' }); },
+      onError: (err) => toast({ title: 'Could not deactivate holiday', description: errorMessage(err), variant: 'destructive' }),
+    });
   };
   const handleReactivate = (id: number) => {
-    reactivateMutation.mutate({ organizationId, id }, { onSuccess: () => { invalidate(); toast({ title: 'Holiday reactivated' }); } });
+    return reactivateMutation.mutateAsync({ organizationId, id }, {
+      onSuccess: () => { invalidate(); toast({ title: 'Holiday reactivated' }); },
+      onError: (err) => toast({ title: 'Could not reactivate holiday', description: errorMessage(err), variant: 'destructive' }),
+    });
   };
   const handleDelete = (id: number) => {
-    deleteMutation.mutate(
+    return deleteMutation.mutateAsync(
       { organizationId, id },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Holiday deleted' }); },
@@ -285,15 +294,15 @@ export default function PublicHolidays() {
                           <Pencil className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         {holiday.status === 'active' ? (
-                          <Button size="icon" variant="ghost" aria-label={`Deactivate ${holiday.name}`} onClick={() => handleDeactivate(holiday.id)} data-testid={`button-deactivate-holiday-${holiday.id}`}>
+                          <Button size="icon" variant="ghost" aria-label={`Deactivate ${holiday.name}`} onClick={() => setStatusTarget(holiday)} data-testid={`button-deactivate-holiday-${holiday.id}`}>
                             <Archive className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         ) : (
-                          <Button size="icon" variant="ghost" aria-label={`Reactivate ${holiday.name}`} onClick={() => handleReactivate(holiday.id)} data-testid={`button-reactivate-holiday-${holiday.id}`}>
+                          <Button size="icon" variant="ghost" aria-label={`Reactivate ${holiday.name}`} onClick={() => setStatusTarget(holiday)} data-testid={`button-reactivate-holiday-${holiday.id}`}>
                             <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        <Button size="icon" variant="ghost" aria-label={`Delete ${holiday.name}`} onClick={() => handleDelete(holiday.id)} data-testid={`button-delete-holiday-${holiday.id}`}>
+                        <Button size="icon" variant="ghost" aria-label={`Delete ${holiday.name}`} onClick={() => setDeleteTarget(holiday)} data-testid={`button-delete-holiday-${holiday.id}`}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </TableCell>
@@ -305,6 +314,48 @@ export default function PublicHolidays() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.status === 'active' ? 'Deactivate public holiday?' : 'Reactivate public holiday?'}
+        description={
+          statusTarget?.status === 'active' ? (
+            <p>
+              “{statusTarget?.name}” will be marked inactive. It will no longer be treated as a holiday when counting days for new leave requests or
+              shown on the leave calendar. Leave already requested keeps its recorded day count, and the holiday can be reactivated later.
+            </p>
+          ) : (
+            <p>“{statusTarget?.name}” will be marked active again and excluded from leave day-counting where the leave policy requires it.</p>
+          )
+        }
+        confirmLabel={statusTarget?.status === 'active' ? 'Deactivate Holiday' : 'Reactivate Holiday'}
+        tone={statusTarget?.status === 'active' ? 'destructive' : 'default'}
+        onConfirm={() => {
+          if (!statusTarget) return undefined;
+          return statusTarget.status === 'active' ? handleDeactivate(statusTarget.id) : handleReactivate(statusTarget.id);
+        }}
+        testId="dialog-holiday-status"
+      />
+
+      <ConfirmActionDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+        title="Delete public holiday?"
+        description={
+          <p>
+            “{deleteTarget?.name}” will be permanently deleted. This cannot be undone. Leave already requested keeps its recorded day count. To
+            stop using the holiday but keep it on record, deactivate it instead.
+          </p>
+        }
+        confirmLabel="Delete Holiday"
+        onConfirm={() => (deleteTarget ? handleDelete(deleteTarget.id) : undefined)}
+        testId="dialog-delete-holiday"
+      />
     </div>
   );
 }

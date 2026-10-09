@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -100,6 +101,8 @@ export default function Succession() {
 
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [removeReason, setRemoveReason] = useState('');
+
+  const [closePlanOpen, setClosePlanOpen] = useState(false);
 
   const [bandOpen, setBandOpen] = useState(false);
   const [bandLabel, setBandLabel] = useState('');
@@ -452,9 +455,15 @@ export default function Succession() {
                           size="sm"
                           variant={planDetail.data?.status === s ? 'default' : 'outline'}
                           disabled={updatePlan.isPending}
-                          onClick={() =>
-                            updatePlan.mutate({ organizationId, planId: selectedPlanId, data: { status: s } })
-                          }
+                          onClick={() => {
+                            // Closing stops new nominations and drops the plan
+                            // from coverage, so it is confirmed first.
+                            if (s === 'closed' && planDetail.data?.status !== 'closed') {
+                              setClosePlanOpen(true);
+                              return;
+                            }
+                            updatePlan.mutate({ organizationId, planId: selectedPlanId, data: { status: s } });
+                          }}
                           data-testid={`button-plan-status-${s}`}
                         >
                           {PLAN_STATUS[s].label}
@@ -627,6 +636,20 @@ export default function Succession() {
                   </div>
                 )}
               </CardContent>
+              {/* The hook's own onSuccess/onError toast and refresh. */}
+              <ConfirmActionDialog
+                open={closePlanOpen}
+                onOpenChange={setClosePlanOpen}
+                title="Close succession plan?"
+                description={`The succession plan for “${
+                  positionsById.get(planDetail.data?.positionId ?? 0)?.title ?? 'this position'
+                }” will be closed. No new candidates can be nominated to it and it will no longer count toward succession coverage. Its candidates and history are kept.`}
+                confirmLabel="Close Plan"
+                onConfirm={() =>
+                  updatePlan.mutateAsync({ organizationId, planId: selectedPlanId, data: { status: 'closed' } })
+                }
+                testId="dialog-close-plan"
+              />
             </Card>
           )}
         </TabsContent>

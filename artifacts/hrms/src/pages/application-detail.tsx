@@ -59,6 +59,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { getStoredToken } from '@/lib/auth';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -816,6 +817,7 @@ export default function ApplicationDetail() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [withdrawComment, setWithdrawComment] = useState('');
+  const [reopenConfirmOpen, setReopenConfirmOpen] = useState(false);
   const [scoreType, setScoreType] = useState('screening');
   const [scoreValue, setScoreValue] = useState('');
   const [scoreNotes, setScoreNotes] = useState('');
@@ -864,15 +866,14 @@ export default function ApplicationDetail() {
     );
   };
 
-  const handleReopen = () => {
-    reopenMutation.mutate(
+  const handleReopen = () =>
+    reopenMutation.mutateAsync(
       { organizationId, id: applicationId, data: {} },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Application reopened' }); },
         onError: (err) => toast({ title: 'Could not reopen application', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   const handleSubmitScore = (e: React.FormEvent) => {
     e.preventDefault();
@@ -968,7 +969,7 @@ export default function ApplicationDetail() {
             </>
           )}
           {isTerminal && (
-            <Button variant="outline" onClick={handleReopen} disabled={reopenMutation.isPending} data-testid="button-reopen-application">
+            <Button variant="outline" onClick={() => setReopenConfirmOpen(true)} disabled={reopenMutation.isPending} data-testid="button-reopen-application">
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               {reopenMutation.isPending ? 'Reopening…' : 'Reopen'}
             </Button>
@@ -1298,6 +1299,22 @@ export default function ApplicationDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={reopenConfirmOpen}
+        onOpenChange={setReopenConfirmOpen}
+        title="Reopen application?"
+        description={
+          <p>
+            {application.candidateName}’s application for “{application.vacancyTitle}” will move from “{application.currentStageName ?? application.currentStageCategory}” back to
+            the applied stage, and any recorded rejection or withdrawal reason will be cleared. Its stage history is preserved.
+          </p>
+        }
+        confirmLabel="Reopen Application"
+        tone="default"
+        onConfirm={handleReopen}
+        testId="dialog-reopen-application"
+      />
     </div>
   );
 }

@@ -24,7 +24,7 @@
  * version's `signature_policy` and the `signature_applied`/`signature_revoked`
  * event types are the WS-26A hooks so the enum never needs altering later.
  */
-import { pgTable, serial, integer, text, timestamp, jsonb, pgEnum, uniqueIndex, index, date } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, pgEnum, uniqueIndex, index, date, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -81,12 +81,28 @@ export const formSubmissionStatusEnum = pgEnum("form_submission_status", [
   "archived",
 ]);
 
+/**
+ * Why a form was completed by someone other than its subject employee. A
+ * constrained set, never free text: assisted completion is an exception that
+ * has to be classified, and a list view can show the category without
+ * exposing the operator's notes (which may carry medical detail).
+ */
+export const formAssistanceReasonEnum = pgEnum("form_assistance_reason", [
+  "system_access_unavailable",
+  "medical_or_incapacity",
+  "accessibility_assistance",
+  "administrative_assistance",
+  "other",
+]);
+
 export const formRevisionKindEnum = pgEnum("form_revision_kind", ["draft", "submitted", "resubmitted", "stage_update"]);
 
 export const formSubmissionEventTypeEnum = pgEnum("form_submission_event_type", [
   "created",
+  "created_on_behalf",
   "draft_saved",
   "submitted",
+  "submitted_on_behalf",
   "stage_completed",
   "returned",
   "rejected",
@@ -156,6 +172,15 @@ export const formTemplateVersionsTable = pgTable(
     definitionSha256: text("definition_sha256").notNull(),
     /** Signature slots and methods (WS-26B consumes; WS-26A validates and renders blank lines). */
     signaturePolicy: jsonb("signature_policy"),
+    /**
+     * Version-level rules about HOW a submission may be raised, as opposed to
+     * what it contains (definition) or how it is signed (signaturePolicy).
+     * Currently one key: `allowOnBehalfSubmission`. FAIL CLOSED — an absent
+     * policy, or an absent key, means assisted completion is NOT permitted, so
+     * every version published before this field existed stays closed until a
+     * new version deliberately opens it.
+     */
+    submissionPolicy: jsonb("submission_policy"),
     /** Print configuration: status-marker placement, page size, header options. */
     renderConfig: jsonb("render_config"),
     changeNote: text("change_note"),
@@ -241,6 +266,20 @@ export const formSubmissionsTable = pgTable(
     createdByMembershipId: integer("created_by_membership_id")
       .notNull()
       .references(() => organizationMembershipsTable.id, { onDelete: "restrict" }),
+    /**
+     * True when the subject employee did not raise this themselves — an
+     * authorized HR user completed it on their behalf. Distinct from simply
+     * comparing createdByMembershipId to the subject's membership, because an
+     * employee may have no membership at all, and because the FACT of
+     * assistance must survive later membership changes.
+     *
+     * These three columns are provenance: written once at creation and never
+     * updated. Nothing in the engine rewrites them.
+     */
+    assisted: boolean("assisted").notNull().default(false),
+    assistanceReason: formAssistanceReasonEnum("assistance_reason"),
+    /** Free text, required only when assistanceReason is "other". May carry sensitive detail — never surfaced in list projections. */
+    assistanceNotes: text("assistance_notes"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     finalizedAt: timestamp("finalized_at", { withTimezone: true }),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useId, useRef } from 'react';
 import { Link, useLocation } from 'wouter';
 import {
   Building2,
@@ -47,6 +47,7 @@ import {
   Sparkles,
   Target,
   Boxes,
+  Car,
   Warehouse,
   Compass,
   Upload,
@@ -86,7 +87,8 @@ import { resolveAdministrationNavEntries } from '@/lib/administration-access';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
-import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess } from '@/hooks/use-hr-capable';
+import { useIsOrgAdmin, useIsHrCapable, useAdministrationAccess, useHasAnyPermission } from '@/hooks/use-hr-capable';
+import { useCapabilities } from '@/hooks/use-capabilities';
 import { clearToken } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -178,8 +180,12 @@ function groupSlug(label: string): string {
  * /unauthorized for an organization that has not enabled the module (e.g. the
  * platform's own System Administration org, which enables no HR modules).
  */
+/** VR-02B — the two independent Vehicle Request submission grants. */
+const VEHICLE_REQUEST_SUBMISSION_PERMISSIONS = ['vehicle_request.write.own', 'vehicle_request.write.department'] as const;
+
 const MODULE_BY_HREF: Record<string, string> = {
   '/self-service': 'employee_self_service',
+  '/my-requests': 'employee_self_service',
   '/my-onboarding': 'onboarding',
   '/manager': 'manager_portal',
   '/onboarding': 'onboarding',
@@ -206,6 +212,9 @@ const MODULE_BY_HREF: Record<string, string> = {
   '/learning-reports': 'learning',
   '/assets-dashboard': 'asset_management',
   '/assets': 'asset_management',
+  '/vehicles': 'asset_management',
+  '/vehicle-request-approvals-config': 'asset_management',
+  '/my-vehicle-requests': 'asset_management',
   '/team-assets': 'asset_management',
   '/asset-workspace': 'asset_management',
   '/asset-reports': 'asset_management',
@@ -233,25 +242,32 @@ function NavGroupList({
   onNavigate?: () => void;
 }) {
   const visibleGroups = groups.filter((g) => g.items.length > 0);
+  const activeGroupLabel = visibleGroups.find((g) => g.items.some((i) => i.href === location))?.label;
+  const panelIdPrefix = useId();
   const [expanded, setExpanded] = useState<Set<string>>(
     () => new Set(visibleGroups.filter((g) => g.items.some((i) => i.href === location)).map((g) => g.label)),
   );
 
-  useEffect(() => {
-    const activeGroup = visibleGroups.find((g) => g.items.some((i) => i.href === location));
-    if (activeGroup && !expanded.has(activeGroup.label)) {
-      setExpanded((prev) => new Set(prev).add(activeGroup.label));
+  // Expansion precedence: the active route's group starts expanded; after
+  // that the header click is the only authority, until the user navigates
+  // (or the active group first becomes visible, e.g. once modules load), at
+  // which point the new route's group is revealed again. This compares
+  // primitives rather than reacting to `visibleGroups` — a fresh array every
+  // render — which previously re-expanded, straight after each toggle, a group
+  // the user had just collapsed while on one of its routes.
+  const [revealedFor, setRevealedFor] = useState({ location, activeGroupLabel });
+  if (revealedFor.location !== location || revealedFor.activeGroupLabel !== activeGroupLabel) {
+    setRevealedFor({ location, activeGroupLabel });
+    if (activeGroupLabel && !expanded.has(activeGroupLabel)) {
+      setExpanded(new Set(expanded).add(activeGroupLabel));
     }
-    // Only ever grows the expanded set to include the active group — never
-    // reacts to `expanded` itself, so a user's manual collapse is preserved
-    // across unrelated re-renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location, visibleGroups]);
+  }
 
   return (
     <div className="space-y-1">
       {visibleGroups.map((group) => {
         const isExpanded = expanded.has(group.label);
+        const panelId = `${panelIdPrefix}-nav-group-${groupSlug(group.label)}`;
         return (
           <div key={group.label}>
             <button
@@ -264,8 +280,9 @@ function NavGroupList({
                   return next;
                 })
               }
-              className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex w-full touch-manipulation select-none items-center justify-between rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-expanded={isExpanded}
+              aria-controls={panelId}
               data-testid={`button-nav-group-${groupSlug(group.label)}`}
             >
               <span>{group.label}</span>
@@ -274,7 +291,9 @@ function NavGroupList({
                 aria-hidden="true"
               />
             </button>
-            {isExpanded && <NavLinks items={group.items} location={location} onNavigate={onNavigate} />}
+            <div id={panelId}>
+              {isExpanded && <NavLinks items={group.items} location={location} onNavigate={onNavigate} />}
+            </div>
           </div>
         );
       })}
@@ -475,6 +494,9 @@ export function AppShell({ children }: AppShellProps) {
   // rather than re-deriving the roles lookup here a second time.
   const isOrgAdmin = useIsOrgAdmin(activeOrganizationId ?? 0);
   const isHrCapable = useIsHrCapable(activeOrganizationId ?? 0);
+  // Capability, not role name — and including the STRUCTURAL tier, without
+  // which a department head is indistinguishable from an ordinary employee.
+  const caps = useCapabilities(activeOrganizationId ?? 0);
   // Administration navigation permission gating (2026-09-07): the
   // Administration group is resolved from the caller's EFFECTIVE permission
   // keys for the active organization (MembershipSummary.permissions), never
@@ -483,6 +505,8 @@ export function AppShell({ children }: AppShellProps) {
   // preserves the existing Organisations control-plane entry; it adds no
   // console bypass.
   const administrationAccess = useAdministrationAccess(activeOrganizationId ?? 0, user?.role === 'super_admin');
+  // VR-02B — either explicit submission grant; the two keys are independent.
+  const canRequestVehicle = useHasAnyPermission(activeOrganizationId ?? 0, VEHICLE_REQUEST_SUBMISSION_PERMISSIONS);
   // Module enablement for the active organization, the same source ModuleGate
   // (frontend) and requireModuleEnabled (backend) use. A module-gated nav item
   // needs BOTH its module enabled here AND its existing role/permission below.
@@ -664,6 +688,17 @@ export function AppShell({ children }: AppShellProps) {
         // Gating it would make raising a request harder for exactly the people
         // it exists to serve, and no permission key exists for self-service.
         { href: '/my-requests', label: 'My Requests', icon: Inbox },
+        // VR-02B — a DELIBERATE exception to the unconditional Self-Service
+        // rule above. Vehicle Request submission is an explicit,
+        // organization-controlled grant (owner correction, 2026-09-21), so most
+        // employees will never hold it; an always-visible entry would lead them
+        // to a page they cannot use. Shown to holders of either submission key.
+        // The route itself stays reachable for anyone with the module, so a
+        // person whose grant is later withdrawn can still read the requests they
+        // submitted, and the API re-checks every submission regardless.
+        ...(canRequestVehicle
+          ? [{ href: '/my-vehicle-requests', label: 'My Vehicle Requests', icon: Car } satisfies NavItem]
+          : []),
         // WS-14 (§30.18) — every employee reaches their OWN skills here,
         // unconditionally, for the same reason as the Self-Service entries above:
         // the page resolves the caller's own employee record server-side. It
@@ -703,10 +738,14 @@ export function AppShell({ children }: AppShellProps) {
     {
       label: 'Leave Management',
       items: [
-        { href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck },
+        ...(caps.isDepartmentHead || caps.can('leave_request.manage')
+          ? [{ href: '/leave-approvals', label: 'Leave Approvals', icon: ClipboardCheck } satisfies NavItem]
+          : []),
         { href: '/leave-calendar', label: 'Leave Calendar', icon: CalendarRange },
         { href: '/public-holidays', label: 'Public Holidays', icon: CalendarHeart },
-        { href: '/leave-types', label: 'Leave Types', icon: CalendarDays },
+        ...(caps.can('leave_type.manage')
+          ? [{ href: '/leave-types', label: 'Leave Types', icon: CalendarDays } satisfies NavItem]
+          : []),
         ...(isHrCapable ? [{ href: '/leave-balances', label: 'Leave Balances', icon: Wallet } satisfies NavItem] : []),
       ],
     },
@@ -753,6 +792,17 @@ export function AppShell({ children }: AppShellProps) {
         ...(isHrCapable ? [{ href: '/team-assets', label: 'Team Assets', icon: Users } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-workspace', label: 'Asset Workspace', icon: LayoutGrid } satisfies NavItem] : []),
         ...(isHrCapable ? [{ href: '/asset-reports', label: 'Asset Reports', icon: FileBarChart } satisfies NavItem] : []),
+        // VR-01 — the vehicle register lives under Assets and carries no
+        // authority of its own: the route re-checks asset_management.manage,
+        // and the module filter above hides it with the rest of the group
+        // when asset_management is disabled.
+        ...(isHrCapable ? [{ href: '/vehicles', label: 'Vehicles', icon: Car } satisfies NavItem] : []),
+        // VR-02A — configuring who approves a vehicle request is vehicle-domain
+        // administration, so it sits beside the register and the route re-checks
+        // asset_management.manage.
+        ...(isHrCapable
+          ? [{ href: '/vehicle-request-approvals-config', label: 'Vehicle Approvals', icon: ShieldCheck } satisfies NavItem]
+          : []),
       ],
     },
     {

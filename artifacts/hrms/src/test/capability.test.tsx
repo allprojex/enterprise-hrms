@@ -27,6 +27,7 @@ const { state, mutations } = vi.hoisted(() => ({
     requirements: [] as unknown[],
     gaps: { gaps: [] as unknown[] },
     actions: [] as unknown[],
+    removeRequirementFails: false,
   },
   mutations: {
     claim: vi.fn(),
@@ -35,6 +36,11 @@ const { state, mutations } = vi.hoisted(() => ({
     reject: vi.fn(),
     addRequirement: vi.fn(),
     removeRequirement: vi.fn(),
+    // Withdrawal is confirmed first and awaited: resolves, or rejects when
+    // `removeRequirementFails` is set (the hook's own onError toasts).
+    removeRequirementAsync: vi.fn(() =>
+      state.removeRequirementFails ? Promise.reject(new Error('Requirement not found')) : Promise.resolve(undefined),
+    ),
     createAction: vi.fn(),
     updateAction: vi.fn(),
   },
@@ -79,7 +85,11 @@ vi.mock('@workspace/api-client-react', () => ({
   useListPositionSkillRequirements: () => ({ data: state.requirements, isLoading: false, error: null, refetch: vi.fn() }),
   getListPositionSkillRequirementsQueryKey: (o: number) => ['requirements', o],
   useAddPositionRequirement: () => ({ mutate: mutations.addRequirement, isPending: false }),
-  useRemovePositionRequirement: () => ({ mutate: mutations.removeRequirement, isPending: false }),
+  useRemovePositionRequirement: () => ({
+    mutate: mutations.removeRequirement,
+    mutateAsync: mutations.removeRequirementAsync,
+    isPending: false,
+  }),
   useGetEmployeeSkillGaps: () => ({ data: state.gaps, isLoading: false, error: null, refetch: vi.fn() }),
   getGetEmployeeSkillGapsQueryKey: (o: number) => ['gaps', o],
   useListDevelopmentActions: () => ({ data: state.actions, isLoading: false, error: null, refetch: vi.fn() }),
@@ -106,7 +116,61 @@ describe('Capability workspace', () => {
     state.requirements = [];
     state.gaps = { gaps: [] };
     state.actions = [];
+    state.removeRequirementFails = false;
     for (const m of Object.values(mutations)) m.mockClear();
+  });
+
+  it('asks before withdrawing a position requirement, and Cancel withdraws nothing', async () => {
+    const user = userEvent.setup();
+    state.requirements = [{ id: 31, positionId: 4, skillId: 7, minimumLevelId: 22, mandatory: true, active: true }];
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /Position requirements/i }));
+    await user.selectOptions(await screen.findByTestId('select-requirement-position'), '4');
+    await user.click(screen.getByTestId('button-remove-requirement-31'));
+
+    const dialog = screen.getByTestId('dialog-withdraw-requirement');
+    expect(dialog).toHaveTextContent('Withdraw requirement?');
+    expect(dialog).toHaveTextContent('“First Aid” will no longer be required for “Ward Sister”');
+    expect(dialog.textContent ?? '').not.toMatch(/delete/i);
+    expect(mutations.removeRequirementAsync).not.toHaveBeenCalled();
+    expect(mutations.removeRequirement).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('dialog-withdraw-requirement-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-withdraw-requirement')).toBeNull());
+    expect(mutations.removeRequirementAsync).not.toHaveBeenCalled();
+  });
+
+  it('withdraws the requirement exactly once on confirm, and closes', async () => {
+    const user = userEvent.setup();
+    state.requirements = [{ id: 31, positionId: 4, skillId: 7, minimumLevelId: 22, mandatory: true, active: true }];
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /Position requirements/i }));
+    await user.selectOptions(await screen.findByTestId('select-requirement-position'), '4');
+    await user.click(screen.getByTestId('button-remove-requirement-31'));
+    await user.click(screen.getByTestId('dialog-withdraw-requirement-confirm'));
+
+    await waitFor(() => expect(screen.queryByTestId('dialog-withdraw-requirement')).toBeNull());
+    expect(mutations.removeRequirementAsync).toHaveBeenCalledTimes(1);
+    expect(mutations.removeRequirementAsync).toHaveBeenCalledWith({ organizationId: 10, requirementId: 31 });
+  });
+
+  it('keeps the withdraw dialog open and the requirement listed when the withdrawal fails', async () => {
+    const user = userEvent.setup();
+    state.removeRequirementFails = true;
+    state.requirements = [{ id: 31, positionId: 4, skillId: 7, minimumLevelId: 22, mandatory: true, active: true }];
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /Position requirements/i }));
+    await user.selectOptions(await screen.findByTestId('select-requirement-position'), '4');
+    await user.click(screen.getByTestId('button-remove-requirement-31'));
+    await user.click(screen.getByTestId('dialog-withdraw-requirement-confirm'));
+
+    await waitFor(() => expect(mutations.removeRequirementAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('dialog-withdraw-requirement-confirm')).toBeEnabled());
+    expect(screen.getByTestId('dialog-withdraw-requirement')).toBeInTheDocument();
+    expect(screen.getByTestId('row-requirement-31')).toBeInTheDocument();
   });
 
   it('records a skill against an employee (§30.26 row 4)', async () => {

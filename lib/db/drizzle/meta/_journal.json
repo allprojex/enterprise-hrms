@@ -554,6 +554,34 @@
       "when": 1788865136575,
       "tag": "0078_slim_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1789348481151,
+      "tag": "0079_nosy_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789862534727,
+      "tag": "0080_greedy_victor_mancha",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1789928518521,
+      "tag": "0081_empty_prodigy",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790033590557,
+      "tag": "0082_vr02b_revoke_employee_write_own",
+      "breakpoints": true
     }
   ]
 }

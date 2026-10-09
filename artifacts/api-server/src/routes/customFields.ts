@@ -64,6 +64,7 @@ import {
   CustomFormStateError,
   DuplicateCustomFormKeyError,
 } from "../lib/customFields/forms";
+import { forbidSelfAdministration, targetFromCustomFieldEntity } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -301,8 +302,9 @@ router.get(
         res.status(403).json({ error: "You do not have permission to read this record" });
         return;
       }
-      const { assertEntityInOrganization } = await import("../lib/customFields/scopes");
+      const { assertEntityInOrganization, assertRecruitmentEntityVisible } = await import("../lib/customFields/scopes");
       await assertEntityInOrganization(scope, entityId, organizationId);
+      await assertRecruitmentEntityVisible(scope, entityId, { organizationId, membershipId: req.membership!.id, applicationUserId: req.userId! });
 
       // Revealing a sensitive custom value is a distinct, separately-granted
       // act — and a separately audited one (§24.14/§24.25), mirroring the
@@ -336,6 +338,7 @@ router.put(
   "/organizations/:organizationId/custom-field-values/:scope/:entityId",
   requireAuth as any,
   requireMembership("organizationId"),
+  forbidSelfAdministration("custom_field_values.write", targetFromCustomFieldEntity()),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
       const organizationId = req.membership!.organizationId;
@@ -400,8 +403,9 @@ router.get(
         res.status(403).json({ error: "You do not have permission to read this record" });
         return;
       }
-      const { assertEntityInOrganization } = await import("../lib/customFields/scopes");
+      const { assertEntityInOrganization, assertRecruitmentEntityVisible } = await import("../lib/customFields/scopes");
       await assertEntityInOrganization(scope, entityId, organizationId);
+      await assertRecruitmentEntityVisible(scope, entityId, { organizationId, membershipId: req.membership!.id, applicationUserId: req.userId! });
 
       const { field, stored } = await getSingleValue(organizationId, definitionId, scope, entityId);
       if (field.definition.scope !== scope) {

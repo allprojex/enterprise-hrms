@@ -34,6 +34,7 @@ import {
 import { recordAuditEvent } from "../auditLog";
 import { getEffectivePermissions } from "../permissions";
 import { getCurrentDepartmentHead } from "../departmentHeads";
+import { activeAndUnexpired } from "../membership";
 import { validateFormDefinition, definitionSha256, type FormDefinition, FormDefinitionError } from "./definition";
 import { isKnownBinding } from "./bindings";
 import { walkItems } from "./definition";
@@ -176,6 +177,7 @@ export async function listTemplates(organizationId: number, filter: { status?: F
       publishedAt: formTemplateVersionsTable.publishedAt,
       firstUsedAt: formTemplateVersionsTable.firstUsedAt,
       definitionSha256: formTemplateVersionsTable.definitionSha256,
+      submissionPolicy: formTemplateVersionsTable.submissionPolicy,
       changeNote: formTemplateVersionsTable.changeNote,
       createdAt: formTemplateVersionsTable.createdAt,
     })
@@ -260,6 +262,8 @@ export async function createTemplate(params: {
   description?: string | null;
   definition: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -299,6 +303,7 @@ export async function createTemplate(params: {
         definition,
         definitionSha256: definitionSha256(definition),
         signaturePolicy,
+        submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null,
         renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null,
         changeNote: params.changeNote?.trim() || null,
         createdByMembershipId: params.actorMembershipId,
@@ -327,6 +332,8 @@ export async function createDraftVersion(params: {
   templateId: number;
   definition: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -353,6 +360,7 @@ export async function createDraftVersion(params: {
         definition,
         definitionSha256: definitionSha256(definition),
         signaturePolicy,
+        submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null,
         renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null,
         changeNote: params.changeNote?.trim() || null,
         createdByMembershipId: params.actorMembershipId,
@@ -380,6 +388,8 @@ export async function updateDraftVersion(params: {
   versionId: number;
   definition?: unknown;
   signaturePolicy?: unknown;
+  /** Version-level submission rules (e.g. allowOnBehalfSubmission). Fail-closed when absent. */
+  submissionPolicy?: unknown;
   renderConfig?: unknown;
   stages?: unknown;
   changeNote?: string | null;
@@ -402,6 +412,12 @@ export async function updateDraftVersion(params: {
         definition,
         definitionSha256: sha,
         signaturePolicy,
+        // Only an explicit value changes the policy. Omitting it (e.g. an edit
+        // that touches only the change note) must never silently close a draft
+        // that was deliberately opened for assisted completion.
+        ...(params.submissionPolicy !== undefined
+          ? { submissionPolicy: isPlainObject(params.submissionPolicy) ? params.submissionPolicy : null }
+          : {}),
         ...(params.renderConfig !== undefined ? { renderConfig: isPlainObject(params.renderConfig) ? params.renderConfig : null } : {}),
         ...(params.changeNote !== undefined ? { changeNote: params.changeNote?.trim() || null } : {}),
       })
@@ -560,6 +576,34 @@ export async function membershipSatisfiesFormStage(params: {
       return head?.headMembershipId === params.membershipId;
     }
   }
+}
+
+/**
+ * The employee's membership ONLY when that membership can actually act today.
+ *
+ * membershipOfEmployee deliberately answers a different question — "which
+ * membership is this employee linked to" — and does not look at status. The
+ * link row is created while the membership is active but outlives it being
+ * revoked, suspended or expired, so link existence is not capability. Anything
+ * that tells a user whether the employee CAN do something must use this, and
+ * must use the same predicate authentication uses (activeAndUnexpired), or it
+ * will confidently promise an action that requireMembership then refuses.
+ */
+export async function actionableMembershipOfEmployee(organizationId: number, employeeId: number): Promise<number | null> {
+  const [link] = await db
+    .select({ membershipId: employeeUserLinksTable.organizationMembershipId })
+    .from(employeeUserLinksTable)
+    .innerJoin(employeesTable, eq(employeesTable.id, employeeUserLinksTable.employeeId))
+    .innerJoin(organizationMembershipsTable, eq(organizationMembershipsTable.id, employeeUserLinksTable.organizationMembershipId))
+    .where(
+      and(
+        eq(employeeUserLinksTable.employeeId, employeeId),
+        eq(employeesTable.organizationId, organizationId),
+        activeAndUnexpired(),
+      ),
+    )
+    .limit(1);
+  return link?.membershipId ?? null;
 }
 
 export { membershipOfEmployee };

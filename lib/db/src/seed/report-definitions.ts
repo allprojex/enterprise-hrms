@@ -13,19 +13,32 @@ export interface ReportDefinition {
 }
 
 export const REPORT_DEFINITIONS: readonly ReportDefinition[] = [
+  // Authorization fix (2026-09-15): headcount and workforce_status aggregate
+  // the WHOLE organization — the built-in runners take no actor, so there is
+  // no own/team scope to narrow to. They were gated by employee.read, the
+  // directory grant every role (including `employee`) holds, which exposed
+  // organization-wide workforce figures to every employee. They now require
+  // employee.write: the key GET /users/me/dashboard already uses for the
+  // identical totalEmployees aggregate (routes/users.ts resolveEmployeeCounts),
+  // and the same "organization-wide aggregate needs a privileged key" rule
+  // audit_summary follows below.
+  //
+  // The API authorizes report runs against THIS registry, not the `reports`
+  // table's stored copy (routes/reports.ts): seed-reports is insert-only, so
+  // an existing database keeps whatever key its rows were first seeded with.
   {
     key: "headcount",
     label: "Headcount",
     description: "Current employee headcount broken down by branch.",
     category: "workforce",
-    requiredPermissionKey: "employee.read",
+    requiredPermissionKey: "employee.write",
   },
   {
     key: "workforce_status",
     label: "Workforce Status",
     description: "Current employee count broken down by employment status.",
     category: "workforce",
-    requiredPermissionKey: "employee.read",
+    requiredPermissionKey: "employee.write",
   },
   {
     key: "audit_summary",

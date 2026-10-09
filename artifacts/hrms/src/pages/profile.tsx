@@ -21,6 +21,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useMyProfilePhoto } from '@/hooks/use-employee-photo';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 export default function Profile() {
   const queryClient = useQueryClient();
@@ -35,6 +36,22 @@ export default function Profile() {
     query: { queryKey: getGetMyEmployeeQueryKey(), enabled: !!user },
   });
   const hasProfilePicture = myEmployeeResponse?.employee?.hasProfilePicture ?? false;
+  // A login linked to an employee record takes its name, job title and
+  // department from that HR-owned record; only the account phone number is
+  // editable here (PATCH /users/me refuses the rest for linked accounts). An
+  // unlinked account — platform/Super Admin/bootstrap users — has no employee
+  // record, so its own account fields remain its identity and stay editable.
+  const linkedEmployee = myEmployeeResponse?.linked ? myEmployeeResponse.employee ?? null : null;
+  const identity = linkedEmployee
+    ? {
+        firstName: linkedEmployee.firstName,
+        lastName: linkedEmployee.lastName,
+        jobTitle: linkedEmployee.positionName ?? null,
+        department: linkedEmployee.departmentName ?? null,
+      }
+    : user
+      ? { firstName: user.firstName, lastName: user.lastName, jobTitle: user.jobTitle ?? null, department: user.department ?? null }
+      : null;
   const photoSrc = useMyProfilePhoto(hasProfilePicture);
   const uploadPhotoMutation = useUploadMyEmployeeProfilePicture();
   const removePhotoMutation = useRemoveMyEmployeeProfilePicture();
@@ -61,8 +78,10 @@ export default function Profile() {
     );
   };
 
-  const handleRemovePhoto = () => {
-    removePhotoMutation.mutate(undefined, {
+  const [isRemovePhotoConfirmOpen, setIsRemovePhotoConfirmOpen] = useState(false);
+
+  const handleRemovePhoto = () =>
+    removePhotoMutation.mutateAsync(undefined, {
       onSuccess: () => {
         invalidateEmployeeProfile();
         toast({ title: 'Profile picture removed' });
@@ -71,7 +90,6 @@ export default function Profile() {
         toast({ title: 'Could not remove photo', variant: 'destructive' });
       },
     });
-  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -98,14 +116,16 @@ export default function Profile() {
     e.preventDefault();
     
     updateProfileMutation.mutate(
-      { 
-        data: { 
-          firstName, 
-          lastName, 
-          jobTitle: jobTitle || null, 
-          department: department || null, 
-          phoneNumber: phoneNumber || null 
-        } 
+      {
+        data: linkedEmployee
+          ? { phoneNumber: phoneNumber || null }
+          : {
+              firstName,
+              lastName,
+              jobTitle: jobTitle || null,
+              department: department || null,
+              phoneNumber: phoneNumber || null,
+            },
       },
       {
         onSuccess: (updatedUser) => {
@@ -140,7 +160,10 @@ export default function Profile() {
 
   const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
   const currentOrg = organizations?.find(org => org.organizationId === activeOrganizationId);
-  const userInitials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '?';
+  const identityLocked = linkedEmployee != null || !isEditing || updateProfileMutation.isPending;
+  const userInitials = identity
+    ? `${(identity.firstName ?? '').charAt(0)}${(identity.lastName ?? '').charAt(0)}`.toUpperCase() || '?'
+    : '?';
   // user.role is the legacy platform-wide column -- it never reflects an
   // org_admin/hr_manager granted through the membership_roles system, so a
   // genuine organization administrator would see their own profile badge
@@ -221,7 +244,7 @@ export default function Profile() {
                         size="icon"
                         variant="secondary"
                         className="absolute -top-1 -right-1 h-6 w-6 rounded-full"
-                        onClick={handleRemovePhoto}
+                        onClick={() => setIsRemovePhotoConfirmOpen(true)}
                         disabled={removePhotoMutation.isPending}
                         aria-label="Remove profile picture"
                         data-testid="button-remove-photo"
@@ -241,8 +264,8 @@ export default function Profile() {
                 )}
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-foreground">
-                  {user.firstName} {user.lastName}
+                <h3 className="text-xl font-semibold text-foreground" data-testid="text-profile-name">
+                  {identity?.firstName} {identity?.lastName}
                 </h3>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               </div>
@@ -260,21 +283,21 @@ export default function Profile() {
                     <p className="font-medium text-foreground">{currentOrg.organizationName}</p>
                   </div>
                 </div>
-                {user.jobTitle && (
+                {identity?.jobTitle && (
                   <div className="flex items-center gap-3 text-sm">
                     <Briefcase className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">Job Title</p>
-                      <p className="font-medium text-foreground">{user.jobTitle}</p>
+                      <p className="font-medium text-foreground">{identity.jobTitle}</p>
                     </div>
                   </div>
                 )}
-                {user.department && (
+                {identity?.department && (
                   <div className="flex items-center gap-3 text-sm">
                     <User className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">Department</p>
-                      <p className="font-medium text-foreground">{user.department}</p>
+                      <p className="font-medium text-foreground">{identity.department}</p>
                     </div>
                   </div>
                 )}
@@ -298,7 +321,11 @@ export default function Profile() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Personal Details</CardTitle>
-                <CardDescription>Update your personal information</CardDescription>
+                <CardDescription data-testid="text-profile-description">
+                  {linkedEmployee
+                    ? 'Your name, job title and department come from your employee record and are managed by HR.'
+                    : 'Update your personal information'}
+                </CardDescription>
               </div>
               {!isEditing && (
                 <Button onClick={() => setIsEditing(true)} data-testid="button-edit">
@@ -309,15 +336,20 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6" data-testid="form-profile">
+              {linkedEmployee && (
+                <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground" data-testid="text-identity-managed-by-hr">
+                  Name, job title and department are maintained by HR on your employee record. To correct them, submit a request from My Requests.
+                </p>
+              )}
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
                   <Input
                     id="firstName"
                     type="text"
-                    value={firstName}
+                    value={linkedEmployee ? identity?.firstName ?? '' : firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    disabled={!isEditing || updateProfileMutation.isPending}
+                    disabled={identityLocked}
                     required
                     data-testid="input-firstName"
                   />
@@ -327,9 +359,9 @@ export default function Profile() {
                   <Input
                     id="lastName"
                     type="text"
-                    value={lastName}
+                    value={linkedEmployee ? identity?.lastName ?? '' : lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    disabled={!isEditing || updateProfileMutation.isPending}
+                    disabled={identityLocked}
                     required
                     data-testid="input-lastName"
                   />
@@ -359,10 +391,10 @@ export default function Profile() {
                 <Input
                   id="jobTitle"
                   type="text"
-                  placeholder="e.g. HR Manager"
-                  value={jobTitle}
+                  placeholder={linkedEmployee ? undefined : 'e.g. HR Manager'}
+                  value={linkedEmployee ? identity?.jobTitle ?? '' : jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
-                  disabled={!isEditing || updateProfileMutation.isPending}
+                  disabled={identityLocked}
                   data-testid="input-jobTitle"
                 />
               </div>
@@ -372,10 +404,10 @@ export default function Profile() {
                 <Input
                   id="department"
                   type="text"
-                  placeholder="e.g. Human Resources"
-                  value={department}
+                  placeholder={linkedEmployee ? undefined : 'e.g. Human Resources'}
+                  value={linkedEmployee ? identity?.department ?? '' : department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  disabled={!isEditing || updateProfileMutation.isPending}
+                  disabled={identityLocked}
                   data-testid="input-department"
                 />
               </div>
@@ -424,6 +456,17 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmActionDialog
+        open={isRemovePhotoConfirmOpen}
+        onOpenChange={setIsRemovePhotoConfirmOpen}
+        title="Remove profile picture?"
+        description="Your current profile picture will be permanently deleted and your initials will be shown instead. You can upload a new picture at any time."
+        confirmLabel="Remove Profile Picture"
+        tone="destructive"
+        onConfirm={handleRemovePhoto}
+        testId="dialog-remove-photo"
+      />
     </div>
   );
 }

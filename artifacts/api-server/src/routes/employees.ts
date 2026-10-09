@@ -21,7 +21,8 @@ import {
   ConfirmEmployeeBody,
 } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/requireAuth";
-import { requireMembership, type MembershipRequest } from "../middlewares/requireMembership";
+import { requireMembership, resolveOrganizationId, resolveActorMembershipId, type MembershipRequest } from "../middlewares/requireMembership";
+import { effectivePermissionsForRequest } from "../lib/roleDelegation";
 import { requirePermission } from "../middlewares/requirePermission";
 import { hasPermission } from "../lib/permissions";
 import { isUniqueViolation } from "../lib/dbErrors";
@@ -30,7 +31,7 @@ import {
   listEmployees,
   getEmployeeById,
   createEmployee,
-  assertEmployeeReferencesValid,
+  updateEmployee,
   separateEmployee,
   rehireEmployee,
   transferEmployee,
@@ -43,7 +44,19 @@ import {
   EmployeePromotionNoChangeError,
   EmployeeNotOnProbationError,
   InvalidProbationReviewReferenceError,
+  EmployeeSelfManagerError,
+  EmployeeReportingCycleError,
+  EmployeeManagerIneligibleError,
+  DuplicateEmployeeIdentifierError,
 } from "../lib/employees";
+import {
+  EMPLOYEE_SENSITIVE_WRITE_PERMISSION,
+  EMPLOYEE_NOTES_PERMISSION,
+  EmployeeSensitiveWriteForbiddenError,
+  EmployeeStatusChangeNotAllowedError,
+  EmployeeValidationError,
+  type EmployeeWriteAuthorization,
+} from "../lib/employeeRecordPolicy";
 import {
   EmployeeNumberReuseDisabledError,
   EmployeeNumberCollisionError,
@@ -67,6 +80,7 @@ import {
   EmployeeDocumentNotFoundError,
 } from "../lib/employeeDocuments";
 import { listEmployeeFinalizedForms } from "../lib/employeeFormDocuments";
+import { forbidSelfAdministration, SELF_ADMINISTRATION_ERROR_CODE } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -124,14 +138,61 @@ async function resolveEmployeeLabels(employees: Employee[]): Promise<EmployeeLab
   };
 }
 
+/**
+ * Release-gate fix (2026-10-10): the directory, detail, create and update
+ * handlers resolve the caller's keys through `effectivePermissionsForRequest`
+ * — membership roles, or under a break-glass grant the grant's explicit
+ * scope — and the organization through `resolveOrganizationId`, so a platform
+ * actor acting under an active grant no longer crashes these routes with a
+ * membership dereference. Nothing is widened: the grant must already name
+ * every key, exactly as requirePermission demands, and the self-
+ * administration guard keys on the user, not on the membership.
+ */
 async function resolveEmployeeVisibility(req: MembershipRequest): Promise<EmployeeVisibility> {
-  const membershipId = req.membership!.id;
-  const [canReadNotes, canReadSensitive, ownEmployeeId] = await Promise.all([
-    hasPermission(membershipId, "employee.notes.read"),
-    hasPermission(membershipId, "employee.sensitive.read"),
-    resolveOwnEmployeeId(req.membership!.organizationId, req.userId!),
+  const [keys, ownEmployeeId] = await Promise.all([
+    effectivePermissionsForRequest(req),
+    resolveOwnEmployeeId(resolveOrganizationId(req), req.userId!),
   ]);
-  return { canReadNotes, canReadSensitive, ownEmployeeId };
+  return { canReadNotes: keys.has(EMPLOYEE_NOTES_PERMISSION), canReadSensitive: keys.has("employee.sensitive.read"), ownEmployeeId };
+}
+
+/**
+ * Phase 1 hardening (2026-10-08): what the caller may WRITE, over and above
+ * `employee.write` (already enforced by the route middleware). Resolved from
+ * effective permissions, never from the body. See lib/employeeRecordPolicy.ts
+ * for the field sets each key governs.
+ */
+async function resolveEmployeeWriteAuthorization(req: MembershipRequest): Promise<EmployeeWriteAuthorization> {
+  const keys = await effectivePermissionsForRequest(req);
+  return { canWriteSensitive: keys.has(EMPLOYEE_SENSITIVE_WRITE_PERMISSION), canWriteNotes: keys.has(EMPLOYEE_NOTES_PERMISSION) };
+}
+
+/**
+ * One mapping for every policy/validation failure the create and update
+ * paths can raise, so both routes answer identically. Messages name fields
+ * and rules — never a stored value, never another employee.
+ */
+function respondToEmployeeWriteError(res: { status: (code: number) => { json: (body: unknown) => void } }, err: unknown): boolean {
+  if (err instanceof EmployeeSensitiveWriteForbiddenError) {
+    res.status(403).json({ error: err.message, fields: err.fields, requiredPermission: err.requiredPermission });
+    return true;
+  }
+  if (
+    err instanceof EmployeeStatusChangeNotAllowedError ||
+    err instanceof EmployeeValidationError ||
+    err instanceof EmployeeSelfManagerError ||
+    err instanceof EmployeeReportingCycleError ||
+    err instanceof EmployeeManagerIneligibleError ||
+    err instanceof CrossOrganizationReferenceError
+  ) {
+    res.status(400).json({ error: err.message });
+    return true;
+  }
+  if (err instanceof DuplicateEmployeeIdentifierError) {
+    res.status(409).json({ error: err.message, field: err.field });
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -144,6 +205,11 @@ async function resolveEmployeeVisibility(req: MembershipRequest): Promise<Employ
  * `sensitiveFieldsRedacted: true` tells the UI honestly that the values
  * are withheld rather than absent. Same shape as the pre-existing
  * `employee.notes.read` gate on `notes`.
+ *
+ * `phoneNumber` joined this set on 2026-09-15 (owner decision): the column is
+ * not constrained to a work line and in practice holds personal mobile
+ * numbers, so it is treated like `alternatePhoneNumber`, not as directory
+ * contact data. `workEmail` remains the directory contact field.
  */
 interface EmployeeVisibility {
   canReadNotes: boolean;
@@ -172,7 +238,7 @@ function formatEmployee(employee: Employee, labels: EmployeeLabels, visibility: 
     passportNumber: revealSensitive ? employee.passportNumber : null,
     personalEmail: revealSensitive ? employee.personalEmail : null,
     workEmail: employee.workEmail,
-    phoneNumber: employee.phoneNumber,
+    phoneNumber: revealSensitive ? employee.phoneNumber : null,
     alternatePhoneNumber: revealSensitive ? employee.alternatePhoneNumber : null,
     residentialAddress: revealSensitive ? employee.residentialAddress : null,
     emergencyContacts: revealSensitive ? employee.emergencyContacts : null,
@@ -216,8 +282,12 @@ router.get(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = resolveOrganizationId(req);
     const { search, departmentId, branchId, positionId, employmentStatus, page, pageSize } = parsed.data;
+
+    // Visibility is resolved BEFORE the query: the search predicate itself
+    // depends on whether the caller may read private contact fields.
+    const visibility = await resolveEmployeeVisibility(req);
 
     const { items, total } = await listEmployees({
       organizationId,
@@ -228,10 +298,10 @@ router.get(
       employmentStatus,
       page,
       pageSize,
+      includePrivateContactFields: visibility.canReadSensitive,
     });
 
     const labels = await resolveEmployeeLabels(items);
-    const visibility = await resolveEmployeeVisibility(req);
 
     res.json({
       items: items.map((e) => formatEmployee(e, labels, visibility)),
@@ -255,23 +325,21 @@ router.post(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
+    const organizationId = resolveOrganizationId(req);
 
     try {
       const employee = await createEmployee(db, {
         organizationId,
         fields: parsed.data,
         actorApplicationUserId: req.userId!,
-        actorMembershipId: req.membership!.id,
+        actorMembershipId: resolveActorMembershipId(req),
+        authorization: await resolveEmployeeWriteAuthorization(req),
       });
 
       const labels = await resolveEmployeeLabels([employee]);
       res.status(201).json(formatEmployee(employee, labels, { canReadNotes: true, canReadSensitive: true, ownEmployeeId: null }));
     } catch (err) {
-      if (err instanceof CrossOrganizationReferenceError) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
+      if (respondToEmployeeWriteError(res, err)) return;
       if (err instanceof EmployeeNumberReuseDisabledError || err instanceof InvalidManualEmployeeNumberError || err instanceof EmployeeNumberMissingTokenDataError) {
         res.status(400).json({ error: err.message });
         return;
@@ -299,7 +367,7 @@ router.get(
       return;
     }
 
-    const employee = await getEmployeeById(req.membership!.organizationId, employeeId);
+    const employee = await getEmployeeById(resolveOrganizationId(req), employeeId);
     if (!employee) {
       res.status(404).json({ error: "Employee not found" });
       return;
@@ -316,6 +384,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.update"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -330,43 +399,31 @@ router.patch(
       return;
     }
 
-    const organizationId = req.membership!.organizationId;
-    const existing = await getEmployeeById(organizationId, employeeId);
-    if (!existing) {
-      res.status(404).json({ error: "Employee not found" });
-      return;
-    }
+    const organizationId = resolveOrganizationId(req);
 
     try {
-      await assertEmployeeReferencesValid(organizationId, parsed.data);
-
-      const [updated] = await db
-        .update(employeesTable)
-        .set({ ...parsed.data, updatedBy: req.userId! })
-        .where(eq(employeesTable.id, employeeId))
-        .returning();
-
-      if (parsed.data.employmentStatus && parsed.data.employmentStatus !== existing.employmentStatus) {
-        await recordAuditEvent({
-          actorApplicationUserId: req.userId!,
-          actorMembershipId: req.membership!.id,
-          organizationId,
-          eventType: "employee.status_changed",
-          targetType: "employee",
-          targetId: String(employeeId),
-          beforeState: { employmentStatus: existing.employmentStatus },
-          afterState: { employmentStatus: updated.employmentStatus },
-        });
-      }
+      // Phase 1 hardening: the whole update runs through lib/employees.ts
+      // updateEmployee — field authorization, the lifecycle status matrix,
+      // merged-state validation, reporting-line checks and the audit trail
+      // all live there, so no second code path can drift from it.
+      const updated = await updateEmployee({
+        organizationId,
+        employeeId,
+        fields: parsed.data,
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: resolveActorMembershipId(req),
+        authorization: await resolveEmployeeWriteAuthorization(req),
+      });
 
       const labels = await resolveEmployeeLabels([updated]);
       const visibility = await resolveEmployeeVisibility(req);
       res.json(formatEmployee(updated, labels, visibility));
     } catch (err) {
-      if (err instanceof CrossOrganizationReferenceError) {
-        res.status(400).json({ error: err.message });
+      if (err instanceof EmployeeNotFoundError) {
+        res.status(404).json({ error: "Employee not found" });
         return;
       }
+      if (respondToEmployeeWriteError(res, err)) return;
       if (isUniqueViolation(err)) {
         res.status(409).json({ error: "An employee with this employee number already exists in the organization" });
         return;
@@ -382,6 +439,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.profile_picture.update"),
   upload.single("file"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
@@ -403,7 +461,7 @@ router.post(
         organizationId,
         employee,
         { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
-        req.userId!,
+        { applicationUserId: req.userId!, membershipId: req.membership!.id, via: "hr_admin" },
       );
 
       const labels = await resolveEmployeeLabels([updated]);
@@ -452,6 +510,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.profile_picture.remove"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -467,7 +526,11 @@ router.delete(
       return;
     }
 
-    const updated = await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
+    const updated = await clearEmployeeProfilePicture(organizationId, employee, {
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+      via: "hr_admin",
+    });
 
     const labels = await resolveEmployeeLabels([updated]);
     const visibility = await resolveEmployeeVisibility(req);
@@ -496,6 +559,31 @@ router.post(
     }
 
     const organizationId = req.membership!.organizationId;
+
+    // Self-administration boundary (owner policy, 2026-10-09): linking YOUR OWN
+    // login to an employee record is the act that makes that record yours and
+    // grants you its self-service surface. It is an administrative change to
+    // your own standing, so another authorized HR officer or organisation
+    // administrator performs it. Linking a colleague is unaffected.
+    if (parsed.data.applicationUserId === req.userId!) {
+      await recordAuditEvent({
+        actorApplicationUserId: req.userId!,
+        actorMembershipId: req.membership!.id,
+        organizationId,
+        eventType: "employee.self_administration_denied",
+        targetType: "employee",
+        targetId: String(employeeId),
+        metadata: { action: "employee.link_self" },
+        outcome: "denied",
+      });
+      res.status(403).json({
+        error: "You cannot link your own login account to an employee record. Ask another authorized HR officer or organisation administrator to link it.",
+        code: SELF_ADMINISTRATION_ERROR_CODE,
+        employeeId,
+      });
+      return;
+    }
+
     const employee = await getEmployeeById(organizationId, employeeId);
     if (!employee) {
       res.status(404).json({ error: "Employee not found" });
@@ -553,6 +641,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.unlink_user"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -600,6 +689,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.separate"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -631,7 +721,7 @@ router.post(
         res.status(404).json({ error: err.message });
         return;
       }
-      if (err instanceof EmployeeAlreadySeparatedError) {
+      if (err instanceof EmployeeAlreadySeparatedError || err instanceof EmployeeValidationError) {
         res.status(400).json({ error: err.message });
         return;
       }
@@ -646,6 +736,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.rehire"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -684,6 +775,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.transfer"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -736,6 +828,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.promote"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -786,6 +879,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee.confirm"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -913,12 +1007,16 @@ router.get(
     // colleague probing ids learns nothing new from this 403 vs the 404.
     const ownEmployeeId = await resolveOwnEmployeeId(organizationId, req.userId!);
     const isOwn = ownEmployeeId !== null && ownEmployeeId === employeeId;
-    if (!isOwn && !(await hasPermission(req.membership!.id, "employee.documents.read"))) {
+    const canReadDocuments = await hasPermission(req.membership!.id, "employee.documents.read");
+    if (!isOwn && !canReadDocuments) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
 
-    const documents = await listEmployeeDocuments(organizationId, employeeId);
+    // Reaching the list only through "it is my own record" is not the
+    // document permission: confidential/restricted documents stay with holders
+    // of employee.documents.read (see listEmployeeDocuments).
+    const documents = await listEmployeeDocuments(organizationId, employeeId, { includeConfidential: canReadDocuments });
     res.json(documents.map(formatEmployeeDocument));
   },
 );
@@ -963,6 +1061,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_document.upload"),
   uploadDocument.single("file"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
@@ -1011,6 +1110,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_document.remove"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);

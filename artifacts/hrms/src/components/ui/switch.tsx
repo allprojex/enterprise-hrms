@@ -8,7 +8,8 @@ const Switch = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent motion-interactive ' +
+      // `touch-target`: the track stays 20×36, only the pressable area grows.
+      'peer touch-target inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent motion-interactive ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
         'disabled:cursor-not-allowed disabled:bg-disabled ' +
         'data-[state=checked]:bg-primary data-[state=unchecked]:bg-border-strong data-[state=unchecked]:hover:bg-foreground-subtle',

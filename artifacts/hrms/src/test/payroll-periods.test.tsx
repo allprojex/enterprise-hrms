@@ -4,7 +4,7 @@
  * requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PayrollPeriods from '@/pages/payroll-periods';
@@ -30,10 +30,12 @@ const { state } = vi.hoisted(() => ({
     lockRunMutate: vi.fn() as (...args: unknown[]) => void,
     createInputMutate: vi.fn() as (...args: unknown[]) => void,
     deleteInputMutate: vi.fn() as (...args: unknown[]) => void,
+    deleteInputMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     createCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
     approveCorrectionMutate: vi.fn() as (...args: unknown[]) => void,
     createPaymentBatchMutate: vi.fn() as (...args: unknown[]) => void,
     deletePaymentBatchMutate: vi.fn() as (...args: unknown[]) => void,
+    deletePaymentBatchMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
   },
 }));
 
@@ -54,7 +56,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListPayrollInputReferences: () => ({ data: state.inputReferences }),
   getListPayrollInputReferencesQueryKey: () => ['payrollInputReferences'],
   useCreatePayrollInputReference: () => ({ mutate: state.createInputMutate, isPending: false }),
-  useDeletePayrollInputReference: () => ({ mutate: state.deleteInputMutate, isPending: false }),
+  useDeletePayrollInputReference: () => ({ mutate: state.deleteInputMutate, mutateAsync: state.deleteInputMutateAsync, isPending: false }),
   useListPayrollCorrectionsForRun: () => ({ data: state.corrections }),
   getListPayrollCorrectionsForRunQueryKey: () => ['payrollCorrections'],
   useCreatePayrollCorrection: () => ({ mutate: state.createCorrectionMutate, isPending: false }),
@@ -69,7 +71,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useCreatePaymentBatch: () => ({ mutate: state.createPaymentBatchMutate, isPending: false }),
   useGetPaymentBatch: () => ({ data: state.paymentBatchDetail }),
   getGetPaymentBatchQueryKey: () => ['paymentBatch'],
-  useDeletePaymentBatch: () => ({ mutate: state.deletePaymentBatchMutate, isPending: false }),
+  useDeletePaymentBatch: () => ({ mutate: state.deletePaymentBatchMutate, mutateAsync: state.deletePaymentBatchMutateAsync, isPending: false }),
   getExportPaymentBatchUrl: () => '/api/payment-batch-export',
 }));
 
@@ -77,11 +79,32 @@ vi.mock('@/lib/auth', () => ({ getStoredToken: () => 'test-token' }));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastQueryClient = queryClient;
   return render(
     <QueryClientProvider client={queryClient}>
       <PayrollPeriods />
     </QueryClientProvider>,
   );
+}
+
+let lastQueryClient: QueryClient | null = null;
+
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.();
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
 }
 
 function resetState() {
@@ -103,13 +126,19 @@ function resetState() {
   state.lockRunMutate = vi.fn();
   state.createInputMutate = vi.fn();
   state.deleteInputMutate = vi.fn();
+  state.deleteInputMutateAsync = resolvingMutateAsync();
   state.createCorrectionMutate = vi.fn();
   state.approveCorrectionMutate = vi.fn();
   state.createPaymentBatchMutate = vi.fn();
   state.deletePaymentBatchMutate = vi.fn();
+  state.deletePaymentBatchMutateAsync = resolvingMutateAsync();
 }
 
 const LOCKED_RUN: PayrollRun = { id: 7, organizationId: 10, payrollPeriodId: 1, status: 'locked', preparedByMembershipId: 5, approvedByMembershipId: 8, lockedAt: '2026-02-01T00:00:00.000Z', calculatedAt: '2026-01-31T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' };
+
+const ONE_OFF_INPUT: PayrollInputReference = { id: 9, organizationId: 10, payrollPeriodId: 1, employeeId: 501, sourceType: 'manual', sourceId: null, category: 'earning', componentTypeCode: 'bonus_oneoff', amount: '300.00', currency: 'GHS', taxableTreatment: 'bonus', description: null, createdByMembershipId: 5, approvedByMembershipId: null, createdAt: '2026-01-01T00:00:00.000Z' };
+
+const DRAFT_BATCH: PayrollPaymentBatch = { id: 1, organizationId: 10, payrollRunId: 7, paymentMethod: 'bank_transfer', reference: 'PB-10-7-abc123', status: 'draft', currency: 'GHS', totalAmount: '922.75', employeeCount: 1, createdByMembershipId: 5, createdAt: '2026-02-02T00:00:00.000Z', exportedAt: null, exportedByMembershipId: null, updatedAt: '2026-02-02T00:00:00.000Z' };
 
 const PERIOD: PayrollPeriod = {
   id: 1,
@@ -233,7 +262,45 @@ describe('Payroll Periods page', () => {
     await userEvent.click(screen.getByTestId('button-select-period-1'));
     expect(screen.getByTestId('row-oneoff-input-9')).toHaveTextContent('bonus_oneoff');
     await userEvent.click(screen.getByTestId('button-delete-oneoff-9'));
-    expect(state.deleteInputMutate).toHaveBeenCalledWith({ organizationId: 10, periodId: 1, id: 9 }, expect.anything());
+    expect(screen.getByTestId('dialog-delete-oneoff-input')).toHaveTextContent('bonus_oneoff');
+    expect(screen.getByTestId('dialog-delete-oneoff-input')).toHaveTextContent(/permanently deleted/i);
+    expect(state.deleteInputMutateAsync).not.toHaveBeenCalled();
+    expect(state.deleteInputMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-delete-oneoff-input-confirm'));
+    expect(state.deleteInputMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.deleteInputMutateAsync).toHaveBeenCalledWith({ organizationId: 10, periodId: 1, id: 9 }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-delete-oneoff-input')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['payrollInputReferences'] });
+  });
+
+  it('cancelling the delete one-off input dialog deletes nothing', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.inputReferences = [ONE_OFF_INPUT];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-delete-oneoff-9'));
+    await userEvent.click(screen.getByTestId('dialog-delete-oneoff-input-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-delete-oneoff-input')).not.toBeInTheDocument());
+    expect(state.deleteInputMutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId('row-oneoff-input-9')).toBeInTheDocument();
+  });
+
+  it('a failed one-off input delete keeps the dialog open and the row in place', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.inputReferences = [ONE_OFF_INPUT];
+    state.deleteInputMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-delete-oneoff-9'));
+    await userEvent.click(screen.getByTestId('dialog-delete-oneoff-input-confirm'));
+    expect(state.deleteInputMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-delete-oneoff-input-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-delete-oneoff-input')).toBeInTheDocument();
+    expect(screen.getByTestId('row-oneoff-input-9')).toBeInTheDocument();
   });
 
   it('a calculated run shows an Approve action that invokes the mutation', async () => {
@@ -454,7 +521,46 @@ describe('Payroll Periods page', () => {
     expect(row).toHaveTextContent('******6655');
     expect(row).toHaveTextContent('922.75');
     await userEvent.click(screen.getByTestId('button-delete-payment-batch'));
-    expect(state.deletePaymentBatchMutate).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+    expect(screen.getByTestId('dialog-delete-payment-batch')).toHaveTextContent('PB-10-7-abc123');
+    expect(state.deletePaymentBatchMutateAsync).not.toHaveBeenCalled();
+    expect(state.deletePaymentBatchMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-delete-payment-batch-confirm'));
+    expect(state.deletePaymentBatchMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.deletePaymentBatchMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1 }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-delete-payment-batch')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['paymentBatches'] });
+  });
+
+  it('cancelling the delete payment batch dialog deletes nothing', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [LOCKED_RUN];
+    state.paymentBatches = [DRAFT_BATCH];
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-delete-payment-batch'));
+    await userEvent.click(screen.getByTestId('dialog-delete-payment-batch-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-delete-payment-batch')).not.toBeInTheDocument());
+    expect(state.deletePaymentBatchMutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByTestId('text-payment-batch-reference')).toHaveTextContent('PB-10-7-abc123');
+  });
+
+  it('a failed payment batch delete keeps the dialog open and the batch shown', async () => {
+    resetState();
+    state.periods = [PERIOD];
+    state.runs = [LOCKED_RUN];
+    state.paymentBatches = [DRAFT_BATCH];
+    state.deletePaymentBatchMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-select-period-1'));
+    await userEvent.click(screen.getByTestId('button-delete-payment-batch'));
+    await userEvent.click(screen.getByTestId('dialog-delete-payment-batch-confirm'));
+    expect(state.deletePaymentBatchMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-delete-payment-batch-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-delete-payment-batch')).toBeInTheDocument();
+    expect(screen.getByTestId('text-payment-batch-reference')).toHaveTextContent('PB-10-7-abc123');
   });
 
   it('an exported payment batch shows Re-download CSV and no Delete action', async () => {

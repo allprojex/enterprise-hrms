@@ -79,10 +79,12 @@ Nothing here assumes `.localhost` — the same rows in a later environment would
 incoming request
   → normalize the candidate hostname(s)
   → look up organization_domains (status = 'active')
-  → also require the linked organization not be 'suspended'
   → attach req.resolvedTenantOrganizationId (number | null)
+  → attach req.resolvedTenantStatus (the organization's status | null)
   → next()  — never blocks by itself
 ```
+
+> **Identity, not availability (2026-09-16):** a suspended organization's active hostname **still resolves** to that organization, with `req.resolvedTenantStatus = 'suspended'`. Hostname pinning is keyed on the resolved id, so resolving a suspended tenant to `null` (the previous behaviour) made its hostname indistinguishable from the platform's tenant-neutral host and silently switched pinning off while the tenant was unavailable. A resolved id is never permission to serve the tenant: `GET /tenant-context` still reports `resolved: false` for a suspended organization (`getPublicTenantContext` re-checks the status), and blocking ordinary activity inside a suspended tenant is a separate enforcement layer.
 
 > **Correction (WS-18 Pass 4 / tenant identity hardening, 2026-09-03):** the
 > two paragraphs below describe the original design and are superseded on two

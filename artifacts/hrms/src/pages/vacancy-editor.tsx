@@ -31,6 +31,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function isConflict(err: unknown): boolean {
   return !!err && typeof err === 'object' && 'status' in err && (err as { status: unknown }).status === 409;
@@ -91,6 +92,8 @@ export default function VacancyEditor() {
   const [editFeatured, setEditFeatured] = useState(false);
   const [editLocations, setEditLocations] = useState<EditableLocation[]>([]);
   const [editQuestions, setEditQuestions] = useState<EditableQuestion[]>([]);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getGetVacancyQueryKey(organizationId, vacancyId) });
 
@@ -153,8 +156,8 @@ export default function VacancyEditor() {
     );
   };
 
-  const handleClose = () => {
-    closeMutation.mutate(
+  const handleClose = () =>
+    closeMutation.mutateAsync(
       { organizationId, id: vacancyId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Vacancy closed' }); },
@@ -164,10 +167,9 @@ export default function VacancyEditor() {
         },
       },
     );
-  };
 
-  const handleArchive = () => {
-    archiveMutation.mutate(
+  const handleArchive = () =>
+    archiveMutation.mutateAsync(
       { organizationId, id: vacancyId },
       {
         onSuccess: () => { invalidate(); toast({ title: 'Vacancy archived' }); },
@@ -177,7 +179,6 @@ export default function VacancyEditor() {
         },
       },
     );
-  };
 
   if (error) {
     return (
@@ -231,12 +232,12 @@ export default function VacancyEditor() {
             </Button>
           )}
           {canClose && (
-            <Button variant="destructive" onClick={handleClose} disabled={closeMutation.isPending} data-testid="button-close-vacancy">
+            <Button variant="destructive" onClick={() => setCloseConfirmOpen(true)} disabled={closeMutation.isPending} data-testid="button-close-vacancy">
               {closeMutation.isPending ? 'Closing…' : 'Close'}
             </Button>
           )}
           {canArchive && (
-            <Button variant="outline" onClick={handleArchive} disabled={archiveMutation.isPending} data-testid="button-archive-vacancy">
+            <Button variant="outline" onClick={() => setArchiveConfirmOpen(true)} disabled={archiveMutation.isPending} data-testid="button-archive-vacancy">
               {archiveMutation.isPending ? 'Archiving…' : 'Archive'}
             </Button>
           )}
@@ -384,6 +385,26 @@ export default function VacancyEditor() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={closeConfirmOpen}
+        onOpenChange={setCloseConfirmOpen}
+        title="Close vacancy?"
+        description={<p>Are you sure you want to close “{vacancy.title}”? A closed vacancy does not accept applications and cannot be reopened or published again.</p>}
+        confirmLabel="Close Vacancy"
+        onConfirm={handleClose}
+        testId="dialog-close-vacancy"
+      />
+
+      <ConfirmActionDialog
+        open={archiveConfirmOpen}
+        onOpenChange={setArchiveConfirmOpen}
+        title="Archive vacancy?"
+        description={<p>“{vacancy.title}” will be archived. Archiving is final — an archived vacancy cannot be reopened, but its record is preserved.</p>}
+        confirmLabel="Archive Vacancy"
+        onConfirm={handleArchive}
+        testId="dialog-archive-vacancy"
+      />
     </div>
   );
 }

@@ -60,7 +60,7 @@ export const PERMISSIONS = [
   { key: "employee.notes.read", resource: "employee", action: "notes.read" },
   { key: "employee.disciplinary.read", resource: "employee", action: "disciplinary.read" },
   // WWM Employee Access Remediation (2026-09-07): `employee.read` is the
-  // organization's DIRECTORY grant (name, number, work contact, department,
+  // organization's DIRECTORY grant (name, number, work email, department,
   // position, manager, status) and every role — including the employee
   // template — holds it so colleagues can find each other. It never
   // implied the right to a colleague's personal identity data. These two
@@ -68,7 +68,8 @@ export const PERMISSIONS = [
   // employee.disciplinary.read) now gate what the directory grant alone
   // must not reveal. A caller always sees their OWN full record regardless.
   //   employee.sensitive.read  — date of birth, gender, marital status,
-  //     nationality, national ID, passport, personal email, alternate
+  //     nationality, national ID, passport, personal email, phone number
+  //     (added 2026-09-15: the field can hold a personal mobile), alternate
   //     phone, residential address, emergency contacts, separation reason.
   //   employee.documents.read  — another employee's personnel-document
   //     metadata (GET .../employees/:id/documents). Upload/delete stay on
@@ -77,6 +78,20 @@ export const PERMISSIONS = [
   // composition, super_admin by the blanket rule); never to employee.
   { key: "employee.sensitive.read", resource: "employee", action: "sensitive.read" },
   { key: "employee.documents.read", resource: "employee", action: "documents.read" },
+  // Employee backend hardening, Phase 1 (2026-10-08): the WRITE counterpart of
+  // employee.sensitive.read, over the same field set (identity, personal
+  // contact, residential address, emergency contacts). `employee.write` alone
+  // edits names, placement and employment fields; writing a sensitive field
+  // — alone or mixed into a general edit — additionally requires this key,
+  // enforced in lib/employeeRecordPolicy.ts for every client-input path
+  // (POST/PATCH .../employees). Notes stay under employee.notes.read; banking
+  // and statutory identifiers stay under their payroll keys. Granted to
+  // org_admin and, by composition, hr_administrator and the canonical hr
+  // template (super_admin by the blanket rule); deliberately NOT to the
+  // deprecated hr_manager template nor to employee. Organization-owned role
+  // copies are never touched by the seed — a tenant grants it through the
+  // role UI.
+  { key: "employee.sensitive.write", resource: "employee", action: "sensitive.write" },
   { key: "branch.read", resource: "branch", action: "read" },
   { key: "branch.manage", resource: "branch", action: "manage" },
   { key: "department.read", resource: "department", action: "read" },
@@ -448,6 +463,13 @@ export const PERMISSIONS = [
   // explicitly created and assigned these keys per organization before
   // anyone can use them — no such assignment is made by this workstream,
   // for any organization, including WWM.
+  // ROLE-02 (2026-09-15): the read half of Department Headship, split out
+  // from `head.manage` so the organizational-structure role can see who
+  // leads a department without also being able to appoint one. Reading an
+  // assignment is not Department Head authority, so this does NOT contradict
+  // the rule above that HR/org-admin authority must not imply Department
+  // Head authority — `head.manage` remains withheld and unchanged.
+  { key: "department.head.read", resource: "department", action: "head.read" },
   { key: "department.head.manage", resource: "department", action: "head.manage" },
   { key: "office_inventory.configure", resource: "office_inventory", action: "configure" },
   { key: "office_inventory.item.manage", resource: "office_inventory", action: "item.manage" },
@@ -471,6 +493,21 @@ export const PERMISSIONS = [
   { key: "office_inventory.stocktake", resource: "office_inventory", action: "stocktake" },
   { key: "office_inventory.asset_handoff", resource: "office_inventory", action: "asset_handoff" },
   { key: "office_inventory.reports.read", resource: "office_inventory", action: "reports.read" },
+  // VR-02 — Vehicle Requests. Exactly four keys, and deliberately no fifth:
+  //   * reading YOUR OWN requests needs no key at all — "owning your own data
+  //     is not an operational grant" (the ESS precedent that officeInventoryEss
+  //     states outright), so ownership is proved server-side from the caller's
+  //     own membership instead;
+  //   * configuring the approval chain is administration of the vehicle domain,
+  //     so it reuses the existing `asset_management.manage` rather than adding
+  //     a `vehicle_request.configure`.
+  // These are NOT the rejected `vehicle.read`/`vehicle.manage` pair: VR-01's
+  // register stays on `asset_management.manage`, and none of these four grants
+  // any access to it.
+  { key: "vehicle_request.write.own", resource: "vehicle_request", action: "write.own" },
+  { key: "vehicle_request.write.department", resource: "vehicle_request", action: "write.department" },
+  { key: "vehicle_request.approve", resource: "vehicle_request", action: "approve" },
+  { key: "vehicle_request.read.all", resource: "vehicle_request", action: "read.all" },
   // WS-5 — Documents & Records Foundation (Owner Decision #4). Deliberately
   // seven keys, not one per document category (§32 explicitly forbids
   // category-specific keys). The split follows the authority boundaries the
@@ -662,6 +699,11 @@ export const PERMISSIONS = [
   { key: "form.approve", resource: "form", action: "approve" },
   { key: "form.finalize", resource: "form", action: "finalize" },
   { key: "form.signature.apply", resource: "form", action: "signature.apply" },
+  // Raising a form submission FOR ANOTHER EMPLOYEE. Deliberately separate from
+  // form.assess (assessor-stage participation), which used to authorize this by
+  // accident and no longer does. Assisted completion is an exception path with
+  // its own reason, provenance and audit, so it gets its own key.
+  { key: "form_submission.create_on_behalf", resource: "form_submission", action: "create_on_behalf" },
   { key: "form.final.read", resource: "form", action: "final.read" },
 ] as const;
 
@@ -679,10 +721,15 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee.disciplinary.read",
     "employee.sensitive.read",
     "employee.documents.read",
+    "employee.sensitive.write",
     "branch.read",
     "branch.manage",
     "department.read",
     "department.manage",
+    // ROLE-02: org_admin creates, renames and deletes departments and manages
+    // memberships, so it must be able to see who heads one. Read only —
+    // department.head.manage stays withheld from this role.
+    "department.head.read",
     "position.read",
     "position.manage",
     "audit.read",
@@ -1056,6 +1103,15 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "asset_management.read.own",
     "asset_management.write.own",
     "asset_management.reports.read",
+    // VR-02B (owner correction, 2026-09-21) — NO `vehicle_request.*` key here.
+    // Requesting a vehicle is an explicit, organization-controlled grant, not
+    // something every employee holds: an organization gives
+    // `vehicle_request.write.own` and/or `vehicle_request.write.department` to
+    // the specific people it chooses (a Head of Department, an assistant, an
+    // operations officer …) through its own organization roles. Being an
+    // employee, a department member or holding a job title authorizes nothing.
+    // Migration 0082 removes the grant VR-02A's seed had already written, since
+    // seed:roles only ever inserts and dropping the line here cannot undo it.
   ],
 };
 
@@ -1070,6 +1126,10 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
 const HR_ADMINISTRATOR_ADDITIONS: readonly string[] = [
   "membership.read",
   "hr_team.manage",
+  // Phase 1 employee hardening (2026-10-08): HR administrators (and therefore
+  // the canonical hr template) may write the sensitive field set; the
+  // deprecated hr_manager template deliberately does not gain it.
+  "employee.sensitive.write",
   ...PERMISSIONS.map((p) => p.key).filter((k) => k.startsWith("office_inventory.")),
   "employment_lifecycle.configure",
   "onboarding.configure",
@@ -1082,6 +1142,9 @@ const HR_ADMINISTRATOR_ADDITIONS: readonly string[] = [
   "master_data.manage",
   "document.retention.manage",
   "department.head.manage",
+  // ROLE-02: held explicitly as well as implied by head.manage above, so HR's
+  // read does not depend on the manage grant it happens to also carry.
+  "department.head.read",
   "audit.read.hr",
   "audit.read.documents",
   "audit.read.assets_inventory",
@@ -1114,7 +1177,7 @@ ROLE_PERMISSIONS.hr_administrator = [...new Set([...ROLE_PERMISSIONS.hr_manager,
 // ---------------------------------------------------------------------------
 export const CANONICAL_HR_ROLE_KEY = "hr";
 
-const HR_CANONICAL_ADDITIONS: readonly string[] = ["form_template.publish"];
+const HR_CANONICAL_ADDITIONS: readonly string[] = ["form_template.publish", "form_submission.create_on_behalf"];
 ROLE_PERMISSIONS.hr = [...new Set([...ROLE_PERMISSIONS.hr_administrator, ...HR_CANONICAL_ADDITIONS])];
 
 /**

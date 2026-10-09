@@ -1895,7 +1895,9 @@ export const ListMyOrganizationsResponseItem = zod.object({
   "status": zod.enum(['invited', 'active', 'suspended', 'expired', 'revoked']),
   "roles": zod.array(zod.string()),
   "permissions": zod.array(zod.string()).describe('The caller\'s own EFFECTIVE permission keys for this membership — the union of every permission granted through the membership\'s roles, exactly what the server evaluates in requirePermission. Self-scoped (never another member\'s grants) and informational: it lets the client show an administrative entry only when the caller holds a permission its destination actually requires, rather than inferring authority from role names. The server remains authoritative on every request.'),
-  "isPrimaryHr": zod.boolean()
+  "isPrimaryHr": zod.boolean(),
+  "isDepartmentHead": zod.boolean().optional().describe('True when this membership is the CURRENT head of at least one department. Structural authority, not a permission: a department head acts on their department because of a live department_heads row, while leave_request.approve is held by every employee and gates may-attempt, never may-act. Self-scoped and informational — it lets the client offer a manager surface only to someone who actually holds one. The server re-resolves the same primitive on every request and stays authoritative.'),
+  "hasDirectReports": zod.boolean().optional().describe('True when at least one employee currently reports to this membership\'s employee record. The same structural signal as isDepartmentHead, for the reporting-manager tier. No ids, counts or names are exposed — only whether the authority exists.')
 })
 export const ListMyOrganizationsResponse = zod.array(ListMyOrganizationsResponseItem)
 
@@ -2203,7 +2205,7 @@ export const ListMyInternalApplicationsResponse = zod.object({
 
 
 /**
- * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema.
+ * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema. `search` matches directory fields only (first, last and preferred name, employee number, work email); personal email is matched only for callers holding employee.sensitive.read, so a redacted value can never be confirmed by searching for it.
  * @summary List employees
  */
 export const ListEmployeesParams = zod.object({
@@ -2278,7 +2280,7 @@ export const ListEmployeesResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')),
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')),
   "total": zod.number(),
   "page": zod.number(),
   "pageSize": zod.number()
@@ -2286,6 +2288,7 @@ export const ListEmployeesResponse = zod.object({
 
 
 /**
+ * Gated employee.write. Creates the employee RECORD only — never a login account, membership or invitation; linking a login is a separate action (POST .../link-user). Writing any sensitive field (gender, date of birth, marital status, nationality, national ID, passport, personal email, phone numbers, residential address, emergency contacts) additionally requires employee.sensitive.write, and writing `notes` requires employee.notes.read; a body mixing an unauthorized field with permitted ones is rejected as a whole (403, nothing applied). Email and phone values are format-checked; date of birth cannot be in the future, hire date cannot precede it, probation end cannot precede the hire date. The reporting manager must belong to this organization and must not be separated. National ID and passport number must be unique within the organization (409). `employmentStatus` may only be an administrative state (active, probation, on_leave, suspended) — a record is never created already separated. Audited as employee.created (field names; sensitive values masked).
  * @summary Create an employee
  */
 export const CreateEmployeeParams = zod.object({
@@ -2391,7 +2394,7 @@ export const CreateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2457,10 +2460,11 @@ export const GetEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
+ * Gated employee.write. The generic profile update. It never performs a lifecycle transition: `employmentStatus` may move only between the administrative states (active, probation, on_leave, suspended) and never into `terminated` (use .../separate), out of `terminated` (use .../rehire) or from `probation` to `active` (use .../confirm) — such a request is refused with 400 naming the governed action; an unchanged status is a no-op. Sensitive fields and `notes` follow the same authorization as createEmployee (403, whole body refused). Validation runs on the RESULTING record (stored row merged with the patch) for date consistency, so a partial update cannot leave the dates inconsistent; email/phone formats apply to the fields sent. A reporting manager may not be the employee themself, a separated employee, another organization's employee, or anyone whose reporting line already leads back to this employee (no cycles of any length; checked and written atomically). Audited as employee.updated (changed field names, masked before/after values) plus the pre-existing employee.status_changed when the status changes; a body that changes nothing records nothing.
  * @summary Update an employee
  */
 export const UpdateEmployeeParams = zod.object({
@@ -2566,7 +2570,7 @@ export const UpdateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2636,7 +2640,7 @@ export const UploadEmployeeProfilePictureResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2701,7 +2705,7 @@ export const RemoveEmployeeProfilePictureResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2803,7 +2807,7 @@ export const SeparateEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2869,7 +2873,7 @@ export const RehireEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -2942,7 +2946,7 @@ export const TransferEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3013,7 +3017,7 @@ export const PromoteEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3084,7 +3088,7 @@ export const ConfirmEmployeeResponse = zod.object({
   "updatedBy": zod.number().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.')
+}).describe('WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.')
 
 
 /**
@@ -3137,7 +3141,7 @@ export const AddEmployeeDisciplinaryRecordResponse = zod.object({
 
 
 /**
- * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first.
+ * One row per separation cycle — an employee separated, rehired, and separated again gets a new exit process each time, most recent first. Gated employee.write (the same key as creating/updating an exit process): exit records are HR data, so the directory grant employee.read is not sufficient (2026-09-15).
  * @summary List an employee's exit (off-boarding) processes
  */
 export const ListEmployeeExitProcessesParams = zod.object({
@@ -3892,6 +3896,446 @@ export const UpdateRecordsLocationResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }).describe('A dedicated, self-referencing, organization-owned physical-storage hierarchy (Phase 3H, W116, Decision 6) — not a Master Data extension. Every level is optional and organization-defined.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Returned in ascending stage order.
+ * @summary List the organization's Vehicle Request approval stages (VR-02A)
+ */
+export const ListVehicleRequestApprovalStagesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehicleRequestApprovalStagesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+export const ListVehicleRequestApprovalStagesResponse = zod.array(ListVehicleRequestApprovalStagesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. The resolver configuration is validated against the resolver type, so a stage that could authorize nobody is refused here rather than stranding a request later.
+ * @summary Add an approval stage (VR-02A)
+ */
+export const CreateVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+export const createVehicleRequestApprovalStageBodyNameMax = 120;
+
+
+
+export const CreateVehicleRequestApprovalStageBody = zod.object({
+  "stageOrder": zod.number().min(1),
+  "name": zod.string().min(1).max(createVehicleRequestApprovalStageBodyNameMax),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional()
+})
+
+export const CreateVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage — the same authorization as the rest of the approval-chain configuration surface. It deliberately does NOT require membership.read: this is an administrator choosing an approver, not a second route onto the organization's membership directory.
+ *
+ * Returns active memberships that independently hold vehicle_request.approve. Anyone else could be named but could never resolve, because approval re-checks that permission at decision time — so a stage naming them would strand every request that reached it.
+ *
+ * The response carries only the identity the picker needs. There is no lookup-by-id form, so it cannot be used to probe whether a given membership id exists. Listing someone here grants them nothing.
+ * @summary List who may be named by a specific_membership stage (VR-02A)
+ */
+export const ListVehicleRequestApprovalCandidatesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehicleRequestApprovalCandidatesResponseItem = zod.object({
+  "membershipId": zod.number().describe('The canonical id persisted in the stage\'s resolverConfig.'),
+  "firstName": zod.string(),
+  "lastName": zod.string()
+}).describe('VR-02A — a membership that may be named by a specific_membership approval stage. Deliberately minimal: the membership id that gets persisted in the resolver configuration, plus enough identity to show a person\'s name. No email, roles, Primary HR flag, application user id or employee record is exposed here.')
+export const ListVehicleRequestApprovalCandidatesResponse = zod.array(ListVehicleRequestApprovalCandidatesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's stage is not found.
+ * @summary Get one approval stage (VR-02A)
+ */
+export const GetVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const GetVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Changing the resolver type revalidates its configuration. Reconfiguring the chain never alters a request already in flight.
+ * @summary Amend an approval stage (VR-02A)
+ */
+export const UpdateVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+
+export const updateVehicleRequestApprovalStageBodyNameMax = 120;
+
+
+
+export const UpdateVehicleRequestApprovalStageBody = zod.object({
+  "stageOrder": zod.number().min(1).optional(),
+  "name": zod.string().min(1).max(updateVehicleRequestApprovalStageBodyNameMax).optional(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']).optional(),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional()
+}).describe('Every field is optional; only the fields supplied are changed.')
+
+export const UpdateVehicleRequestApprovalStageResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "purpose": zod.enum(['vehicle_request']),
+  "stageOrder": zod.number().describe('1-based position. Stages are decided strictly in ascending order.'),
+  "name": zod.string(),
+  "resolverType": zod.enum(['department_head', 'permission_holder', 'specific_membership']),
+  "resolverConfig": zod.record(zod.string(), zod.unknown()).optional().describe('permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-02A — one configured stage in an organization\'s Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Affects future requests only — an in-flight request carries its own frozen stage count and its decisions keep their own stage snapshots.
+ * @summary Remove an approval stage (VR-02A)
+ */
+export const DeleteVehicleRequestApprovalStageParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "stageId": zod.coerce.number()
+})
+
+export const DeleteVehicleRequestApprovalStageResponse = zod.void()
+
+
+/**
+ * Requires the asset_management module and an active membership. No permission key: owning your own requests is not an operational grant, so losing a submission grant later never hides your history. "Mine" means every request this membership SUBMITTED — employee and department requests alike. It is never widened by department membership or by vehicle_request.read.all; organization-wide oversight is VR-02D.
+ * @summary List the vehicle requests I submitted (VR-02B)
+ */
+export const ListMyVehicleRequestsParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListMyVehicleRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+export const ListMyVehicleRequestsResponse = zod.array(ListMyVehicleRequestsResponseItem)
+
+
+/**
+ * An `employee` request requires vehicle_request.write.own; a `department` request requires vehicle_request.write.department. The two are independent, and approve/read.all never imply either. The organization, requester, requesting department and submitter are all resolved on the server from the authenticated caller — the body carries no identity. The caller must be a currently active employee with an active canonical department, the vehicle must be this organization's with status `available`, Planned Time Out must not be in the past, Expected Time In must be later than Planned Time Out, and at least one approval stage must be configured. Both timestamps must carry an explicit UTC offset. No approval, reservation or time-window availability check happens here.
+ * @summary Submit a vehicle request (VR-02B)
+ */
+export const SubmitMyVehicleRequestParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+
+
+
+export const SubmitMyVehicleRequestBody = zod.object({
+  "requestType": zod.enum(['employee', 'department']),
+  "vehicleId": zod.number().describe('The exact vehicle from this organization\'s VR-01 register.'),
+  "purpose": zod.string().min(1),
+  "destination": zod.string().nullish(),
+  "plannedTimeOut": zod.coerce.date().describe('Must carry an explicit UTC offset and must not be in the past.'),
+  "plannedTimeIn": zod.coerce.date().describe('The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut.')
+}).describe('VR-02B — a vehicle request. Carries no identity: the organization, requester, requesting department and submitter are resolved on the server from the authenticated caller.')
+
+export const SubmitMyVehicleRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+
+
+/**
+ * Requires the asset_management module and an active membership. Reports which request types the caller's own permissions allow, their canonical department, whether an approval workflow is configured, and a reason when submission is currently impossible. Grants nothing: submission re-checks every term.
+ * @summary What the caller may submit, and why not if they cannot (VR-02B)
+ */
+export const GetMyVehicleRequestContextParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetMyVehicleRequestContextResponse = zod.object({
+  "canSubmitEmployeeRequest": zod.boolean(),
+  "canSubmitDepartmentRequest": zod.boolean(),
+  "department": zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}).nullable(),
+  "approvalWorkflowConfigured": zod.boolean(),
+  "blockedReason": zod.string().nullable()
+}).describe('VR-02B — what the caller may submit and, when they cannot, why. Grants nothing; submission re-checks every term.')
+
+
+/**
+ * Requires the asset_management module and vehicle_request.write.own OR vehicle_request.write.department. Returns this organization's vehicles whose VR-01 status is exactly `available` — nothing more: no time-window availability, no overlap with other requests, no reservation logic. Submission re-validates the chosen vehicle on the server.
+ * @summary Vehicles a requester may choose (VR-02B)
+ */
+export const ListRequestableVehiclesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListRequestableVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "registrationNumber": zod.string(),
+  "make": zod.string().nullable(),
+  "model": zod.string().nullable(),
+  "description": zod.string().nullable()
+}).describe('VR-02B — enough to tell vehicles apart when choosing one. No driver, branch, asset link, notes or status history.')
+export const ListRequestableVehiclesResponse = zod.array(ListRequestableVehiclesResponseItem)
+
+
+/**
+ * Requires the asset_management module and an active membership. A request submitted by anyone else answers 404, indistinguishable from one that does not exist.
+ * @summary One vehicle request I submitted (VR-02B)
+ */
+export const GetMyVehicleRequestParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "requestId": zod.coerce.number()
+})
+
+export const GetMyVehicleRequestResponse = zod.object({
+  "id": zod.number(),
+  "requestReference": zod.string().describe('e.g. VR-00001'),
+  "requestType": zod.enum(['employee', 'department']),
+  "status": zod.enum(['pending', 'approved', 'rejected', 'cancelled']),
+  "requesterEmployeeId": zod.number().nullable(),
+  "requestingDepartmentId": zod.number(),
+  "requestingDepartmentName": zod.string(),
+  "vehicleId": zod.number(),
+  "vehicleRegistrationNumber": zod.string(),
+  "vehicleMake": zod.string().nullable(),
+  "vehicleModel": zod.string().nullable(),
+  "purpose": zod.string(),
+  "destination": zod.string().nullable(),
+  "plannedTimeOut": zod.coerce.date(),
+  "plannedTimeIn": zod.coerce.date(),
+  "totalStages": zod.number(),
+  "currentStageOrder": zod.number().nullable(),
+  "submittedAt": zod.coerce.date()
+}).describe('VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Optional status and search filters; search matches registration number, make or model.
+ * @summary List the organization's vehicles (VR-01)
+ */
+export const ListVehiclesParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const ListVehiclesQueryParams = zod.object({
+  "status": zod.enum(['available', 'maintenance', 'inactive']).optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const ListVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+export const ListVehiclesResponse = zod.array(ListVehiclesResponseItem)
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. The registration number is normalized (trimmed, single-spaced; case preserved) and must be unique within the organization. A new vehicle always starts available.
+ * @summary Register a vehicle (VR-01)
+ */
+export const CreateVehicleParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const createVehicleBodyRegistrationNumberMax = 32;
+
+export const createVehicleBodyMakeMax = 120;
+
+export const createVehicleBodyModelMax = 120;
+
+export const createVehicleBodyDescriptionMax = 500;
+
+export const createVehicleBodyNotesMax = 500;
+
+
+
+export const CreateVehicleBody = zod.object({
+  "registrationNumber": zod.string().min(1).max(createVehicleBodyRegistrationNumberMax),
+  "make": zod.string().max(createVehicleBodyMakeMax).nullish(),
+  "model": zod.string().max(createVehicleBodyModelMax).nullish(),
+  "description": zod.string().max(createVehicleBodyDescriptionMax).nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish(),
+  "notes": zod.string().max(createVehicleBodyNotesMax).nullish()
+})
+
+export const CreateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Another organization's vehicle is not found.
+ * @summary Get one vehicle (VR-01)
+ */
+export const GetVehicleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "vehicleId": zod.coerce.number()
+})
+
+export const GetVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
+
+
+/**
+ * Requires the asset_management module and asset_management.manage. Status is the register's own administrative state: available, maintenance or inactive. Whether a vehicle is physically out is derived from the VR-02 movement record and is never set here.
+ * @summary Update a vehicle's register details or status (VR-01)
+ */
+export const UpdateVehicleParams = zod.object({
+  "organizationId": zod.coerce.number(),
+  "vehicleId": zod.coerce.number()
+})
+
+export const updateVehicleBodyRegistrationNumberMax = 32;
+
+export const updateVehicleBodyMakeMax = 120;
+
+export const updateVehicleBodyModelMax = 120;
+
+export const updateVehicleBodyDescriptionMax = 500;
+
+export const updateVehicleBodyNotesMax = 500;
+
+
+
+export const UpdateVehicleBody = zod.object({
+  "registrationNumber": zod.string().min(1).max(updateVehicleBodyRegistrationNumberMax).optional(),
+  "make": zod.string().max(updateVehicleBodyMakeMax).nullish(),
+  "model": zod.string().max(updateVehicleBodyModelMax).nullish(),
+  "description": zod.string().max(updateVehicleBodyDescriptionMax).nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish(),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish(),
+  "notes": zod.string().max(updateVehicleBodyNotesMax).nullish(),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).optional()
+}).describe('Every field is optional; only the fields supplied are changed.')
+
+export const UpdateVehicleResponse = zod.object({
+  "id": zod.number(),
+  "organizationId": zod.number(),
+  "registrationNumber": zod.string().describe('Normalized (trimmed, single-spaced; case preserved) and unique within the organization.'),
+  "make": zod.string().nullish(),
+  "model": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "defaultDriverEmployeeId": zod.number().nullish().describe('Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.'),
+  "branchId": zod.number().nullish(),
+  "assetId": zod.number().nullish().describe('Optional link to the same organization\'s capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.'),
+  "status": zod.enum(['available', 'maintenance', 'inactive']).describe('The register\'s own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.'),
+  "notes": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('VR-01 — one organizational vehicle, identified by the registration (\"car\") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.')
 
 
 /**
@@ -8113,7 +8557,8 @@ export const ConvertApplicationToEmployeeResponse = zod.object({
   "convertedByMembershipId": zod.number().nullable()
 }).describe('Immutable provenance record left behind once an application converts to a real employee. Column list is exactly §9\'s `candidate_employee_links` row. Unique on applicationId (one conversion per application) and on employeeId (one recruitment provenance per employee).'),
   "employeeId": zod.number(),
-  "reusedExistingEmployee": zod.boolean().describe('True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created.')
+  "reusedExistingEmployee": zod.boolean().describe('True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created.'),
+  "sensitiveFieldsOmitted": zod.array(zod.string()).describe('Candidate fields that are sensitive on the employee record (personalEmail, phoneNumber, nationality, residentialAddress) and were NOT copied because the converting actor lacks employee.sensitive.write. The conversion still succeeds; the candidate record keeps the values and an authorized HR user completes the profile. Empty when everything was copied or an existing employee was reused.')
 })
 
 
@@ -9480,6 +9925,7 @@ export const RetryScheduledJobResponse = zod.object({
  * @summary Dashboard summary
  */
 export const GetDashboardSummaryResponse = zod.object({
+  "activeEmployees": zod.union([zod.number(),zod.null()]).describe('Employees whose employment status is active, probation or on_leave (suspended and terminated excluded). Same employee.write gate as totalEmployees — null, never zero, without it.'),
   "totalEmployees": zod.union([zod.number(),zod.null()]).describe('Null when the caller lacks employee.write (the same org_admin\/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies \"may view the directory,\" never \"may see an aggregate organization headcount.\"'),
   "activeModules": zod.number(),
   "unreadNotifications": zod.number(),
@@ -9488,6 +9934,8 @@ export const GetDashboardSummaryResponse = zod.object({
   "employeesOnLeave": zod.number().describe('Distinct employees (in the viewer\'s scope) with an approved leave request spanning today.'),
   "upcomingApprovedLeave": zod.number().describe('Approved leave requests (in scope) starting within the next 30 days, not yet started.'),
   "pendingApprovalCount": zod.number().describe('Pending leave requests the viewer is authorized to approve — same scope GET ...\/leave-requests\/pending-approvals (W35) uses.'),
+  "awaitingMyActionCount": zod.number().describe('Of pendingApprovalCount, requests at a stage this viewer can decide now — `pending` only for the employee\'s current Department Head, `pending_hr` only for a leave_request.manage holder, never the viewer\'s own request.'),
+  "awaitingOtherStageCount": zod.number().describe('Of pendingApprovalCount, requests the viewer can see but which wait on another approver (e.g. HR monitoring a request still with the Department Head). Monitoring only — not an action for this viewer.'),
   "upcomingPublicHolidays": zod.number().describe('Organization-wide public holiday occurrences within the next 30 days.'),
   "leaveUtilizationPercent": zod.number().describe('100 \* (ledger usage) \/ (ledger opening_balance + accrual + carry_forward credits) across the viewer\'s scope; 0 when nothing has been credited yet.'),
   "expiringCarryForwardBalances": zod.number().describe('Carry-forward ledger entries (in scope) expiring within the next 30 days, counted only under a policy whose carryForwardExpiryMonths is actually set.'),
@@ -9508,6 +9956,60 @@ export const GetDashboardSummaryResponse = zod.object({
   "inventoryMetrics": zod.union([zod.object({
   "totalItems": zod.number().describe('Office Inventory items whose status is \"active\".')
 }),zod.null()]).describe('Null when the \"office_inventory\" module is disabled for the caller\'s active organization, or when the caller lacks office_inventory.reports.read.')
+})
+
+
+/**
+ * One aggregated, read-only call composing the owning modules' existing services (Action Centre providers, form engine stage resolver, Performance, Employment Lifecycle, personnel custody, Assets, Attendance, public holidays, HR-category audit events). The organization comes from the caller's verified membership, never from client input. Each section is authorized by its own module enablement and permission: a section the caller may not see is omitted entirely (no card, no count, no zero), indistinguishably from the module being disabled. `tasks` holds only work the caller can perform now — monitor-only items (e.g. a leave request still with its Department Head, a form at another stage) are never tasks. No permission is minted; a break-glass grant without a membership receives 403.
+ * @summary HR dashboard command centre — tasks, attention, holidays, recent activity
+ */
+export const GetHrCommandCentreParams = zod.object({
+  "organizationId": zod.coerce.number()
+})
+
+export const GetHrCommandCentreResponse = zod.object({
+  "organizationId": zod.number(),
+  "generatedAt": zod.string(),
+  "tasks": zod.union([zod.object({
+  "items": zod.array(zod.object({
+  "sourceModule": zod.enum(['leave', 'learning', 'onboarding', 'skills', 'performance', 'recruitment', 'employee_requests', 'employee_relations', 'succession', 'employment_lifecycle', 'forms']),
+  "sourceType": zod.string(),
+  "sourceId": zod.number(),
+  "actionKind": zod.enum(['approve', 'complete', 'verify', 'review', 'decide', 'fulfil', 'acknowledge']),
+  "title": zod.string(),
+  "employeeId": zod.number().nullish(),
+  "employeeFirstName": zod.string().nullish(),
+  "employeeLastName": zod.string().nullish(),
+  "status": zod.string(),
+  "createdAt": zod.string(),
+  "dueAt": zod.string().nullish(),
+  "overdue": zod.boolean().nullish().describe('Null where dueAt is null — never false (§31.16).'),
+  "context": zod.string().nullable().describe('Safe context such as the current workflow stage or a probation end date.'),
+  "deepLink": zod.string()
+}).describe('A task the caller can perform now. The Action Centre\'s safe pointer shape (§31.6) plus a short context line; read-only (no inline commands). No narrative, no priority.')).describe('At most 25 tasks, overdue first, then due soon, then undated oldest first.'),
+  "total": zod.number(),
+  "overdue": zod.number(),
+  "unavailableSources": zod.array(zod.string()).describe('Authorized task sources whose work could not be loaded.')
+}),zod.null()]).describe('Null when the caller is authorized for no task source at all.'),
+  "attention": zod.array(zod.object({
+  "key": zod.enum(['attendance_exceptions', 'probation_reviews_due', 'performance_reviews_due', 'personnel_files_attention', 'assets_awaiting_return', 'forms_awaiting_review']),
+  "count": zod.number(),
+  "secondaryCount": zod.number().nullable().describe('Monitoring figure where the source has one (forms waiting at other stages).'),
+  "deepLink": zod.string()
+})).describe('Only cards whose module is enabled and whose permission the caller holds.'),
+  "upcomingHolidays": zod.union([zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "date": zod.string().describe('ISO calendar date (YYYY-MM-DD).')
+})),zod.null()]).describe('Next 60 days (max 5). Null without public_holiday.read or with Leave disabled.'),
+  "recentActivity": zod.union([zod.array(zod.object({
+  "id": zod.number(),
+  "occurredAt": zod.string(),
+  "eventType": zod.string(),
+  "targetType": zod.string().nullable(),
+  "actorName": zod.string().nullable()
+}).describe('HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.')),zod.null()]).describe('Latest HR-category audit events. Null without audit.read or audit.read.hr.'),
+  "unavailableSections": zod.array(zod.string()).describe('Authorized sections whose data could not be loaded.')
 })
 
 
@@ -10092,7 +10594,7 @@ export const ListReportsResponse = zod.array(ListReportsResponseItem)
 
 
 /**
- * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON.
+ * Computes a registered report scoped to this organization. Permission required varies by report (see GET /reports). Pass ?format=csv for a CSV download instead of JSON. The required permission is resolved from the server code registry, not the stored report row, and a report the registry does not define is refused (403). The organization-wide workforce aggregates (headcount, workforce_status) require employee.write (2026-09-15).
  *
  * WS-15 P3 (§31.30) — consolidated execution. Every registered report is now executable here: the three organization-level aggregates run directly, and every module report DELEGATES to that module's own reporting service, resolving that module's own scope resolver first, so the generic path is scope-aware and enforces the same permission as the module route. Module routes are unchanged and remain authoritative for their own contracts.
  *
@@ -15152,8 +15654,8 @@ export const ExportPaymentBatchResponse = zod.unknown()
 
 
 /**
- * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved.
- * @summary Get the current Department Head, if any (Office Inventory Workstream 1)
+ * General organizational-authority primitive (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5) — not Inventory-specific. Returns 200 with a null body when the department is vacant; vacancy is never auto-resolved. Requires department.head.read (department.head.manage also grants it). Reading an assignment is not Department Head authority; assigning or revoking one still requires department.head.manage.
+ * @summary Get the current Department Head, if any — gated department.head.read
  */
 export const GetCurrentDepartmentHeadParams = zod.object({
   "organizationId": zod.coerce.number(),
@@ -15221,7 +15723,8 @@ export const RevokeDepartmentHeadResponse = zod.object({
 
 
 /**
- * @summary Full Department Head assignment history, oldest first
+ * Requires department.head.read (department.head.manage also grants it).
+ * @summary Full Department Head assignment history, oldest first — gated department.head.read
  */
 export const ListDepartmentHeadHistoryParams = zod.object({
   "organizationId": zod.coerce.number(),
@@ -15243,6 +15746,7 @@ export const ListDepartmentHeadHistoryResponse = zod.array(ListDepartmentHeadHis
 
 
 /**
+ * Requires department.head.read (department.head.manage also grants it).
  * @summary Who was the Department Head on a given date? (docs/OFFICE_INVENTORY_IMPLEMENTATION_PLAN.md §5.3)
  */
 export const ResolveDepartmentHeadAsOfParams = zod.object({
@@ -25823,6 +26327,7 @@ export const ListFormTemplatesParams = zod.object({
 
 export const ListFormTemplatesResponse = zod.object({
   "templates": zod.array(zod.object({
+  "allowsOnBehalfSubmission": zod.boolean().optional().describe('True when this template\'s PUBLISHED version permits an authorized HR user to complete it on an employee\'s behalf. Absent policy is false.'),
   "id": zod.number(),
   "templateKey": zod.string(),
   "formType": zod.enum(['leave_application', 'personal_information', 'staff_evaluation', 'probationary_assessment', 'generic']),
@@ -26227,6 +26732,9 @@ export const ListFormSubmissionsQueryParams = zod.object({
 
 export const ListFormSubmissionsResponse = zod.object({
   "submissions": zod.array(zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26254,19 +26762,28 @@ export const ListFormSubmissionsResponse = zod.object({
 
 
 /**
- * @summary Start a form (WS-26) — for oneself via the employee link, or for another employee with form.assess
+ * @summary Start a form (WS-26) — for oneself via the employee link, or on behalf of another employee with form_submission.create_on_behalf where the template version permits it
  */
 export const CreateFormSubmissionParams = zod.object({
   "organizationId": zod.coerce.number()
 })
 
+export const createFormSubmissionBodyAssistanceNotesMax = 2000;
+
+
+
 export const CreateFormSubmissionBody = zod.object({
   "templateId": zod.number(),
-  "subjectEmployeeId": zod.number().nullish()
+  "subjectEmployeeId": zod.number().nullish(),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).optional().describe('Why a form was completed by someone other than its subject employee.'),
+  "assistanceNotes": zod.string().max(createFormSubmissionBodyAssistanceNotesMax).nullish().describe('Supporting detail. Required when assistanceReason is \"other\". May contain sensitive detail and is never returned in list projections.')
 })
 
 export const CreateFormSubmissionResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26290,6 +26807,7 @@ export const CreateFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26368,6 +26886,9 @@ export const GetFormSubmissionParams = zod.object({
 
 export const GetFormSubmissionResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26391,6 +26912,7 @@ export const GetFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26473,6 +26995,9 @@ export const SaveFormSubmissionDraftBody = zod.object({
 
 export const SaveFormSubmissionDraftResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26496,6 +27021,7 @@ export const SaveFormSubmissionDraftResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26578,6 +27104,9 @@ export const SubmitFormSubmissionBody = zod.object({
 
 export const SubmitFormSubmissionResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26601,6 +27130,7 @@ export const SubmitFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26685,6 +27215,9 @@ export const ActOnFormSubmissionStageBody = zod.object({
 
 export const ActOnFormSubmissionStageResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26708,6 +27241,7 @@ export const ActOnFormSubmissionStageResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26786,6 +27320,9 @@ export const FinalizeFormSubmissionParams = zod.object({
 
 export const FinalizeFormSubmissionResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26809,6 +27346,7 @@ export const FinalizeFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),
@@ -26887,6 +27425,9 @@ export const ArchiveFormSubmissionParams = zod.object({
 
 export const ArchiveFormSubmissionResponse = zod.object({
   "submission": zod.object({
+  "assisted": zod.boolean().describe('True when an authorized HR user completed this form on the subject employee\'s behalf.'),
+  "assistanceReason": zod.enum(['system_access_unavailable', 'medical_or_incapacity', 'accessibility_assistance', 'administrative_assistance', 'other']).describe('Why a form was completed by someone other than its subject employee.').nullish().describe('Category only. The operator\'s free-text notes are deliberately not part of any summary.'),
+  "currentStageName": zod.string().nullish().describe('Name of the workflow stage the submission is waiting at (e.g. \"Employee Confirmation & Signature\"); null unless pending approval.'),
   "id": zod.number(),
   "organizationId": zod.number(),
   "templateId": zod.number(),
@@ -26910,6 +27451,7 @@ export const ArchiveFormSubmissionResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
+  "subjectHasAccount": zod.boolean().describe('False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed.'),
   "template": zod.object({
   "id": zod.number(),
   "templateKey": zod.string(),

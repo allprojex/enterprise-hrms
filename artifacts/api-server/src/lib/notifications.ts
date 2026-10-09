@@ -30,9 +30,11 @@ import {
   employeeUserLinksTable,
   rolePermissionsTable,
   membershipRolesTable,
+  rolesTable,
   permissionsTable,
   type Notification,
 } from "@workspace/db";
+import { roleOwnedByMembershipOrganization } from "./permissions";
 
 export type RecipientSpec =
   | { kind: "user"; userId: number }
@@ -152,12 +154,15 @@ export async function resolveRecipients(spec: RecipientSpec, organizationId: num
         .selectDistinct({ userId: organizationMembershipsTable.applicationUserId })
         .from(organizationMembershipsTable)
         .innerJoin(membershipRolesTable, eq(membershipRolesTable.membershipId, organizationMembershipsTable.id))
+        .innerJoin(rolesTable, eq(rolesTable.id, membershipRolesTable.roleId))
         .innerJoin(rolePermissionsTable, eq(rolePermissionsTable.roleId, membershipRolesTable.roleId))
         .innerJoin(permissionsTable, eq(permissionsTable.id, rolePermissionsTable.permissionId))
         .where(
           and(
             eq(organizationMembershipsTable.organizationId, organizationId),
             eq(organizationMembershipsTable.status, "active"),
+            // A role another organization owns never makes a member a holder.
+            roleOwnedByMembershipOrganization(),
             eq(permissionsTable.key, spec.permissionKey),
           ),
         );

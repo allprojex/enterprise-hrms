@@ -36,6 +36,7 @@ import {
   FormTemplateStateError,
   FormStageConfigError,
 } from "../lib/formEngine/templates";
+import { allowsOnBehalfSubmission } from "../lib/formEngine/assistedSubmission";
 import { FormDefinitionError } from "../lib/formEngine/definition";
 import { renderBlankDocument } from "../lib/formEngine/render";
 
@@ -125,6 +126,13 @@ router.get(
         description: t.description,
         status: t.status,
         currentPublishedVersionId: t.currentPublishedVersionId,
+        // Lets an HR surface offer "complete on behalf" only where the PUBLISHED
+        // version actually permits it. A boolean, not the raw policy object: the
+        // client never needs to interpret policy semantics, and cannot drift from
+        // the server if more keys are added later.
+        allowsOnBehalfSubmission: allowsOnBehalfSubmission(
+          t.versions.find((v) => v.id === t.currentPublishedVersionId) ?? { submissionPolicy: null },
+        ),
         createdAt: t.createdAt,
         updatedAt: t.updatedAt,
         versions: manager ? t.versions : t.versions.filter((v) => v.status === "published"),

@@ -341,6 +341,25 @@ export async function getVisibleApplicationById(
   return loadApplicationDetail(application);
 }
 
+/**
+ * Same visibility contract as getVisibleApplicationById, without loading the
+ * detail DTO — for routes that expose data hanging off an application (hire
+ * authorization, application-scoped custom field values) and only need the
+ * yes/no answer. False both when the application doesn't exist and when it
+ * isn't visible.
+ */
+export async function isApplicationVisible(
+  organizationId: number,
+  applicationId: number,
+  visibility: ApplicationVisibilityContext,
+): Promise<boolean> {
+  const application = await findApplicationInOrg(organizationId, applicationId);
+  if (!application) return false;
+  const vacancy = await findVacancyInOrg(organizationId, application.vacancyId);
+  const requisition = vacancy ? await findRequisitionInOrg(organizationId, vacancy.requisitionId) : null;
+  return isVisible(requisition ?? undefined, visibility);
+}
+
 // --- Writes ---
 
 interface MoveContext {

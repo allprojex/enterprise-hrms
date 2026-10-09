@@ -84,30 +84,6 @@ export async function resolveActiveOrganizationId(
   return memberships[0]?.organizationId ?? null;
 }
 
-/** Creates an active membership and, if the role key is known, attaches that role. */
-export async function createMembershipWithRole(params: {
-  applicationUserId: number;
-  organizationId: number;
-  roleKey: string;
-}): Promise<Membership> {
-  const [membership] = await db
-    .insert(organizationMembershipsTable)
-    .values({
-      applicationUserId: params.applicationUserId,
-      organizationId: params.organizationId,
-      status: "active",
-      joinedAt: new Date(),
-    })
-    .returning();
-
-  const [role] = await db.select().from(rolesTable).where(eq(rolesTable.key, params.roleKey)).limit(1);
-  if (role) {
-    await db.insert(membershipRolesTable).values({ membershipId: membership.id, roleId: role.id });
-  }
-
-  return membership;
-}
-
 export class UserNotFoundError extends Error {}
 export class AlreadyMemberError extends Error {}
 

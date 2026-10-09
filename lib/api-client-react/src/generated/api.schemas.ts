@@ -1467,6 +1467,8 @@ export interface ReadinessStatus {
 
 export interface ApiError {
   error: string;
+  /** Optional stable machine-readable reason. Present on refusals a client should recognise rather than parse: `self_administration_forbidden` (403) — the acting user is linked to the employee record the administrative action targets, so the change must be made by another authorized HR officer or organisation administrator, or requested through the governed data-change workflow. Such a response may also carry `employeeId` (integer) naming the record. */
+  code?: string;
 }
 
 export interface MessageResponse {
@@ -2940,6 +2942,10 @@ export interface MembershipSummary {
   /** The caller's own EFFECTIVE permission keys for this membership — the union of every permission granted through the membership's roles, exactly what the server evaluates in requirePermission. Self-scoped (never another member's grants) and informational: it lets the client show an administrative entry only when the caller holds a permission its destination actually requires, rather than inferring authority from role names. The server remains authoritative on every request. */
   permissions: string[];
   isPrimaryHr: boolean;
+  /** True when this membership is the CURRENT head of at least one department. Structural authority, not a permission: a department head acts on their department because of a live department_heads row, while leave_request.approve is held by every employee and gates may-attempt, never may-act. Self-scoped and informational — it lets the client offer a manager surface only to someone who actually holds one. The server re-resolves the same primitive on every request and stays authoritative. */
+  isDepartmentHead?: boolean;
+  /** True when at least one employee currently reports to this membership's employee record. The same structural signal as isDepartmentHead, for the reporting-manager tier. No ids, counts or names are exposed — only whether the authority exists. */
+  hasDirectReports?: boolean;
 }
 
 export interface SwitchOrganizationInput {
@@ -5490,6 +5496,8 @@ export interface ConversionResult {
   employeeId: number;
   /** True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created. */
   reusedExistingEmployee: boolean;
+  /** Candidate fields that are sensitive on the employee record (personalEmail, phoneNumber, nationality, residentialAddress) and were NOT copied because the converting actor lacks employee.sensitive.write. The conversion still succeeds; the candidate record keeps the values and an authorized HR user completes the profile. Empty when everything was copied or an existing employee was reused. */
+  sensitiveFieldsOmitted: string[];
 }
 
 /**
@@ -6044,7 +6052,7 @@ export const EmployeeEmploymentStatus = {
 } as const;
 
 /**
- * WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `notes` keeps its own employee.notes.read gate.
+ * WWM Employee Access Remediation (2026-09-07): `gender`, `dateOfBirth`, `maritalStatus`, `nationality`, `nationalId`, `passportNumber`, `personalEmail`, `phoneNumber`, `alternatePhoneNumber`, `residentialAddress`, `emergencyContacts` and `separationReason` are returned only to a caller holding employee.sensitive.read or viewing their own record; otherwise they are null and `sensitiveFieldsRedacted` is true. `phoneNumber` joined this set on 2026-09-15 because the field is not constrained to a work line; `workEmail` remains the directory contact field. `notes` keeps its own employee.notes.read gate.
  */
 export interface Employee {
   id: number;
@@ -6499,6 +6507,338 @@ export interface PersonnelSearchResult {
   currentEmployeeNumber: string | null;
   /** @nullable */
   pifNumber: string | null;
+}
+
+/**
+ * VR-02A — a membership that may be named by a specific_membership approval stage. Deliberately minimal: the membership id that gets persisted in the resolver configuration, plus enough identity to show a person's name. No email, roles, Primary HR flag, application user id or employee record is exposed here.
+ */
+export interface VehicleRequestApprovalCandidate {
+  /** The canonical id persisted in the stage's resolverConfig. */
+  membershipId: number;
+  firstName: string;
+  lastName: string;
+}
+
+export type SubmitMyVehicleRequestInputRequestType = typeof SubmitMyVehicleRequestInputRequestType[keyof typeof SubmitMyVehicleRequestInputRequestType];
+
+
+export const SubmitMyVehicleRequestInputRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+/**
+ * VR-02B — a vehicle request. Carries no identity: the organization, requester, requesting department and submitter are resolved on the server from the authenticated caller.
+ */
+export interface SubmitMyVehicleRequestInput {
+  requestType: SubmitMyVehicleRequestInputRequestType;
+  /** The exact vehicle from this organization's VR-01 register. */
+  vehicleId: number;
+  /** @minLength 1 */
+  purpose: string;
+  /** @nullable */
+  destination?: string | null;
+  /** Must carry an explicit UTC offset and must not be in the past. */
+  plannedTimeOut: string;
+  /** The Expected Time In. Must carry an explicit UTC offset and be later than plannedTimeOut. */
+  plannedTimeIn: string;
+}
+
+export type MyVehicleRequestRequestType = typeof MyVehicleRequestRequestType[keyof typeof MyVehicleRequestRequestType];
+
+
+export const MyVehicleRequestRequestType = {
+  employee: 'employee',
+  department: 'department',
+} as const;
+
+export type MyVehicleRequestStatus = typeof MyVehicleRequestStatus[keyof typeof MyVehicleRequestStatus];
+
+
+export const MyVehicleRequestStatus = {
+  pending: 'pending',
+  approved: 'approved',
+  rejected: 'rejected',
+  cancelled: 'cancelled',
+} as const;
+
+/**
+ * VR-02B — a vehicle request as its submitter sees it. requesterEmployeeId is null for a department request, whose requester is the department.
+ */
+export interface MyVehicleRequest {
+  id: number;
+  /** e.g. VR-00001 */
+  requestReference: string;
+  requestType: MyVehicleRequestRequestType;
+  status: MyVehicleRequestStatus;
+  /** @nullable */
+  requesterEmployeeId: number | null;
+  requestingDepartmentId: number;
+  requestingDepartmentName: string;
+  vehicleId: number;
+  vehicleRegistrationNumber: string;
+  /** @nullable */
+  vehicleMake: string | null;
+  /** @nullable */
+  vehicleModel: string | null;
+  purpose: string;
+  /** @nullable */
+  destination: string | null;
+  plannedTimeOut: string;
+  plannedTimeIn: string;
+  totalStages: number;
+  /** @nullable */
+  currentStageOrder: number | null;
+  submittedAt: string;
+}
+
+/**
+ * @nullable
+ */
+export type VehicleRequestSubmissionContextDepartment = {
+  id: number;
+  name: string;
+} | null;
+
+/**
+ * VR-02B — what the caller may submit and, when they cannot, why. Grants nothing; submission re-checks every term.
+ */
+export interface VehicleRequestSubmissionContext {
+  canSubmitEmployeeRequest: boolean;
+  canSubmitDepartmentRequest: boolean;
+  /** @nullable */
+  department: VehicleRequestSubmissionContextDepartment;
+  approvalWorkflowConfigured: boolean;
+  /** @nullable */
+  blockedReason: string | null;
+}
+
+/**
+ * VR-02B — enough to tell vehicles apart when choosing one. No driver, branch, asset link, notes or status history.
+ */
+export interface RequestableVehicle {
+  id: number;
+  registrationNumber: string;
+  /** @nullable */
+  make: string | null;
+  /** @nullable */
+  model: string | null;
+  /** @nullable */
+  description: string | null;
+}
+
+export type VehicleRequestApprovalStagePurpose = typeof VehicleRequestApprovalStagePurpose[keyof typeof VehicleRequestApprovalStagePurpose];
+
+
+export const VehicleRequestApprovalStagePurpose = {
+  vehicle_request: 'vehicle_request',
+} as const;
+
+export type VehicleRequestApprovalStageResolverType = typeof VehicleRequestApprovalStageResolverType[keyof typeof VehicleRequestApprovalStageResolverType];
+
+
+export const VehicleRequestApprovalStageResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+/**
+ * permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department.
+ */
+export type VehicleRequestApprovalStageResolverConfig = { [key: string]: unknown };
+
+/**
+ * VR-02A — one configured stage in an organization's Vehicle Request approval chain. A stage NAMES a server-defined resolver and supplies its data; it can never supply code.
+ */
+export interface VehicleRequestApprovalStage {
+  id: number;
+  organizationId: number;
+  purpose: VehicleRequestApprovalStagePurpose;
+  /** 1-based position. Stages are decided strictly in ascending order. */
+  stageOrder: number;
+  name: string;
+  resolverType: VehicleRequestApprovalStageResolverType;
+  /** permission_holder takes { permissionKey }; specific_membership takes { membershipId }; department_head takes no configuration, because the request itself supplies the department. */
+  resolverConfig?: VehicleRequestApprovalStageResolverConfig;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateVehicleRequestApprovalStageInputResolverType = typeof CreateVehicleRequestApprovalStageInputResolverType[keyof typeof CreateVehicleRequestApprovalStageInputResolverType];
+
+
+export const CreateVehicleRequestApprovalStageInputResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type CreateVehicleRequestApprovalStageInputResolverConfig = { [key: string]: unknown };
+
+export interface CreateVehicleRequestApprovalStageInput {
+  /** @minimum 1 */
+  stageOrder: number;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name: string;
+  resolverType: CreateVehicleRequestApprovalStageInputResolverType;
+  resolverConfig?: CreateVehicleRequestApprovalStageInputResolverConfig;
+}
+
+export type UpdateVehicleRequestApprovalStageInputResolverType = typeof UpdateVehicleRequestApprovalStageInputResolverType[keyof typeof UpdateVehicleRequestApprovalStageInputResolverType];
+
+
+export const UpdateVehicleRequestApprovalStageInputResolverType = {
+  department_head: 'department_head',
+  permission_holder: 'permission_holder',
+  specific_membership: 'specific_membership',
+} as const;
+
+export type UpdateVehicleRequestApprovalStageInputResolverConfig = { [key: string]: unknown };
+
+/**
+ * Every field is optional; only the fields supplied are changed.
+ */
+export interface UpdateVehicleRequestApprovalStageInput {
+  /** @minimum 1 */
+  stageOrder?: number;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  resolverType?: UpdateVehicleRequestApprovalStageInputResolverType;
+  resolverConfig?: UpdateVehicleRequestApprovalStageInputResolverConfig;
+}
+
+/**
+ * The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here.
+ */
+export type VehicleStatus = typeof VehicleStatus[keyof typeof VehicleStatus];
+
+
+export const VehicleStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * VR-01 — one organizational vehicle, identified by the registration ("car") number the organization already uses. Its own register, not an asset-custody record: asset custody is open-ended possession, while a vehicle is booked for a period by the VR-02 flow. An organization that also carries the vehicle in its capital-asset register may link the two through assetId; the link is optional and creates no asset custody.
+ */
+export interface Vehicle {
+  id: number;
+  organizationId: number;
+  /** Normalized (trimmed, single-spaced; case preserved) and unique within the organization. */
+  registrationNumber: string;
+  /** @nullable */
+  make?: string | null;
+  /** @nullable */
+  model?: string | null;
+  /** @nullable */
+  description?: string | null;
+  /**
+     * Optional. A live reference — every movement record snapshots its own driver, so history is never rewritten by a change here.
+     * @nullable
+     */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /**
+     * Optional link to the same organization's capital-asset register. At most one vehicle may link to a given asset. Linking records no asset custody and changes no asset history.
+     * @nullable
+     */
+  assetId?: number | null;
+  /** The register's own administrative state. Whether a vehicle is physically out is derived from the VR-02 movement record, never stored here. */
+  status: VehicleStatus;
+  /** @nullable */
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVehicleInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  registrationNumber: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  make?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+  /** @nullable */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  notes?: string | null;
+}
+
+export type UpdateVehicleInputStatus = typeof UpdateVehicleInputStatus[keyof typeof UpdateVehicleInputStatus];
+
+
+export const UpdateVehicleInputStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
+
+/**
+ * Every field is optional; only the fields supplied are changed.
+ */
+export interface UpdateVehicleInput {
+  /**
+     * @minLength 1
+     * @maxLength 32
+     */
+  registrationNumber?: string;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  make?: string | null;
+  /**
+     * @maxLength 120
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  description?: string | null;
+  /** @nullable */
+  defaultDriverEmployeeId?: number | null;
+  /** @nullable */
+  branchId?: number | null;
+  /** @nullable */
+  assetId?: number | null;
+  /**
+     * @maxLength 500
+     * @nullable
+     */
+  notes?: string | null;
+  status?: UpdateVehicleInputStatus;
 }
 
 export type RecordsLocationStatus = typeof RecordsLocationStatus[keyof typeof RecordsLocationStatus];
@@ -6967,6 +7307,10 @@ export interface LeaveDashboardMetrics {
   upcomingApprovedLeave: number;
   /** Pending leave requests the viewer is authorized to approve — same scope GET .../leave-requests/pending-approvals (W35) uses. */
   pendingApprovalCount: number;
+  /** Of pendingApprovalCount, requests at a stage this viewer can decide now — `pending` only for the employee's current Department Head, `pending_hr` only for a leave_request.manage holder, never the viewer's own request. */
+  awaitingMyActionCount: number;
+  /** Of pendingApprovalCount, requests the viewer can see but which wait on another approver (e.g. HR monitoring a request still with the Department Head). Monitoring only — not an action for this viewer. */
+  awaitingOtherStageCount: number;
   /** Organization-wide public holiday occurrences within the next 30 days. */
   upcomingPublicHolidays: number;
   /** 100 * (ledger usage) / (ledger opening_balance + accrual + carry_forward credits) across the viewer's scope; 0 when nothing has been credited yet. */
@@ -6993,6 +7337,8 @@ export interface InventoryDashboardMetrics {
 }
 
 export interface DashboardSummary {
+  /** Employees whose employment status is active, probation or on_leave (suspended and terminated excluded). Same employee.write gate as totalEmployees — null, never zero, without it. */
+  activeEmployees: number | null;
   /** Null when the caller lacks employee.write (the same org_admin/hr_manager-only tier that gates every employee-record mutation) — the broad employee.read every role holds only implies "may view the directory," never "may see an aggregate organization headcount." */
   totalEmployees: number | null;
   activeModules: number;
@@ -7005,6 +7351,107 @@ export interface DashboardSummary {
   assetMetrics: AssetDashboardMetrics | null;
   /** Null when the "office_inventory" module is disabled for the caller's active organization, or when the caller lacks office_inventory.reports.read. */
   inventoryMetrics: InventoryDashboardMetrics | null;
+}
+
+export type HrTaskSourceModule = typeof HrTaskSourceModule[keyof typeof HrTaskSourceModule];
+
+
+export const HrTaskSourceModule = {
+  leave: 'leave',
+  learning: 'learning',
+  onboarding: 'onboarding',
+  skills: 'skills',
+  performance: 'performance',
+  recruitment: 'recruitment',
+  employee_requests: 'employee_requests',
+  employee_relations: 'employee_relations',
+  succession: 'succession',
+  employment_lifecycle: 'employment_lifecycle',
+  forms: 'forms',
+} as const;
+
+/**
+ * A task the caller can perform now. The Action Centre's safe pointer shape (§31.6) plus a short context line; read-only (no inline commands). No narrative, no priority.
+ */
+export interface HrTask {
+  sourceModule: HrTaskSourceModule;
+  sourceType: string;
+  sourceId: number;
+  actionKind: ActionKind;
+  title: string;
+  employeeId?: number | null;
+  employeeFirstName?: string | null;
+  employeeLastName?: string | null;
+  status: string;
+  createdAt: string;
+  dueAt?: string | null;
+  /** Null where dueAt is null — never false (§31.16). */
+  overdue?: boolean | null;
+  /** Safe context such as the current workflow stage or a probation end date. */
+  context: string | null;
+  deepLink: string;
+}
+
+export interface HrTaskList {
+  /** At most 25 tasks, overdue first, then due soon, then undated oldest first. */
+  items: HrTask[];
+  total: number;
+  overdue: number;
+  /** Authorized task sources whose work could not be loaded. */
+  unavailableSources: string[];
+}
+
+export type HrAttentionCardKey = typeof HrAttentionCardKey[keyof typeof HrAttentionCardKey];
+
+
+export const HrAttentionCardKey = {
+  attendance_exceptions: 'attendance_exceptions',
+  probation_reviews_due: 'probation_reviews_due',
+  performance_reviews_due: 'performance_reviews_due',
+  personnel_files_attention: 'personnel_files_attention',
+  assets_awaiting_return: 'assets_awaiting_return',
+  forms_awaiting_review: 'forms_awaiting_review',
+} as const;
+
+export interface HrAttentionCard {
+  key: HrAttentionCardKey;
+  count: number;
+  /** Monitoring figure where the source has one (forms waiting at other stages). */
+  secondaryCount: number | null;
+  deepLink: string;
+}
+
+export interface HrUpcomingHoliday {
+  id: number;
+  name: string;
+  /** ISO calendar date (YYYY-MM-DD). */
+  date: string;
+}
+
+/**
+ * HR-category audit event, redacted to what a dashboard needs — no state, IP, user agent or metadata.
+ */
+export interface HrActivityItem {
+  id: number;
+  occurredAt: string;
+  eventType: string;
+  targetType: string | null;
+  actorName: string | null;
+}
+
+export interface HrCommandCentre {
+  organizationId: number;
+  generatedAt: string;
+  /** Null when the caller is authorized for no task source at all. */
+  tasks: HrTaskList | null;
+  /** Only cards whose module is enabled and whose permission the caller holds. */
+  attention: HrAttentionCard[];
+  /** Next 60 days (max 5). Null without public_holiday.read or with Leave disabled. */
+  upcomingHolidays: HrUpcomingHoliday[] | null;
+  /** Latest HR-category audit events. Null without audit.read or audit.read.hr. */
+  recentActivity: HrActivityItem[] | null;
+  /** Authorized sections whose data could not be loaded. */
+  unavailableSections: string[];
 }
 
 export interface Role {
@@ -13593,6 +14040,8 @@ export interface FormTemplateVersionSummary {
 }
 
 export interface FormTemplateSummary {
+  /** True when this template's PUBLISHED version permits an authorized HR user to complete it on an employee's behalf. Absent policy is false. */
+  allowsOnBehalfSubmission?: boolean;
   id: number;
   templateKey: string;
   formType: FormTemplateType;
@@ -13675,7 +14124,27 @@ export interface UpdateFormTemplateVersionBody {
   changeNote?: string | null;
 }
 
+/**
+ * Why a form was completed by someone other than its subject employee.
+ */
+export type FormAssistanceReason = typeof FormAssistanceReason[keyof typeof FormAssistanceReason];
+
+
+export const FormAssistanceReason = {
+  system_access_unavailable: 'system_access_unavailable',
+  medical_or_incapacity: 'medical_or_incapacity',
+  accessibility_assistance: 'accessibility_assistance',
+  administrative_assistance: 'administrative_assistance',
+  other: 'other',
+} as const;
+
 export interface FormSubmissionSummary {
+  /** True when an authorized HR user completed this form on the subject employee's behalf. */
+  assisted: boolean;
+  /** Category only. The operator's free-text notes are deliberately not part of any summary. */
+  assistanceReason?: FormAssistanceReason | null;
+  /** Name of the workflow stage the submission is waiting at (e.g. "Employee Confirmation & Signature"); null unless pending approval. */
+  currentStageName?: string | null;
   id: number;
   organizationId: number;
   templateId: number;
@@ -13779,6 +14248,8 @@ export type FormSubmissionDetailVersion = {
 
 export interface FormSubmissionDetail {
   submission: FormSubmissionSummary;
+  /** False when the subject employee has no linked login account. A stage that resolves to the subject employee therefore has no actor until an account is linked, and the form waits. Deliberately a boolean: no account identifier is exposed. */
+  subjectHasAccount: boolean;
   template: FormSubmissionDetailTemplate;
   version: FormSubmissionDetailVersion;
   stages: FormWorkflowStage[];
@@ -13791,6 +14262,12 @@ export interface FormSubmissionDetail {
 export interface CreateFormSubmissionBody {
   templateId: number;
   subjectEmployeeId?: number | null;
+  assistanceReason?: FormAssistanceReason;
+  /**
+     * Supporting detail. Required when assistanceReason is "other". May contain sensitive detail and is never returned in list projections.
+     * @maxLength 2000
+     */
+  assistanceNotes?: string | null;
 }
 
 export interface SaveFormSubmissionDraftBody {
@@ -13892,6 +14369,20 @@ export type UploadEmployeeDocumentBody = {
 export type SearchPersonnelRecordsParams = {
 search?: string;
 };
+
+export type ListVehiclesParams = {
+status?: ListVehiclesStatus;
+search?: string;
+};
+
+export type ListVehiclesStatus = typeof ListVehiclesStatus[keyof typeof ListVehiclesStatus];
+
+
+export const ListVehiclesStatus = {
+  available: 'available',
+  maintenance: 'maintenance',
+  inactive: 'inactive',
+} as const;
 
 export type ListPersonnelFileMovementsParams = {
 volumeId?: number;

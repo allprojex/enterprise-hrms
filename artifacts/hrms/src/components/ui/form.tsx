@@ -157,7 +157,11 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn('text-helper font-medium text-danger', className)}
+      // Validation errors are content the reader must be able to act on, not
+      // microcopy: they sit on the existing text-body-sm token (13px) instead
+      // of the 12px text-helper floor, so UI-01B's responsive scale lifts them
+      // with the rest of the body text rather than needing a special case.
+      className={cn('text-body-sm font-medium text-danger', className)}
       {...props}
     >
       {body}

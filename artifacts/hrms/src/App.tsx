@@ -54,6 +54,8 @@ import LearningEnrollments from '@/pages/learning-enrollments';
 import LearningDashboard from '@/pages/learning-dashboard';
 import LearningReports from '@/pages/learning-reports';
 import Assets from '@/pages/assets';
+import Vehicles from '@/pages/vehicles';
+import VehicleRequestApprovalsConfig from '@/pages/vehicle-request-approvals-config';
 import TeamAssets from '@/pages/team-assets';
 import AssetsDashboard from '@/pages/assets-dashboard';
 import AssetReports from '@/pages/asset-reports';
@@ -94,6 +96,7 @@ import EmployeeRelations from '@/pages/employee-relations';
 import Offboarding from '@/pages/offboarding';
 import MyGrievances from '@/pages/my-grievances';
 import MyRequests from '@/pages/my-requests';
+import MyVehicleRequests from '@/pages/my-vehicle-requests';
 import Requests from '@/pages/requests';
 import RequestSettings from '@/pages/request-settings';
 import SkillsSettings from '@/pages/skills-settings';
@@ -218,15 +221,25 @@ function Router() {
         {() => <SecureRoute component={MyGrievances} />}
       </Route>
       {/*
-        WS-13 — Requests and Approvals. No moduleKey: these are Core HR
-        surfaces, and every endpoint behind them enforces its own permission
-        server-side (section 29.18). "/my-requests" is deliberately ungated
-        beyond authentication, because an employee's right to ask about their
-        own record comes from their employee link, not from a grant somebody
-        could withhold.
+        WS-13 — Requests and Approvals. The HR surfaces carry no moduleKey:
+        they are Core HR, and every endpoint behind them enforces its own
+        permission server-side (section 29.18). "/my-requests" needs no
+        permission — an employee's right to ask about their own record comes
+        from their employee link — but it IS an Employee Self-Service surface,
+        so it follows that module exactly as its my-* API routes now do
+        (Core-HR Phase 1).
       */}
       <Route path="/my-requests">
-        {() => <SecureRoute component={MyRequests} />}
+        {() => <SecureRoute component={MyRequests} moduleKey="employee_self_service" />}
+      </Route>
+      {/*
+        VR-02B — Employee Self-Service vehicle requests. Gated only by the
+        asset_management module that owns vehicles: reading the requests you
+        submitted needs no permission, and every submission is re-authorized by
+        the API against the explicit vehicle_request.write.* grants.
+      */}
+      <Route path="/my-vehicle-requests">
+        {() => <SecureRoute component={MyVehicleRequests} moduleKey="asset_management" />}
       </Route>
       <Route path="/requests">
         {() => <SecureRoute component={Requests} />}
@@ -391,6 +404,18 @@ function Router() {
       </Route>
       <Route path="/assets">
         {() => <SecureRoute component={Assets} moduleKey="asset_management" />}
+      </Route>
+      {/* VR-01 — the vehicle register is Assets administration: the same
+          asset_management module gate as the rest of the group, and the page's
+          own controls follow asset_management.manage, which the API re-checks. */}
+      <Route path="/vehicles">
+        {() => <SecureRoute component={Vehicles} moduleKey="asset_management" />}
+      </Route>
+      {/* VR-02A — who approves a vehicle request. Administration of the vehicle
+          domain, so the same asset_management gate as the register; the API
+          re-checks asset_management.manage on every stage route. */}
+      <Route path="/vehicle-request-approvals-config">
+        {() => <SecureRoute component={VehicleRequestApprovalsConfig} moduleKey="asset_management" />}
       </Route>
       <Route path="/team-assets">
         {() => <SecureRoute component={TeamAssets} moduleKey="asset_management" />}

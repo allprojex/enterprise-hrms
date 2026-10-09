@@ -5,10 +5,12 @@ import {
   employeeUserLinksTable,
   organizationMembershipsTable,
   membershipRolesTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
 } from "@workspace/db";
 import { resolveDepartmentHeadAsOf } from "../departmentHeads";
+import { roleOwnedByMembershipOrganization } from "../permissions";
 
 /**
  * WS-10 — responsibility resolution (§26.11, §26.12).
@@ -127,17 +129,21 @@ export async function resolveResponsibility(
         return { resolver: config.resolver, membershipIds: [], basis: "No permission key is configured." };
       }
       // Roles attach to a membership through `membership_roles` (a membership
-      // may hold several), which is the same path getEffectivePermissions uses.
+      // may hold several), counted under the same tenant-ownership rule
+      // getEffectivePermissions applies.
       const rows = await db
         .selectDistinct({ membershipId: organizationMembershipsTable.id })
         .from(organizationMembershipsTable)
         .innerJoin(membershipRolesTable, eq(membershipRolesTable.membershipId, organizationMembershipsTable.id))
+        .innerJoin(rolesTable, eq(rolesTable.id, membershipRolesTable.roleId))
         .innerJoin(rolePermissionsTable, eq(rolePermissionsTable.roleId, membershipRolesTable.roleId))
         .innerJoin(permissionsTable, eq(permissionsTable.id, rolePermissionsTable.permissionId))
         .where(
           and(
             eq(organizationMembershipsTable.organizationId, organizationId),
             eq(organizationMembershipsTable.status, "active"),
+            // A role another organization owns never makes a member responsible.
+            roleOwnedByMembershipOrganization(),
             eq(permissionsTable.key, config.permissionKey),
           ),
         );

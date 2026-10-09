@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "activate:wwm": "tsx ./scripts/activate-wwm-templates.ts",
-    "migrate:hr-roles": "tsx ./scripts/migrate-hr-roles.ts"
+    "migrate:hr-roles": "tsx ./scripts/migrate-hr-roles.ts",
+    "prepare:form-policy-versions": "tsx ./scripts/prepare-form-policy-versions.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
@@ -24,7 +25,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "helmet": "^8.1.0",
-    "multer": "^2.0.1",
+    "multer": "^2.3.0",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",
     "resend": "^6.18.1",

@@ -5,13 +5,16 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const { fixtures, membershipRolesTable, rolePermissionsTable, permissionsTable } = vi.hoisted(() => {
+const { fixtures, membershipRolesTable, organizationMembershipsTable, rolesTable, rolePermissionsTable, permissionsTable } = vi.hoisted(() => {
   return {
     fixtures: {
-      roleRows: [] as { roleId: number }[],
+      roleRows: [] as { roleId: number; roleOrganizationId?: number | null; membershipOrganizationId?: number }[],
       permissionRows: [] as { key: string }[],
+      roleQuery: { joins: [] as unknown[], permittedRoleIds: null as number[] | null },
     },
     membershipRolesTable: { __name: "membership_roles" },
+    organizationMembershipsTable: { __name: "organization_memberships" },
+    rolesTable: { __name: "roles" },
     rolePermissionsTable: { __name: "role_permissions" },
     permissionsTable: { __name: "permissions" },
   };
@@ -19,15 +22,22 @@ const { fixtures, membershipRolesTable, rolePermissionsTable, permissionsTable }
 
 vi.mock("@workspace/db", () => ({
   membershipRolesTable,
+  organizationMembershipsTable,
+  rolesTable,
   rolePermissionsTable,
   permissionsTable,
   db: {
     select: () => ({
       from(table: unknown) {
         if (table === membershipRolesTable) {
-          return {
+          const builder = {
+            innerJoin: (joined: unknown) => {
+              fixtures.roleQuery.joins.push(joined);
+              return builder;
+            },
             where: () => Promise.resolve(fixtures.roleRows),
           };
+          return builder;
         }
         const builder = {
           innerJoin: () => builder,
@@ -41,7 +51,10 @@ vi.mock("@workspace/db", () => ({
 
 vi.mock("drizzle-orm", () => ({
   eq: () => "eq",
-  inArray: () => "inArray",
+  inArray: (_column: unknown, ids: number[]) => {
+    fixtures.roleQuery.permittedRoleIds = ids;
+    return "inArray";
+  },
 }));
 
 const { getEffectivePermissions, hasPermission } = await import("../lib/permissions");
@@ -64,6 +77,35 @@ describe("getEffectivePermissions", () => {
     const result = await getEffectivePermissions(1);
 
     expect(result).toEqual(new Set(["organization.read", "employee.write"]));
+  });
+
+  it("joins each role's owner and the membership's organization", async () => {
+    fixtures.roleQuery = { joins: [], permittedRoleIds: null };
+    await getEffectivePermissions(1);
+    expect(fixtures.roleQuery.joins).toEqual([organizationMembershipsTable, rolesTable]);
+  });
+
+  it("counts template and same-organization roles, and drops another organization's role", async () => {
+    // The real denial is also proved against a database in
+    // effectivePermissionsTenantGuardLive.test.ts.
+    fixtures.roleQuery = { joins: [], permittedRoleIds: null };
+    fixtures.roleRows = [
+      { roleId: 1, roleOrganizationId: null, membershipOrganizationId: 5 }, // system template
+      { roleId: 2, roleOrganizationId: 5, membershipOrganizationId: 5 }, // own organization
+      { roleId: 3, roleOrganizationId: 9, membershipOrganizationId: 5 }, // another organization
+    ];
+    fixtures.permissionRows = [{ key: "organization.read" }];
+    await getEffectivePermissions(1);
+    expect(fixtures.roleQuery.permittedRoleIds).toEqual([1, 2]);
+  });
+
+  it("grants nothing when every linked role belongs to another organization", async () => {
+    fixtures.roleQuery = { joins: [], permittedRoleIds: null };
+    fixtures.roleRows = [{ roleId: 3, roleOrganizationId: 9, membershipOrganizationId: 5 }];
+    fixtures.permissionRows = [{ key: "membership.manage" }];
+    const result = await getEffectivePermissions(1);
+    expect(result.size).toBe(0);
+    expect(fixtures.roleQuery.permittedRoleIds).toBeNull();
   });
 });
 

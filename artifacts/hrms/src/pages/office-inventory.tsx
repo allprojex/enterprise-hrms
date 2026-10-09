@@ -9,7 +9,7 @@
  * and lives on the existing Departments page instead.
  */
 import { useState } from 'react';
-import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock, LayoutDashboard, FileBarChart, Download, PackagePlus } from 'lucide-react';
+import { Boxes, Warehouse, Settings2, Plus, Pencil, Truck, Trash2, PackageSearch, ClipboardList, CheckCircle2, XCircle, UserCog, X, Ban, PackageCheck, Users, Undo2, ArrowLeftRight, AlertTriangle, ShieldAlert, Archive, SlidersHorizontal, SearchCheck, ClipboardCheck, Play, Lock, FileBarChart, Download, PackagePlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -70,7 +70,6 @@ import {
   getListOfficeInventoryRequestsAwaitingFulfilmentQueryKey,
   useIssueOfficeInventoryRequestLine,
   useCreateOfficeInventoryDirectIssue,
-  useConfirmOfficeInventoryReceipt,
   useGetOfficeInventoryEmployeeCustody,
   getGetOfficeInventoryEmployeeCustodyQueryKey,
   useGetOfficeInventoryDepartmentCustody,
@@ -113,6 +112,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const NONE = '__none__';
 
@@ -1184,9 +1184,10 @@ export function RequestDetailDialog({ organizationId, requestId, onChanged }: { 
     query: { queryKey: getGetOfficeInventoryRequestQueryKey(organizationId, requestId), enabled: organizationId > 0 && open },
   });
   const cancelMutation = useCancelOfficeInventoryRequest();
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
-  const handleCancel = () => {
-    cancelMutation.mutate(
+  const handleCancel = () =>
+    cancelMutation.mutateAsync(
       { organizationId, id: requestId },
       {
         onSuccess: () => {
@@ -1196,7 +1197,6 @@ export function RequestDetailDialog({ organizationId, requestId, onChanged }: { 
         onError: (err) => toast({ title: 'Could not cancel request', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
 
   const canCancel = data?.request.status === 'pending' && (data?.lines ?? []).every((l) => l.approvalStatus === 'pending');
 
@@ -1224,7 +1224,7 @@ export function RequestDetailDialog({ organizationId, requestId, onChanged }: { 
               </div>
             ))}
             {canCancel && (
-              <Button size="sm" variant="destructive" onClick={handleCancel} disabled={cancelMutation.isPending} data-testid={`button-cancel-request-${requestId}`}>
+              <Button size="sm" variant="destructive" onClick={() => setCancelConfirmOpen(true)} disabled={cancelMutation.isPending} data-testid={`button-cancel-request-${requestId}`}>
                 <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                 Cancel Request
               </Button>
@@ -1232,6 +1232,17 @@ export function RequestDetailDialog({ organizationId, requestId, onChanged }: { 
           </div>
         )}
       </DialogContent>
+
+      <ConfirmActionDialog
+        open={cancelConfirmOpen}
+        onOpenChange={setCancelConfirmOpen}
+        title="Cancel request?"
+        description={<p>Are you sure you want to cancel request {data?.request.requestReference ? `“${data.request.requestReference}”` : `#${requestId}`}? It will be marked cancelled and cannot be reopened — you would need to submit a new request for these items.</p>}
+        confirmLabel="Cancel Request"
+        cancelLabel="Keep Request"
+        onConfirm={handleCancel}
+        testId="dialog-cancel-inventory-request"
+      />
     </Dialog>
   );
 }
@@ -1491,11 +1502,12 @@ function ApprovalContextDialog({ organizationId, requestId, onDecided }: { organ
   );
 }
 
-function DelegationPanel({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
+export function DelegationPanel({ organizationId, departmentId }: { organizationId: number; departmentId: number }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [delegateMembershipId, setDelegateMembershipId] = useState('');
+  const [revokeTarget, setRevokeTarget] = useState<{ id: number; delegateName: string } | null>(null);
 
   const { data: delegations, refetch } = useListOfficeInventoryDelegations(organizationId, departmentId, {
     query: { queryKey: getListOfficeInventoryDelegationsQueryKey(organizationId, departmentId), enabled: organizationId > 0 },
@@ -1530,8 +1542,8 @@ function DelegationPanel({ organizationId, departmentId }: { organizationId: num
     );
   };
 
-  const handleRevoke = (id: number) => {
-    revokeMutation.mutate(
+  const handleRevoke = (id: number) =>
+    revokeMutation.mutateAsync(
       { organizationId, id },
       {
         onSuccess: () => {
@@ -1541,16 +1553,21 @@ function DelegationPanel({ organizationId, departmentId }: { organizationId: num
         onError: (err) => toast({ title: 'Could not revoke delegation', description: errorMessage(err), variant: 'destructive' }),
       },
     );
-  };
+
+  const currentDelegateName = current
+    ? memberById.get(current.delegateMembershipId)
+      ? `${memberById.get(current.delegateMembershipId)!.firstName} ${memberById.get(current.delegateMembershipId)!.lastName}`
+      : `Membership #${current.delegateMembershipId}`
+    : '';
 
   return (
     <div className="flex items-center gap-2">
       {current ? (
         <>
           <span className="text-sm text-foreground" data-testid={`text-current-delegate-${departmentId}`}>
-            Delegate: {memberById.get(current.delegateMembershipId) ? `${memberById.get(current.delegateMembershipId)!.firstName} ${memberById.get(current.delegateMembershipId)!.lastName}` : `Membership #${current.delegateMembershipId}`}
+            Delegate: {currentDelegateName}
           </span>
-          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleRevoke(current.id)} disabled={revokeMutation.isPending} aria-label="Revoke delegation" data-testid={`button-revoke-delegation-${departmentId}`}>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setRevokeTarget({ id: current.id, delegateName: currentDelegateName })} disabled={revokeMutation.isPending} aria-label="Revoke delegation" data-testid={`button-revoke-delegation-${departmentId}`}>
             <X className="h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         </>
@@ -1587,6 +1604,16 @@ function DelegationPanel({ organizationId, departmentId }: { organizationId: num
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={revokeTarget !== null}
+        onOpenChange={(o) => { if (!o) setRevokeTarget(null); }}
+        title="Revoke delegation?"
+        description={<p>“{revokeTarget?.delegateName}” will immediately stop being able to approve or reject this department's office inventory requests on the Head's behalf. Decisions they have already recorded are unaffected, and you can assign a delegate again at any time.</p>}
+        confirmLabel="Revoke Delegation"
+        onConfirm={() => (revokeTarget ? handleRevoke(revokeTarget.id) : undefined)}
+        testId="dialog-revoke-inventory-delegation"
+      />
     </div>
   );
 }
@@ -2903,9 +2930,10 @@ const INCIDENT_STATUS_VARIANT: Record<string, 'secondary' | 'outline' | 'destruc
   dismissed: 'outline',
 };
 
-function IncidentDetailPanel({ organizationId, incident, onChanged }: { organizationId: number; incident: { id: number; itemId: number; holderType: 'employee' | 'department' | null; holderId: number | null; incidentType: 'damage' | 'missing'; status: 'open' | 'reviewed' | 'dismissed' }; onChanged: () => void }) {
+export function IncidentDetailPanel({ organizationId, incident, onChanged }: { organizationId: number; incident: { id: number; itemId: number; holderType: 'employee' | 'department' | null; holderId: number | null; incidentType: 'damage' | 'missing'; status: 'open' | 'reviewed' | 'dismissed' }; onChanged: () => void }) {
   const { toast } = useToast();
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [dismissConfirmOpen, setDismissConfirmOpen] = useState(false);
   const [missingQuantity, setMissingQuantity] = useState('');
   const [recoverQuantity, setRecoverQuantity] = useState('');
   const [recoverStoreId, setRecoverStoreId] = useState('');
@@ -2930,6 +2958,15 @@ function IncidentDetailPanel({ organizationId, incident, onChanged }: { organiza
       },
     );
   };
+
+  const dismiss = () =>
+    reviewMutation.mutateAsync(
+      { organizationId, id: incident.id, data: { outcome: 'dismissed', resolutionNotes: resolutionNotes.trim() || undefined } },
+      {
+        onSuccess: () => { onChanged(); toast({ title: 'Incident dismissed' }); },
+        onError: (err) => toast({ title: 'Could not update incident', description: errorMessage(err), variant: 'destructive' }),
+      },
+    );
 
   const markMissing = () => {
     if (!missingQuantity) return;
@@ -2971,7 +3008,7 @@ function IncidentDetailPanel({ organizationId, incident, onChanged }: { organiza
           <Label htmlFor={`incident-notes-${incident.id}`}>Resolution Notes</Label>
           <Textarea id={`incident-notes-${incident.id}`} value={resolutionNotes} onChange={(e) => setResolutionNotes(e.target.value)} data-testid={`textarea-resolution-notes-${incident.id}`} />
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => review('dismissed')} disabled={reviewMutation.isPending} data-testid={`button-dismiss-${incident.id}`}>
+            <Button size="sm" variant="outline" onClick={() => setDismissConfirmOpen(true)} disabled={reviewMutation.isPending} data-testid={`button-dismiss-${incident.id}`}>
               <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
               Dismiss
             </Button>
@@ -3030,6 +3067,16 @@ function IncidentDetailPanel({ organizationId, incident, onChanged }: { organiza
           </div>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={dismissConfirmOpen}
+        onOpenChange={setDismissConfirmOpen}
+        title="Dismiss incident?"
+        description={<p>Are you sure you want to dismiss this {incident.incidentType} report? It will be closed as dismissed and cannot be reopened. Dismissing does not change any stock quantities.</p>}
+        confirmLabel="Dismiss Incident"
+        onConfirm={dismiss}
+        testId="dialog-dismiss-inventory-incident"
+      />
     </div>
   );
 }

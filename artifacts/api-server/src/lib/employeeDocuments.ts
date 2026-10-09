@@ -11,12 +11,27 @@ export class EmployeeDocumentNotFoundError extends Error {
   }
 }
 
-/** Org-scoped documents for one employee, most recently uploaded first. */
-export async function listEmployeeDocuments(organizationId: number, employeeId: number): Promise<EmployeeDocument[]> {
+/**
+ * Org-scoped documents for one employee, most recently uploaded first.
+ *
+ * `includeConfidential: false` returns `normal` documents only. The WS-12
+ * confidentiality tiers (schema/employee-documents.ts) reserve `confidential`
+ * and `restricted` documents for callers holding the owning domain's
+ * permission, so a caller who can see the list only because it is their own
+ * record must not receive even the metadata (title, category, size) of those.
+ * The filter is applied in SQL, not after the fact.
+ */
+export async function listEmployeeDocuments(
+  organizationId: number,
+  employeeId: number,
+  options: { includeConfidential: boolean },
+): Promise<EmployeeDocument[]> {
+  const conditions = [eq(employeeDocumentsTable.organizationId, organizationId), eq(employeeDocumentsTable.employeeId, employeeId)];
+  if (!options.includeConfidential) conditions.push(eq(employeeDocumentsTable.confidentiality, "normal"));
   return db
     .select()
     .from(employeeDocumentsTable)
-    .where(and(eq(employeeDocumentsTable.organizationId, organizationId), eq(employeeDocumentsTable.employeeId, employeeId)))
+    .where(and(...conditions))
     .orderBy(desc(employeeDocumentsTable.createdAt));
 }
 

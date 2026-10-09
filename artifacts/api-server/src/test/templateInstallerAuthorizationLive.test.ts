@@ -135,7 +135,7 @@ describe.skipIf(!LIVE_URL)("WS-26C live: activation actor authorization", () => 
     expect(results.every((r) => r.action === "installed" && r.published)).toBe(true);
     const after = await footprint(org);
     expect(after.templates).toBe(4);
-    expect(after.stages).toBe(8); // Leave 1 + PIF 1 + Evaluation 3 + Probation 3
+    expect(after.stages).toBe(9); // Leave 1 + PIF 2 (employee confirmation & signature, HR review) + Evaluation 3 + Probation 3
   });
 
   it("attribution records the validated actor, not merely the supplied ids", async () => {

@@ -9,10 +9,12 @@ import {
   rolePermissionsTable,
   permissionsTable,
   primaryHrAssignmentsTable,
+  employeeUserLinksTable,
 } from "@workspace/db";
 import { ApplyToInternalVacancyBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
 import { getActiveMembershipsForUser, getActiveMembership, resolveActiveOrganizationId } from "../lib/membership";
+import { roleCountsForMembership } from "../lib/permissions";
 import { hostnameOrganizationMismatch, shouldFailClosedForTenantResolution } from "../lib/organizationDomains";
 import { bindTenantContext } from "../lib/requestContext";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
@@ -33,6 +35,9 @@ import {
   InvalidImageError,
 } from "../lib/employeeProfilePicture";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
+import { logger } from "../lib/logger";
+import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
+import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import { getNamespaceConfig } from "../services/organizationConfig";
 import {
   listInternalVacancies,
@@ -112,11 +117,23 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
     .where(inArray(organizationsTable.id, organizationIds));
   const organizationById = new Map(organizations.map((o) => [o.id, o]));
 
-  const roleRows = await db
-    .select({ membershipId: membershipRolesTable.membershipId, roleId: membershipRolesTable.roleId, key: rolesTable.key })
-    .from(membershipRolesTable)
-    .innerJoin(rolesTable, eq(membershipRolesTable.roleId, rolesTable.id))
-    .where(inArray(membershipRolesTable.membershipId, membershipIds));
+  // A role another organization owns is dropped HERE, before either the role
+  // keys or the permission keys below are built from these rows, so it can
+  // neither appear as one of this membership's roles nor light up navigation
+  // (the same tenant-ownership rule getEffectivePermissions applies).
+  const organizationOfMembership = new Map(memberships.map((m) => [m.id, m.organizationId]));
+  const roleRows = (
+    await db
+      .select({
+        membershipId: membershipRolesTable.membershipId,
+        roleId: membershipRolesTable.roleId,
+        key: rolesTable.key,
+        roleOrganizationId: rolesTable.organizationId,
+      })
+      .from(membershipRolesTable)
+      .innerJoin(rolesTable, eq(membershipRolesTable.roleId, rolesTable.id))
+      .where(inArray(membershipRolesTable.membershipId, membershipIds))
+  ).filter((row) => roleCountsForMembership(row.roleOrganizationId, organizationOfMembership.get(row.membershipId)!));
   const rolesByMembership = new Map<number, string[]>();
   for (const row of roleRows) {
     const list = rolesByMembership.get(row.membershipId) ?? [];
@@ -164,6 +181,55 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
     );
   const primaryHrMembershipIds = new Set(primaryHrRows.map((r) => r.membershipId));
 
+  // STRUCTURAL CAPABILITY (dashboard/sidebar RBAC).
+  //
+  // Some authority in this product is not a permission at all. A department
+  // head may act on their department's leave because of a live department_heads
+  // row, and a manager sees their reports because of employees.reportingManagerId
+  // — leave_request.approve is held by EVERY employee and gates "may attempt",
+  // never "may act" (routes/leaveApprovals.ts says so in as many words). So a
+  // permission-only client cannot tell a department head from an ordinary
+  // employee, and a role-name check cannot either without inventing a
+  // vocabulary the server does not use.
+  //
+  // These two booleans are that missing signal, and deliberately nothing more:
+  // no department ids, no employee ids, no counts. They answer only "does this
+  // membership hold structural authority over anyone", which is exactly what a
+  // client needs to decide whether to offer a manager surface. Every action
+  // behind that surface is still authorized server-side, against these same
+  // two primitives — this makes the UI agree with the server, it does not
+  // become the server's reason.
+  // DEGRADES, NEVER FAILS. This endpoint renders the entire authenticated
+  // shell: navigation, branding, organization switching. The structural signal
+  // is an ENHANCEMENT to it, so if resolving it fails for any reason the
+  // caller still gets their organizations, with no structural authority —
+  // which is the fail-closed direction anyway. It must never be the reason
+  // someone cannot load the application.
+  const structuralByMembership = new Map<number, { isDepartmentHead: boolean; hasDirectReports: boolean }>();
+  try {
+    const employeeIdByMembership = new Map(
+      (
+        await db
+          .select({ membershipId: employeeUserLinksTable.organizationMembershipId, employeeId: employeeUserLinksTable.employeeId })
+          .from(employeeUserLinksTable)
+          .where(inArray(employeeUserLinksTable.organizationMembershipId, membershipIds))
+      ).map((r) => [r.membershipId, r.employeeId] as const),
+    );
+    for (const [membershipId, structural] of await Promise.all(
+      memberships.map(async (m) => {
+        const [headed, reports] = await Promise.all([
+          listDepartmentsHeadedByMembership(m.organizationId, m.id),
+          listLiveDirectReportEmployeeIds(m.organizationId, employeeIdByMembership.get(m.id) ?? null),
+        ]);
+        return [m.id, { isDepartmentHead: headed.length > 0, hasDirectReports: reports.length > 0 }] as const;
+      }),
+    )) {
+      structuralByMembership.set(membershipId, structural);
+    }
+  } catch (err) {
+    logger.warn({ err }, "structural capability could not be resolved; reporting none");
+  }
+
   // WWM Presentation Readiness: the authenticated shell's own branding
   // (systemDisplayName) is sourced from the caller's actual active
   // organization here, rather than depending on GET /tenant-context's
@@ -191,6 +257,8 @@ router.get("/me/organizations", requireAuth as any, async (req: AuthenticatedReq
         roles: rolesByMembership.get(membership.id) ?? [],
         permissions: [...(permissionsByMembership.get(membership.id) ?? new Set<string>())].sort(),
         isPrimaryHr: primaryHrMembershipIds.has(membership.id),
+        isDepartmentHead: structuralByMembership.get(membership.id)?.isDepartmentHead ?? false,
+        hasDirectReports: structuralByMembership.get(membership.id)?.hasDirectReports ?? false,
       };
     })
     .filter((s): s is NonNullable<typeof s> => s !== null);
@@ -253,7 +321,7 @@ router.post(
         organizationId,
         employee,
         { mimetype: req.file.mimetype, size: req.file.size, buffer: req.file.buffer },
-        req.userId!,
+        { applicationUserId: req.userId!, membershipId: req.membership!.id, via: "self_service" },
       );
       const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
       res.json({ linked: profile != null, employee: profile });
@@ -306,7 +374,11 @@ router.delete(
       return;
     }
 
-    await clearEmployeeProfilePicture(organizationId, employee, req.userId!);
+    await clearEmployeeProfilePicture(organizationId, employee, {
+      applicationUserId: req.userId!,
+      membershipId: req.membership!.id,
+      via: "self_service",
+    });
     const profile = await resolveOwnEmployeeProfile(organizationId, req.userId!);
     res.json({ linked: profile != null, employee: profile });
   },

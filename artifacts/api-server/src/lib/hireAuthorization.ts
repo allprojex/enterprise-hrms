@@ -235,6 +235,39 @@ export async function isHireAuthorized(organizationId: number, applicationId: nu
   return authorization?.status === "approved";
 }
 
+/**
+ * True when `actorMembershipId` is a configured approver for any hire stage of
+ * this application's raised authorization — the one reach a caller outside the
+ * application's own visibility tier legitimately needs, so a department head or
+ * named approver can see what they are being asked to decide.
+ *
+ * Authority is resolved exactly as `decideHireAuthorizationStage` resolves it
+ * (live, through `resolveStageAuthority`), and only once an authorization has
+ * been raised: before that there is nothing to decide, so nothing to see.
+ */
+export async function isHireAuthorizationStageApprover(params: {
+  organizationId: number;
+  applicationId: number;
+  actorMembershipId: number;
+}): Promise<boolean> {
+  const authorization = await getHireAuthorizationByApplication(params.organizationId, params.applicationId);
+  if (!authorization) return false;
+
+  const stages = await listApprovalStages(params.organizationId, "hire");
+  if (stages.length === 0) return false;
+  const departmentId = await resolveApplicationDepartment(params.organizationId, params.applicationId);
+  for (const stage of stages) {
+    const grant = await resolveStageAuthority({
+      organizationId: params.organizationId,
+      stage,
+      actorMembershipId: params.actorMembershipId,
+      departmentId,
+    });
+    if (grant) return true;
+  }
+  return false;
+}
+
 /** Everything the UI needs to explain where an authorization stands, in one call. */
 export async function getHireAuthorizationDetail(
   organizationId: number,

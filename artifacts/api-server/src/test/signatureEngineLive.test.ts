@@ -88,7 +88,10 @@ describe.skipIf(!LIVE_URL)("WS-26B live: signature assets, application authoriza
     const staffViewer = await viewer(orgId, staff);
     const created = await submissions.createSubmission({ organizationId: orgId, templateId, subjectEmployeeId: staff.employeeId, actor: actor(staff) });
     await submissions.submit({ organizationId: orgId, submissionId: created.id, answers: { note: "x" }, viewer: staffViewer, actor: actor(staff) });
-    // Stage 1 (employee): the subject completes it to advance to the approver stage.
+    // Stage 1 (employee): the subject signs their own REQUIRED slot, then completes
+    // the stage to advance to the approver stage. Completing a subject-employee
+    // stage without that signature is refused by the engine.
+    await sig.applySignature({ organizationId: orgId, actor: actor(staff), viewer: staffViewer, submissionId: created.id, slotKey: "sig_employee", method: "drawn", imageFile: file(await png()) });
     await submissions.stageAction({ organizationId: orgId, submissionId: created.id, action: "complete", viewer: staffViewer, actor: actor(staff) });
     return created.id;
   }

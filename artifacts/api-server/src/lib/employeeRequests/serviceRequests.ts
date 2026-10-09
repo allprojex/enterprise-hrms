@@ -309,6 +309,35 @@ async function appendEvent(
   });
 }
 
+/**
+ * Evidence on a service request must be a document on THAT request's employee
+ * record, in this organization — belonging to the organization alone let one
+ * employee cite a colleague's document id. Through self-service it must also
+ * be a `normal` document, the only confidentiality tier an employee can list
+ * for themselves. Every failure (no such id, another organization, another
+ * employee, a confidential tier) raises the same message, so the response
+ * never confirms that someone else's document exists.
+ */
+export async function assertEvidenceDocumentUsable(params: {
+  organizationId: number;
+  employeeId: number;
+  evidenceDocumentId: number;
+  viaSelfService: boolean;
+}): Promise<void> {
+  const conditions = [
+    eq(employeeDocumentsTable.id, params.evidenceDocumentId),
+    eq(employeeDocumentsTable.organizationId, params.organizationId),
+    eq(employeeDocumentsTable.employeeId, params.employeeId),
+  ];
+  if (params.viaSelfService) conditions.push(eq(employeeDocumentsTable.confidentiality, "normal"));
+  const [evidence] = await db
+    .select({ id: employeeDocumentsTable.id })
+    .from(employeeDocumentsTable)
+    .where(and(...conditions))
+    .limit(1);
+  if (!evidence) throw new InvalidServiceRequestError("Evidence document not found.");
+}
+
 export async function submitRequest(params: {
   organizationId: number;
   typeId: number;
@@ -346,12 +375,12 @@ export async function submitRequest(params: {
     );
   }
   if (params.evidenceDocumentId != null) {
-    await assertBelongsToOrganization(
-      employeeDocumentsTable,
-      params.evidenceDocumentId,
-      params.organizationId,
-      "Evidence document",
-    );
+    await assertEvidenceDocumentUsable({
+      organizationId: params.organizationId,
+      employeeId: params.employeeId,
+      evidenceDocumentId: params.evidenceDocumentId,
+      viaSelfService: params.viaSelfService,
+    });
   }
 
   const stages = type.approvalRequired ? await listStages(params.organizationId, "service_request") : [];

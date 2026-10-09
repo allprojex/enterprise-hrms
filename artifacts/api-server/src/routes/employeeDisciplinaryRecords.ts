@@ -5,6 +5,7 @@ import { requireMembership, type MembershipRequest } from "../middlewares/requir
 import { requirePermission } from "../middlewares/requirePermission";
 import { getEmployeeById } from "../lib/employees";
 import { listEmployeeDisciplinaryRecords, addEmployeeDisciplinaryRecord } from "../lib/employeeDisciplinaryRecords";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -50,6 +51,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_disciplinary_record.add"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;

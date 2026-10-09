@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ClipboardList, ChevronLeft, ChevronRight, Check, X, UserPlus, ShieldOff, CheckCircle2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -46,10 +46,10 @@ import {
   type LearningEnrollment,
   type LearningCertificate,
 } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -130,6 +130,8 @@ function EnrollmentActions({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [passed, setPassed] = useState<'true' | 'false' | ''>('');
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [attendanceTarget, setAttendanceTarget] = useState<boolean | null>(null);
 
   const isTerminal = TERMINAL_STATUSES.has(enrollment.status);
   const canCorrectAttendance = !isTerminal && enrollment.deliveryModeSnapshot === 'instructor_led' && enrollment.sessionId != null;
@@ -179,7 +181,7 @@ function EnrollmentActions({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => rejectMutation.mutate({ organizationId, id: enrollment.id }, { onSuccess: () => { onChanged(); toast({ title: 'Rejected' }); }, onError: (err) => toast({ title: 'Could not reject', description: errorMessage(err), variant: 'destructive' }) })}
+            onClick={() => setRejectOpen(true)}
             disabled={approveMutation.isPending || rejectMutation.isPending}
             data-testid={`button-reject-${enrollment.id}`}
           >
@@ -194,7 +196,7 @@ function EnrollmentActions({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => attendanceMutation.mutate({ organizationId, id: enrollment.id, data: { attended: true } }, { onSuccess: () => { onChanged(); toast({ title: 'Attendance recorded' }); }, onError: (err) => toast({ title: 'Could not record attendance', description: errorMessage(err), variant: 'destructive' }) })}
+            onClick={() => setAttendanceTarget(true)}
             disabled={attendanceMutation.isPending}
             data-testid={`button-mark-attended-${enrollment.id}`}
           >
@@ -203,7 +205,7 @@ function EnrollmentActions({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => attendanceMutation.mutate({ organizationId, id: enrollment.id, data: { attended: false } }, { onSuccess: () => { onChanged(); toast({ title: 'Attendance recorded' }); }, onError: (err) => toast({ title: 'Could not record attendance', description: errorMessage(err), variant: 'destructive' }) })}
+            onClick={() => setAttendanceTarget(false)}
             disabled={attendanceMutation.isPending}
             data-testid={`button-mark-absent-${enrollment.id}`}
           >
@@ -262,6 +264,50 @@ function EnrollmentActions({
           </DialogContent>
         </Dialog>
       )}
+
+      <ConfirmActionDialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        title="Reject enrollment request?"
+        description={
+          <p>
+            The request for “{enrollment.courseTitleSnapshot}” will be rejected. This decision is final, and the enrollment stays on record.
+          </p>
+        }
+        confirmLabel="Reject Request"
+        onConfirm={() =>
+          rejectMutation.mutateAsync(
+            { organizationId, id: enrollment.id },
+            { onSuccess: () => { onChanged(); toast({ title: 'Rejected' }); }, onError: (err) => toast({ title: 'Could not reject', description: errorMessage(err), variant: 'destructive' }) },
+          )
+        }
+        testId={`dialog-reject-enrollment-${enrollment.id}`}
+      />
+
+      <ConfirmActionDialog
+        open={attendanceTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setAttendanceTarget(null);
+        }}
+        title={attendanceTarget === false ? 'Mark employee absent?' : 'Mark employee attended?'}
+        description={
+          <p>
+            Attendance for “{enrollment.courseTitleSnapshot}” will be recorded as {attendanceTarget === false ? 'absent' : 'attended'}. Attendance can only be
+            recorded once and cannot be changed afterwards.
+          </p>
+        }
+        confirmLabel={attendanceTarget === false ? 'Mark Absent' : 'Mark Attended'}
+        tone={attendanceTarget === false ? 'destructive' : 'default'}
+        onConfirm={() =>
+          attendanceTarget === null
+            ? undefined
+            : attendanceMutation.mutateAsync(
+                { organizationId, id: enrollment.id, data: { attended: attendanceTarget } },
+                { onSuccess: () => { onChanged(); toast({ title: 'Attendance recorded' }); }, onError: (err) => toast({ title: 'Could not record attendance', description: errorMessage(err), variant: 'destructive' }) },
+              )
+        }
+        testId={`dialog-attendance-${enrollment.id}`}
+      />
     </div>
   );
 }
@@ -567,7 +613,6 @@ function RevokeCertificateDialog({
 // built there" case §29's own W91 scope entry anticipates. A second
 // /learning-sessions route would only duplicate that page.
 export default function LearningEnrollments() {
-  const queryClient = useQueryClient();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
 

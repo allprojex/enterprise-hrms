@@ -15,6 +15,9 @@ import employeesRouter from "./employees";
 import employeeNumberingRouter from "./employeeNumbering";
 import personnelFilesRouter from "./personnelFiles";
 import recordsLocationsRouter from "./recordsLocations";
+import vehiclesRouter from "./vehicles";
+import vehicleRequestApprovalStagesRouter from "./vehicleRequestApprovalStages";
+import vehicleRequestsRouter from "./vehicleRequests";
 import personnelFileCustodyRouter from "./personnelFileCustody";
 import personnelReportingRouter from "./personnelReporting";
 import legacyImportRouter from "./legacyImport";
@@ -50,6 +53,7 @@ import employeeRelationsRouter from "./employeeRelations";
 import employeeRequestsRouter from "./employeeRequests";
 import skillsRouter from "./skills";
 import actionCentreRouter from "./actionCentre";
+import hrCommandCentreRouter from "./hrCommandCentre";
 import employee360Router from "./employee360";
 import recruitmentWorkflowsRouter from "./recruitmentWorkflows";
 import jobRequisitionsRouter from "./jobRequisitions";
@@ -157,6 +161,19 @@ router.use(employeesRouter);
 router.use(employeeNumberingRouter);
 router.use(personnelFilesRouter);
 router.use(recordsLocationsRouter);
+// VR-01 — vehicle register. No literal sub-path exists under /vehicles yet, so
+// there is nothing for /vehicles/:vehicleId to swallow; when VR-02 adds one
+// (e.g. /vehicles/availability) it must be registered before this router, the
+// same ordering rule assetReporting/assets already follow below.
+router.use(vehiclesRouter);
+// VR-02A — vehicle-request approval-stage configuration. Its own path prefix
+// (/vehicle-request-approval-stages), so it cannot be swallowed by, and cannot
+// swallow, the /vehicles routes above.
+router.use(vehicleRequestApprovalStagesRouter);
+// VR-02B — Employee Self-Service vehicle requests. Own path prefix
+// (/my-vehicle-requests), so it neither swallows nor is swallowed by the
+// /vehicles or /vehicle-request-approval-stages routes above.
+router.use(vehicleRequestsRouter);
 router.use(personnelFileCustodyRouter);
 router.use(personnelReportingRouter);
 router.use(legacyImportRouter);
@@ -185,6 +202,7 @@ router.use(employeeRelationsRouter);
 router.use(employeeRequestsRouter);
 router.use(skillsRouter);
 router.use(actionCentreRouter);
+router.use(hrCommandCentreRouter);
 router.use(employee360Router);
 router.use(recruitmentWorkflowsRouter);
 router.use(jobRequisitionsRouter);

@@ -122,6 +122,21 @@ export function useAdministrationAccess(organizationId: number, isPlatformSuperA
 }
 
 /**
+ * Whether the caller's EFFECTIVE permissions include at least one of
+ * `permissionKeys` for `organizationId`. Reads MembershipSummary.permissions —
+ * the same explicit-capability source useAdministrationAccess uses — never a
+ * role name, so an organization-defined custom role is recognised the moment it
+ * is granted the key. The server remains authoritative; this only decides which
+ * affordances to show.
+ */
+export function useHasAnyPermission(organizationId: number, permissionKeys: readonly string[]): boolean {
+  const membership = useMyMembership(organizationId);
+  const granted = membership?.permissions;
+  if (!granted) return false;
+  return permissionKeys.some((key) => granted.includes(key));
+}
+
+/**
  * Whether the caller may manage the organization's HR team through the
  * Primary HR delegation path: they hold hr_team.manage AND are the
  * organization's active Primary HR — exactly the backend's

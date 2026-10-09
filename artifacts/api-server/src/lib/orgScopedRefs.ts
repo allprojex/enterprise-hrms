@@ -20,6 +20,8 @@ import {
   employeeCertificationsTable,
   skillsTable,
   learningEnrollmentsTable,
+  assetsTable,
+  vehiclesTable,
 } from "@workspace/db";
 
 // Structurally accepts either the global `db` or a `db.transaction(...)`
@@ -62,7 +64,14 @@ type ScopedTable =
   // WS-14 (§30.9, §30.14) — skill and Learning enrolment references are
   // client-supplied on WS-14 surfaces and need the same cross-tenant proof.
   | typeof skillsTable
-  | typeof learningEnrollmentsTable;
+  | typeof learningEnrollmentsTable
+  // VR-01 — a vehicle's optional capital-asset link is a client-supplied
+  // reference, so it needs the same cross-tenant proof as every other one.
+  | typeof assetsTable
+  // VR-02B — the vehicle a requester chooses is the one client-supplied
+  // reference on a vehicle request, so it needs the same cross-tenant proof: a
+  // foreign vehicle id proves only that a row exists, never that it is ours.
+  | typeof vehiclesTable;
 
 /**
  * Verifies a foreign key (department/branch/position/employee id) actually

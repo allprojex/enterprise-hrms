@@ -24,7 +24,8 @@ const RadioGroupItem = React.forwardRef<
     <RadioGroupPrimitive.Item
       ref={ref}
       className={cn(
-        'peer aspect-square size-4 shrink-0 rounded-full border border-border-strong bg-surface text-primary shadow-xs motion-interactive ' +
+        // `touch-target`: pressable area only, the dot stays 16px.
+        'peer touch-target aspect-square size-4 shrink-0 rounded-full border border-border-strong bg-surface text-primary shadow-xs motion-interactive ' +
           'hover:border-primary ' +
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
           'disabled:cursor-not-allowed disabled:border-border disabled:bg-disabled ' +

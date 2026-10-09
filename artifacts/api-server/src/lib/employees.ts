@@ -1,4 +1,4 @@
-import { and, eq, ilike, or, count, desc, type SQL } from "drizzle-orm";
+import { and, eq, ne, ilike, or, count, desc, sql, type SQL } from "drizzle-orm";
 import {
   db,
   employeesTable,
@@ -9,7 +9,7 @@ import {
   performanceCyclesTable,
   type Employee,
 } from "@workspace/db";
-import { assertBelongsToOrganization } from "./orgScopedRefs";
+import { assertBelongsToOrganization, CrossOrganizationReferenceError } from "./orgScopedRefs";
 import { recordAuditEvent } from "./auditLog";
 import { recordEmploymentPeriodEvent } from "./employmentLifecycleService";
 import {
@@ -17,6 +17,52 @@ import {
   allocateManualEmployeeNumber,
   auditEmployeeNumberAllocated,
 } from "./numbering";
+import {
+  assertEmployeeWriteAuthorized,
+  assertInitialStatusAllowed,
+  assertStatusChangeAllowedViaUpdate,
+  summarizeEmployeeChanges,
+  summarizeEmployeeCreation,
+  validateEmployeeFieldFormats,
+  validateEmployeeDateConsistency,
+  sameValue,
+  type EmployeeWriteAuthorization,
+} from "./employeeRecordPolicy";
+import { assertNotSelfAdministration } from "./employeeSelfAdministration";
+
+export class EmployeeSelfManagerError extends Error {
+  constructor() {
+    super("An employee cannot be their own reporting manager");
+    this.name = "EmployeeSelfManagerError";
+  }
+}
+
+export class EmployeeReportingCycleError extends Error {
+  constructor() {
+    super("This reporting manager would create a circular reporting line");
+    this.name = "EmployeeReportingCycleError";
+  }
+}
+
+export class EmployeeManagerIneligibleError extends Error {
+  constructor(message = "The selected reporting manager is separated and cannot be assigned") {
+    super(message);
+    this.name = "EmployeeManagerIneligibleError";
+  }
+}
+
+export class DuplicateEmployeeIdentifierError extends Error {
+  readonly field: "nationalId" | "passportNumber";
+  constructor(field: "nationalId" | "passportNumber") {
+    super(
+      field === "nationalId"
+        ? "This national identification number is already recorded for another employee in this organization"
+        : "This passport number is already recorded for another employee in this organization",
+    );
+    this.name = "DuplicateEmployeeIdentifierError";
+    this.field = field;
+  }
+}
 
 export class EmployeeNotFoundError extends Error {
   constructor() {
@@ -103,6 +149,100 @@ export async function assertEmployeeReferencesValid(
 // leaveBalances.ts/requisitionApprovals.ts/offers.ts.
 type QueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * Reporting-line integrity (Phase 1 hardening, 2026-10-08). The reporting
+ * manager is the one employee-to-employee reference a client can set, so it
+ * carries every check a bad value could need:
+ *
+ *   - same organization (assertEmployeeReferencesValid, unchanged);
+ *   - not the employee themself;
+ *   - not a separated employee — a terminated record cannot be anyone's
+ *     current manager; existing reports of a newly separated manager are
+ *     left as they are (reassignment is HR's decision, not a side effect);
+ *   - no cycle of ANY length: walking up from the proposed manager must never
+ *     reach the employee being updated. The walk is a single recursive CTE
+ *     bounded to the organization and to a generous depth, so a pathological
+ *     chain can neither escape the tenant nor loop forever.
+ *
+ * The cycle walk is only as good as its snapshot, so updateEmployee runs it
+ * under a per-organization transaction-scoped advisory lock (see
+ * REPORTING_LINE_LOCK_KEY): two concurrent updates that would each pass a
+ * stale check (A→B while B→A) are serialized, and the second sees the first.
+ */
+const REPORTING_LINE_MAX_DEPTH = 1000;
+const REPORTING_LINE_LOCK_KEY = "employee-reporting-line";
+
+export async function assertReportingManagerEligible(
+  client: QueryClient,
+  params: { organizationId: number; employeeId: number | null; reportingManagerId: number | null | undefined },
+): Promise<void> {
+  const managerId = params.reportingManagerId;
+  if (managerId == null) return;
+  if (params.employeeId != null && managerId === params.employeeId) throw new EmployeeSelfManagerError();
+
+  const [manager] = await client
+    .select({ organizationId: employeesTable.organizationId, employmentStatus: employeesTable.employmentStatus })
+    .from(employeesTable)
+    .where(eq(employeesTable.id, managerId))
+    .limit(1);
+  // Same message as every other foreign/nonexistent reference: a missing row
+  // and another tenant's row are indistinguishable to the caller by design.
+  if (!manager || manager.organizationId !== params.organizationId) throw new CrossOrganizationReferenceError("Reporting manager");
+  if (manager.employmentStatus === "terminated") throw new EmployeeManagerIneligibleError();
+
+  if (params.employeeId == null) return; // a record that does not exist yet cannot be on anyone's chain
+  const chain = await client.execute(sql`
+    with recursive chain(id, manager_id, depth) as (
+      select e.id, e.reporting_manager_id, 1
+        from employees e
+       where e.id = ${managerId} and e.organization_id = ${params.organizationId}
+      union all
+      select e.id, e.reporting_manager_id, c.depth + 1
+        from employees e
+        join chain c on e.id = c.manager_id
+       where e.organization_id = ${params.organizationId}
+         and c.depth < ${REPORTING_LINE_MAX_DEPTH}
+         and c.manager_id is not null
+    )
+    select 1 as hit from chain where id = ${params.employeeId} or manager_id = ${params.employeeId} limit 1
+  `);
+  const rows = (chain as unknown as { rows?: unknown[] }).rows ?? (chain as unknown as unknown[]);
+  if (Array.isArray(rows) && rows.length > 0) throw new EmployeeReportingCycleError();
+}
+
+/**
+ * National ID and passport number are unique per organization when present.
+ * Checked in the application (not a unique index) so that existing records —
+ * including any historical duplicates already in Production — are preserved
+ * exactly as they are; only NEW writes are held to the rule. Comparison is
+ * case-insensitive and ignores surrounding whitespace.
+ */
+export async function assertEmployeeIdentifiersUnique(
+  client: QueryClient,
+  params: {
+    organizationId: number;
+    excludeEmployeeId: number | null;
+    nationalId?: string | null;
+    passportNumber?: string | null;
+  },
+): Promise<void> {
+  for (const field of ["nationalId", "passportNumber"] as const) {
+    const raw = params[field];
+    if (raw == null || raw.trim() === "") continue;
+    const column = field === "nationalId" ? employeesTable.nationalId : employeesTable.passportNumber;
+    const conditions: SQL[] = [
+      eq(employeesTable.organizationId, params.organizationId),
+      sql`lower(trim(${column})) = lower(trim(${raw}))`,
+    ];
+    if (params.excludeEmployeeId != null) conditions.push(ne(employeesTable.id, params.excludeEmployeeId));
+    const [dup] = await client.select({ id: employeesTable.id }).from(employeesTable).where(and(...conditions)).limit(1);
+    // The `ne` predicate already excludes the record itself; the id check is a
+    // belt-and-braces guard so the rule can never flag an employee against
+    // their own current value.
+    if (dup && dup.id !== params.excludeEmployeeId) throw new DuplicateEmployeeIdentifierError(field);
+  }
+}
+
 export interface EmployeeCreateFields {
   firstName: string;
   lastName: string;
@@ -158,12 +298,38 @@ export async function createEmployee(
   client: QueryClient,
   params: {
     organizationId: number;
-    fields: EmployeeCreateFields;
+    fields: EmployeeCreateFields & { employmentStatus?: Employee["employmentStatus"] };
     actorApplicationUserId: number;
     actorMembershipId: number | null;
+    /**
+     * Phase 1 hardening (2026-10-08, tightened in the final security review).
+     * What the ACTOR may write, resolved by the caller from the membership's
+     * effective permissions. REQUIRED for every caller — there is no trusted
+     * bypass: the HTTP route passes the caller's own grants, and candidate
+     * conversion passes the converting actor's grants after dropping the
+     * sensitive candidate fields that actor may not write (see
+     * employeeConversion.ts). Reading a candidate never implies the right to
+     * write sensitive employee data.
+     */
+    authorization: EmployeeWriteAuthorization;
   },
 ): Promise<Employee> {
-  await assertEmployeeReferencesValid(params.organizationId, params.fields);
+  assertEmployeeWriteAuthorized(params.fields as unknown as Record<string, unknown>, params.authorization);
+  assertInitialStatusAllowed(params.fields.employmentStatus);
+  validateEmployeeFieldFormats(params.fields);
+  validateEmployeeDateConsistency(params.fields);
+  await assertEmployeeReferencesValid(params.organizationId, params.fields, client);
+  await assertReportingManagerEligible(client, {
+    organizationId: params.organizationId,
+    employeeId: null,
+    reportingManagerId: params.fields.reportingManagerId,
+  });
+  await assertEmployeeIdentifiersUnique(client, {
+    organizationId: params.organizationId,
+    excludeEmployeeId: null,
+    nationalId: params.fields.nationalId,
+    passportNumber: params.fields.passportNumber,
+  });
 
   const { employeeNumber: manualEmployeeNumber, ...fieldsWithoutNumber } = params.fields;
 
@@ -203,7 +369,233 @@ export async function createEmployee(
     actorMembershipId: params.actorMembershipId,
   });
 
+  // Phase 1 hardening: the record's creation is itself an audited HR event.
+  // Field NAMES are recorded; sensitive VALUES only in masked form. Written
+  // through `client` so a caller's enclosing transaction (candidate
+  // conversion) takes the event down with it on rollback.
+  const creation = summarizeEmployeeCreation({ ...fieldsWithoutNumber, employeeNumber: employee.employeeNumber });
+  await recordAuditEvent(
+    {
+      actorApplicationUserId: params.actorApplicationUserId,
+      actorMembershipId: params.actorMembershipId,
+      organizationId: params.organizationId,
+      eventType: "employee.created",
+      targetType: "employee",
+      targetId: String(employee.id),
+      afterState: creation.afterState,
+      metadata: { setFields: creation.setFields, employmentStatus: employee.employmentStatus },
+    },
+    client,
+  );
+
   return employee;
+}
+
+/** Fields `updateEmployee` accepts — UpdateEmployeeBody's shape, with no employee number. */
+export type EmployeeUpdateFields = Partial<Omit<EmployeeCreateFields, "employeeNumber">> & {
+  employmentStatus?: Employee["employmentStatus"];
+};
+
+/**
+ * The single authoritative generic-update pathway (Phase 1 hardening,
+ * 2026-10-08; made atomic in the independent-review corrections, 2026-10-09)
+ * — what `PATCH /organizations/:id/employees/:employeeId` runs.
+ *
+ * Everything that reasons about the record runs in ONE transaction against
+ * the row locked `FOR UPDATE`, and every audit event is written through the
+ * same transaction. Consequences, in order:
+ *
+ *   - a concurrent update, separation, rehire or manager change commits
+ *     either entirely before this one (and is then what we compare against)
+ *     or entirely after it — the effective-change comparison, the sensitive
+ *     write authorization, the status matrix, the date rules, the manager
+ *     eligibility and the before/after audit states are all decided against
+ *     the row as it is at write time, never a stale pre-read;
+ *   - if an audit insert fails, the employee mutation rolls back with it —
+ *     there is no committed change without its audit row, and no audit row
+ *     for a change that never committed.
+ *
+ * Checks, in order, all before the single UPDATE statement:
+ *
+ *   1. authorization of the FIELDS (sensitive-write / notes) against the
+ *      persisted row — a refused field rejects the whole body;
+ *   2. the status matrix — termination, rehire and confirmation are refused
+ *      here and pointed at their governed actions;
+ *   3. validation of the MERGED record (locked row + patch), so a partial
+ *      update cannot leave an inconsistent record behind;
+ *   4. reference ownership, identifier uniqueness and reporting-line
+ *      eligibility, all read through the transaction.
+ *
+ * LOCK ORDER (fixed, never reversed — this is what rules out deadlocks):
+ *
+ *   1. `pg_advisory_xact_lock(hashtext('employee-reporting-line:<orgId>'))`,
+ *      taken ONLY when the body supplies `reportingManagerId` (decided from
+ *      the request, before any row is read, so it is always the first lock);
+ *   2. the target employee row, `SELECT ... FOR UPDATE`;
+ *   3. plain (unlocked) reads of other rows: manager, references,
+ *      identifier duplicates, the actor's own employee link.
+ *
+ * An update that does not touch the reporting line takes only lock 2, so it
+ * can never hold a row while waiting for the advisory lock; a manager change
+ * holds the advisory lock while waiting for the row. Two manager changes are
+ * serialized by lock 1 regardless of which rows they target, which is what
+ * keeps the cycle walk's snapshot valid (A→B ∥ B→A: exactly one commits).
+ * createEmployee's reporting-line check does not take the advisory lock
+ * (a row that does not exist yet cannot be on any chain), and no other code
+ * path takes it, so there is no second acquisition order in the codebase.
+ *
+ * Self-administration (owner policy, 2026-10-09) is checked in the service as
+ * well as at the route. It is asserted BEFORE the transaction (so the common
+ * denial path writes its denial audit and returns without ever holding a
+ * lock) and re-asserted INSIDE it against the locked state, so a link created
+ * between the two cannot let the actor edit a record that became their own.
+ * A denial writes nothing but its own "denied" event; it never produces an
+ * employee.updated / employee.status_changed row because those are written
+ * last, in the same transaction, and only after every check has passed.
+ *
+ * Audit: `employee.status_changed` (pre-existing, unchanged shape) when the
+ * status changes; `employee.updated` for every other effective change,
+ * carrying the changed field names and masked before/after values. A body
+ * that changes nothing performs no write and records no audit event.
+ */
+export async function updateEmployee(params: {
+  organizationId: number;
+  employeeId: number;
+  fields: EmployeeUpdateFields;
+  actorApplicationUserId: number;
+  /** Null only under a break-glass grant (no membership row exists for the platform actor); the user id still identifies the true actor. */
+  actorMembershipId: number | null;
+  authorization: EmployeeWriteAuthorization;
+}): Promise<Employee> {
+  // Pre-flight, outside the transaction: 404 and the self-administration
+  // boundary. Neither holds a lock, and the denial audit commits on its own.
+  const preflight = await getEmployeeById(params.organizationId, params.employeeId);
+  if (!preflight) throw new EmployeeNotFoundError();
+  const selfCheck = {
+    organizationId: params.organizationId,
+    employeeId: params.employeeId,
+    actorApplicationUserId: params.actorApplicationUserId,
+    actorMembershipId: params.actorMembershipId,
+    action: "employee.update",
+  };
+  await assertNotSelfAdministration(selfCheck);
+
+  const fields = stripUndefined(params.fields as Record<string, unknown>);
+  if (Object.keys(fields).length === 0) return preflight;
+  // Decided from the REQUEST, before any row is read: the advisory lock must
+  // always be the first lock taken (see LOCK ORDER above).
+  const managerRequested = fields.reportingManagerId !== undefined;
+
+  return db.transaction(async (tx) => {
+    if (managerRequested) {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${REPORTING_LINE_LOCK_KEY}:${params.organizationId}`}))`);
+    }
+    const [existing] = await tx
+      .select()
+      .from(employeesTable)
+      .where(and(eq(employeesTable.id, params.employeeId), eq(employeesTable.organizationId, params.organizationId)))
+      .limit(1)
+      .for("update");
+    if (!existing) throw new EmployeeNotFoundError();
+    // Re-asserted against the locked state (the actor's link may have been
+    // created since the pre-flight). The denial event is written through the
+    // pool, not this transaction, so it survives the rollback that follows.
+    await assertNotSelfAdministration({ ...selfCheck, client: tx });
+
+    const stored = existing as unknown as Record<string, unknown>;
+
+    // Everything below reasons about EFFECTIVE changes only: a field whose
+    // supplied value equals the persisted one (trimmed, "" ≡ null, dates by
+    // instant, json by value) is a no-op. It is neither authorized, validated
+    // nor written — so an actor without the sensitive key can re-send the
+    // values the Edit form displays, and nobody can alter even the whitespace
+    // of a sensitive value by re-sending it. A body that changes nothing
+    // performs no write and records no audit event.
+    const effective: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(fields)) {
+      if (!sameValue(stored[k], v)) effective[k] = v;
+    }
+    if (Object.keys(effective).length === 0) return existing;
+    const effectiveFields = effective as EmployeeUpdateFields;
+
+    // Authorization is decided against the PERSISTED (locked) row, never a client claim.
+    assertEmployeeWriteAuthorized(effective, params.authorization, stored);
+    assertStatusChangeAllowedViaUpdate(existing.employmentStatus, effectiveFields.employmentStatus);
+    // Pure check, answered before any further query.
+    if (effectiveFields.reportingManagerId != null && effectiveFields.reportingManagerId === params.employeeId) throw new EmployeeSelfManagerError();
+
+    validateEmployeeFieldFormats(effectiveFields);
+    const merged = { ...existing, ...effective } as Employee;
+    validateEmployeeDateConsistency(merged);
+    await assertEmployeeReferencesValid(params.organizationId, effectiveFields, tx);
+    await assertEmployeeIdentifiersUnique(tx, {
+      organizationId: params.organizationId,
+      excludeEmployeeId: params.employeeId,
+      nationalId: effectiveFields.nationalId,
+      passportNumber: effectiveFields.passportNumber,
+    });
+    if (effective.reportingManagerId !== undefined) {
+      // Under the advisory lock taken above (managerRequested is necessarily true here).
+      await assertReportingManagerEligible(tx, {
+        organizationId: params.organizationId,
+        employeeId: params.employeeId,
+        reportingManagerId: effectiveFields.reportingManagerId,
+      });
+    }
+
+    const patch = { ...effective, updatedBy: params.actorApplicationUserId };
+    const [updated] = await tx
+      .update(employeesTable)
+      .set(patch)
+      .where(and(eq(employeesTable.id, params.employeeId), eq(employeesTable.organizationId, params.organizationId)))
+      .returning();
+    if (!updated) throw new EmployeeNotFoundError();
+
+    // Audit rows go through `tx`: a failure here rolls the UPDATE back.
+    const statusChanged = effectiveFields.employmentStatus !== undefined && effectiveFields.employmentStatus !== existing.employmentStatus;
+    if (statusChanged) {
+      await recordAuditEvent(
+        {
+          actorApplicationUserId: params.actorApplicationUserId,
+          actorMembershipId: params.actorMembershipId,
+          organizationId: params.organizationId,
+          eventType: "employee.status_changed",
+          targetType: "employee",
+          targetId: String(params.employeeId),
+          beforeState: { employmentStatus: existing.employmentStatus },
+          afterState: { employmentStatus: updated.employmentStatus },
+        },
+        tx,
+      );
+    }
+
+    const requested = Object.keys(fields).filter((k) => k !== "employmentStatus");
+    const changes = summarizeEmployeeChanges(existing as Record<string, unknown>, updated as Record<string, unknown>, requested);
+    if (changes.changedFields.length > 0) {
+      await recordAuditEvent(
+        {
+          actorApplicationUserId: params.actorApplicationUserId,
+          actorMembershipId: params.actorMembershipId,
+          organizationId: params.organizationId,
+          eventType: "employee.updated",
+          targetType: "employee",
+          targetId: String(params.employeeId),
+          beforeState: changes.beforeState,
+          afterState: changes.afterState,
+          metadata: { changedFields: changes.changedFields },
+        },
+        tx,
+      );
+    }
+
+    return updated;
+  });
+}
+
+function stripUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) if (v !== undefined) out[k] = v;
+  return out as Partial<T>;
 }
 
 export interface ListEmployeesParams {
@@ -215,6 +607,16 @@ export interface ListEmployeesParams {
   employmentStatus?: string;
   page: number;
   pageSize: number;
+  /**
+   * Phase 1 hardening (2026-10-08): whether the caller may read the
+   * sensitive field set (`employee.sensitive.read`). The directory search
+   * matches ONLY directory fields — name, preferred name, staff number, work
+   * email — unless this is true, in which case personal email also matches.
+   * Without this a directory-only caller could confirm a colleague's private
+   * email by searching for it even though the value itself is redacted in
+   * the response: matching is disclosure. Defaults to false (fail closed).
+   */
+  includePrivateContactFields?: boolean;
 }
 
 export async function listEmployees(params: ListEmployeesParams) {
@@ -233,7 +635,7 @@ export async function listEmployees(params: ListEmployeesParams) {
       ilike(employeesTable.preferredName, term),
       ilike(employeesTable.employeeNumber, term),
       ilike(employeesTable.workEmail, term),
-      ilike(employeesTable.personalEmail, term),
+      ...(params.includePrivateContactFields ? [ilike(employeesTable.personalEmail, term)] : []),
     );
     if (searchCondition) conditions.push(searchCondition);
   }
@@ -280,6 +682,10 @@ export async function separateEmployee(params: {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
   if (before.employmentStatus === "terminated") throw new EmployeeAlreadySeparatedError();
+  await assertNotSelfAdministration({ organizationId: params.organizationId, employeeId: params.employeeId, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId, action: "employee.separate" });
+  // Phase 1 hardening: the separation date is checked against the stored
+  // hire date (the same merged-state rule the generic update applies).
+  validateEmployeeDateConsistency({ ...before, separationDate: params.separationDate });
 
   const [updated] = await db
     .update(employeesTable)
@@ -338,6 +744,7 @@ export async function rehireEmployee(params: {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
   if (before.employmentStatus !== "terminated") throw new EmployeeNotSeparatedError();
+  await assertNotSelfAdministration({ organizationId: params.organizationId, employeeId: params.employeeId, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId, action: "employee.rehire" });
 
   const [updated] = await db
     .update(employeesTable)
@@ -408,6 +815,8 @@ export async function transferEmployee(params: {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
 
+  await assertNotSelfAdministration({ organizationId: params.organizationId, employeeId: params.employeeId, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId, action: "employee.transfer" });
+
   const nextDepartmentId = params.departmentId !== undefined ? params.departmentId : before.departmentId;
   const nextBranchId = params.branchId !== undefined ? params.branchId : before.branchId;
   const nextPositionId = params.positionId !== undefined ? params.positionId : before.positionId;
@@ -467,6 +876,7 @@ export async function promoteEmployee(params: {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
   if (before.positionId === params.positionId) throw new EmployeePromotionNoChangeError();
+  await assertNotSelfAdministration({ organizationId: params.organizationId, employeeId: params.employeeId, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId, action: "employee.promote" });
 
   await assertEmployeeReferencesValid(params.organizationId, { positionId: params.positionId });
 
@@ -517,6 +927,7 @@ export async function confirmEmployee(params: {
   const before = await getEmployeeById(params.organizationId, params.employeeId);
   if (!before) throw new EmployeeNotFoundError();
   if (before.employmentStatus !== "probation") throw new EmployeeNotOnProbationError();
+  await assertNotSelfAdministration({ organizationId: params.organizationId, employeeId: params.employeeId, actorApplicationUserId: params.actorApplicationUserId, actorMembershipId: params.actorMembershipId, action: "employee.confirm" });
 
   if (params.probationReviewId != null) {
     const [review] = await db

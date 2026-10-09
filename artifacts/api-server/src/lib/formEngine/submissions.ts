@@ -25,7 +25,7 @@
  *   - Finalization renders the final PDF once, stores it through the WS-5
  *     generated_documents sink with a SHA-256, and can never run twice.
  */
-import { and, eq, asc, desc, inArray, sql } from "drizzle-orm";
+import { and, eq, asc, desc, inArray, isNull, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import {
   db,
@@ -35,6 +35,7 @@ import {
   formTemplateVersionsTable,
   formTemplatesTable,
   formWorkflowStagesTable,
+  formSignaturesTable,
   generatedDocumentsTable,
   employeesTable,
   employeeUserLinksTable,
@@ -51,17 +52,35 @@ import { recordAuditEvent } from "../auditLog";
 import { writeOrgFile, discardOrphanedFile } from "../fileStorage";
 import { getEffectivePermissions } from "../permissions";
 import type { FormDefinition } from "./definition";
+import type { ResolvedAssistance } from "./assistedSubmission";
 import { validateAnswers, computeValues, sectionKeysEditableBy, type Answers, type ComputedValues } from "./answers";
 import { resolveAutofill, readonlyKeys, type AutofillSnapshot } from "./bindings";
 import { redactedSensitiveKeys, redactValues } from "./sensitivity";
-import { getTemplate, getPublishedVersion, getVersion, listStages, membershipSatisfiesFormStage, parseDefinition } from "./templates";
+import { getTemplate, getPublishedVersion, getVersion, listStages, actionableMembershipOfEmployee, membershipSatisfiesFormStage, parseDefinition } from "./templates";
 import { renderSubmissionDocument, type DocumentKind, type HistoryLine } from "./render";
+import { notifyFormTransition, type FormNotificationKind } from "./formNotifications";
 
 export class FormSubmissionNotFoundError extends Error {}
 export class FormSubmissionStateError extends Error {}
 export class FormStageAuthorityError extends Error {}
 export class FormSubmissionFinalizedError extends Error {}
 export class FormSubjectNotFoundError extends Error {}
+/** Reject and return must carry a reason: the employee is told to read it, and the record must show why. */
+export class FormDecisionReasonRequiredError extends Error {}
+
+/**
+ * Enforced in the service, not only in the UI: a decision that sends a form
+ * back (return) or ends it (reject) must record why. Blank or whitespace-only
+ * notes do not count — the same rule WS-13 data-change reject/return applies.
+ * Complete and approve are unaffected.
+ */
+export function assertDecisionReason(action: StageAction, notes: string | null | undefined): void {
+  if (action !== "reject" && action !== "return") return;
+  if (notes?.trim()) return;
+  throw new FormDecisionReasonRequiredError(
+    action === "reject" ? "A reason is required to reject a form." : "A reason is required to return a form for correction.",
+  );
+}
 
 export interface FormActor {
   userId: number;
@@ -137,11 +156,19 @@ export async function listSubmissions(organizationId: number, filter: Submission
       versionNumber: formTemplateVersionsTable.versionNumber,
       subjectFirstName: employeesTable.firstName,
       subjectLastName: employeesTable.lastName,
+      currentStageName: formWorkflowStagesTable.name,
     })
     .from(formSubmissionsTable)
     .innerJoin(formTemplatesTable, eq(formTemplatesTable.id, formSubmissionsTable.templateId))
     .innerJoin(formTemplateVersionsTable, eq(formTemplateVersionsTable.id, formSubmissionsTable.templateVersionId))
     .innerJoin(employeesTable, eq(employeesTable.id, formSubmissionsTable.subjectEmployeeId))
+    .leftJoin(
+      formWorkflowStagesTable,
+      and(
+        eq(formWorkflowStagesTable.templateVersionId, formSubmissionsTable.templateVersionId),
+        eq(formWorkflowStagesTable.stageOrder, formSubmissionsTable.currentStageOrder),
+      ),
+    )
     .where(and(...conditions))
     .orderBy(desc(formSubmissionsTable.updatedAt));
   return rows.map((r) => toSummary(r));
@@ -155,6 +182,8 @@ export function toSummary(r: {
   versionNumber: number;
   subjectFirstName: string;
   subjectLastName: string;
+  /** Name of the stage the submission currently waits at, when pending. */
+  currentStageName?: string | null;
 }) {
   const s = r.submission;
   return {
@@ -172,6 +201,12 @@ export function toSummary(r: {
     currentStageOrder: s.currentStageOrder,
     stageCountSnapshot: s.stageCountSnapshot,
     createdByMembershipId: s.createdByMembershipId,
+    // HR monitoring marker. The CATEGORY is safe to list; assistanceNotes is
+    // deliberately absent from every summary projection because it may carry
+    // medical or accessibility detail.
+    assisted: s.assisted,
+    assistanceReason: s.assistanceReason,
+    currentStageName: s.status === "pending_approval" ? (r.currentStageName ?? null) : null,
     submittedAt: s.submittedAt,
     approvedAt: s.approvedAt,
     finalizedAt: s.finalizedAt,
@@ -221,31 +256,80 @@ export async function canViewSubmission(organizationId: number, submission: Form
   return false;
 }
 
+/** Per-call cache of a version's stages, so a list resolves each version's stages once. */
+function stageLoader(organizationId: number) {
+  const cache = new Map<number, FormWorkflowStage[]>();
+  return async (templateVersionId: number): Promise<FormWorkflowStage[]> => {
+    let stages = cache.get(templateVersionId);
+    if (!stages) {
+      stages = await listStages(organizationId, templateVersionId);
+      cache.set(templateVersionId, stages);
+    }
+    return stages;
+  };
+}
+
+/** The pending stage this membership currently resolves to for a submission, or null. */
+async function stageAssignedToViewer(
+  organizationId: number,
+  summary: { status: FormSubmission["status"]; currentStageOrder: number | null; templateVersionId: number; subjectEmployeeId: number },
+  viewer: ViewerContext,
+  loadStages: (templateVersionId: number) => Promise<FormWorkflowStage[]>,
+): Promise<FormWorkflowStage | null> {
+  if (summary.status !== "pending_approval" || summary.currentStageOrder == null) return null;
+  const stage = (await loadStages(summary.templateVersionId)).find((s) => s.stageOrder === summary.currentStageOrder);
+  if (!stage) return null;
+  const satisfied = await membershipSatisfiesFormStage({ organizationId, stage, membershipId: viewer.membershipId, subjectEmployeeId: summary.subjectEmployeeId });
+  return satisfied ? stage : null;
+}
+
 /** Submissions a non-HR viewer may list: own (as subject or creator) plus those awaiting their stage. */
 export async function listVisibleSubmissions(organizationId: number, viewer: ViewerContext, filter: SubmissionListFilter = {}) {
   const all = await listSubmissions(organizationId, filter);
   if (viewer.permissions.has("form.read")) return all;
-  const stageCache = new Map<number, FormWorkflowStage[]>();
+  const loadStages = stageLoader(organizationId);
   const visible = [];
   for (const summary of all) {
     const own = (viewer.employeeId != null && summary.subjectEmployeeId === viewer.employeeId) || summary.createdByMembershipId === viewer.membershipId;
-    if (own) {
-      visible.push(summary);
-      continue;
-    }
-    if (summary.status === "pending_approval" && summary.currentStageOrder != null) {
-      let stages = stageCache.get(summary.templateVersionId);
-      if (!stages) {
-        stages = await listStages(organizationId, summary.templateVersionId);
-        stageCache.set(summary.templateVersionId, stages);
-      }
-      const stage = stages.find((s) => s.stageOrder === summary.currentStageOrder);
-      if (stage && (await membershipSatisfiesFormStage({ organizationId, stage, membershipId: viewer.membershipId, subjectEmployeeId: summary.subjectEmployeeId }))) {
-        visible.push(summary);
-      }
-    }
+    if (own || (await stageAssignedToViewer(organizationId, summary, viewer, loadStages))) visible.push(summary);
   }
   return visible;
+}
+
+/**
+ * Submissions currently waiting on THIS viewer to act, as distinct from
+ * submissions the viewer can merely see.
+ *
+ * A submission counts only when it is `pending_approval`, its current stage
+ * resolves to the viewer live (membershipSatisfiesFormStage — the same check
+ * stageAction enforces), and at least one of that stage's allowed actions
+ * survives the maker-checker rule getSubmissionDetail applies: a subject or
+ * creator may only `complete`, never approve/return/reject. So:
+ *
+ *   - a form waiting at another stage (e.g. a Department Head) is excluded,
+ *     even for an HR viewer holding form.read;
+ *   - an HR-assisted ("on behalf of") draft is excluded — it is a draft, not
+ *     a stage — and HR does not become its approver by having raised it.
+ *
+ * `awaitingOthers` counts the remaining pending_approval submissions, and is
+ * returned only to a form.read holder (HR oversight); for anyone else it is
+ * null, because they have no authority to know those submissions exist.
+ */
+export async function listSubmissionsAwaitingViewer(organizationId: number, viewer: ViewerContext) {
+  const pending = await listSubmissions(organizationId, { status: "pending_approval" });
+  const loadStages = stageLoader(organizationId);
+  const awaiting: (ReturnType<typeof toSummary> & { stageName: string })[] = [];
+  for (const summary of pending) {
+    const stage = await stageAssignedToViewer(organizationId, summary, viewer, loadStages);
+    if (!stage) continue;
+    const isMaker = (viewer.employeeId != null && viewer.employeeId === summary.subjectEmployeeId) || summary.createdByMembershipId === viewer.membershipId;
+    const actions = (stage.allowedActions as StageAction[]).filter((a) => a === "complete" || !isMaker);
+    if (actions.length > 0) awaiting.push({ ...summary, stageName: stage.name });
+  }
+  return {
+    awaiting,
+    awaitingOthers: viewer.permissions.has("form.read") ? pending.length - awaiting.length : null,
+  };
 }
 
 /* ---------------------------------------------------------------------- */
@@ -254,6 +338,8 @@ export async function listVisibleSubmissions(organizationId: number, viewer: Vie
 
 export interface SubmissionDetail {
   submission: ReturnType<typeof toSummary>;
+  /** B2: false when the subject employee has no linked login, so a subject_employee stage currently has no actor. */
+  subjectHasAccount: boolean;
   template: { id: number; templateKey: string; title: string; formType: FormTemplate["formType"] };
   version: { id: number; versionNumber: number; definition: FormDefinition; signaturePolicy: unknown; definitionSha256: string };
   stages: { id: number; stageOrder: number; name: string; participant: string; resolver: string; editableSectionKeys: string[]; allowedActions: string[]; signatureSlotKey: string | null }[];
@@ -298,6 +384,14 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
     .from(employeesTable)
     .where(eq(employeesTable.id, submission.subjectEmployeeId))
     .limit(1);
+  // B2. A stage that resolves to `subject_employee` has no actor at all
+  // unless the subject has an account that can actually sign in — the ordinary
+  // state for a new starter whose form HR prepared for them, and equally for
+  // someone whose membership was later revoked, suspended or let expire. The
+  // UI needs to explain that rather than showing a form that silently waits
+  // forever, so the engine reports it as a plain boolean. Capability, not mere
+  // linkage: see actionableMembershipOfEmployee. No identifier is exposed.
+  const subjectHasAccount = (await actionableMembershipOfEmployee(organizationId, submission.subjectEmployeeId)) != null;
   const revisions = await listRevisions(organizationId, submission.id);
   const events = await listEvents(organizationId, submission.id);
   const names = await actorNames(events.map((e) => e.actorUserId).filter((id): id is number => id != null));
@@ -327,7 +421,9 @@ export async function getSubmissionDetail(organizationId: number, submissionId: 
       versionNumber: version.versionNumber,
       subjectFirstName: subject?.firstName ?? "",
       subjectLastName: subject?.lastName ?? "",
+      currentStageName: stages.find((st) => st.stageOrder === submission.currentStageOrder)?.name ?? null,
     }),
+    subjectHasAccount,
     template: { id: template.id, templateKey: template.templateKey, title: template.title, formType: template.formType },
     version: { id: version.id, versionNumber: version.versionNumber, definition, signaturePolicy: version.signaturePolicy, definitionSha256: version.definitionSha256 },
     stages: stages.map((s) => ({
@@ -456,7 +552,18 @@ function audit(actor: FormActor, organizationId: number, eventType: string, subm
   });
 }
 
-export async function createSubmission(params: { organizationId: number; templateId: number; subjectEmployeeId: number; actor: FormActor }) {
+export async function createSubmission(params: {
+  organizationId: number;
+  templateId: number;
+  subjectEmployeeId: number;
+  actor: FormActor;
+  /**
+   * Present only for an assisted ("on behalf of") creation, already authorized
+   * and validated by lib/formEngine/assistedSubmission.ts. Written once here and
+   * never updated afterwards — these columns are provenance, not state.
+   */
+  assistance?: ResolvedAssistance;
+}) {
   const template = await getTemplate(params.organizationId, params.templateId);
   if (!template || template.status !== "active") throw new FormSubmissionStateError("Template is not available");
   const version = await getPublishedVersion(params.organizationId, params.templateId);
@@ -485,13 +592,36 @@ export async function createSubmission(params: { organizationId: number; templat
         subjectEmployeeId: params.subjectEmployeeId,
         status: "draft",
         createdByMembershipId: params.actor.membershipId,
+        assisted: params.assistance?.assisted ?? false,
+        assistanceReason: params.assistance?.assistanceReason ?? null,
+        assistanceNotes: params.assistance?.assistanceNotes ?? null,
       })
       .returning();
     const revision = await appendRevision(tx, { organizationId: params.organizationId, submission, kind: "draft", answers: {}, autofillSnapshot: autofill, computed: computeValues(definition, {}), actor: params.actor });
-    await appendEvent(tx, { organizationId: params.organizationId, submissionId: submission.id, eventType: "created", revisionId: revision.id, actor: params.actor, details: { templateVersionId: version.id, versionNumber: version.versionNumber } });
+    await appendEvent(tx, {
+      organizationId: params.organizationId,
+      submissionId: submission.id,
+      eventType: params.assistance ? "created_on_behalf" : "created",
+      revisionId: revision.id,
+      actor: params.actor,
+      // Category only. assistanceNotes may carry medical detail and is never
+      // copied into the event chronology or the audit log.
+      details: {
+        templateVersionId: version.id,
+        versionNumber: version.versionNumber,
+        ...(params.assistance
+          ? { assisted: true, assistanceReason: params.assistance.assistanceReason, subjectEmployeeId: params.subjectEmployeeId }
+          : {}),
+      },
+    });
     return { ...submission, currentRevisionId: revision.id };
   });
-  await audit(params.actor, params.organizationId, "form.created", created.id, { templateId: template.id, templateVersionId: version.id, subjectEmployeeId: params.subjectEmployeeId });
+  await audit(params.actor, params.organizationId, params.assistance ? "form.created_on_behalf" : "form.created", created.id, {
+    templateId: template.id,
+    templateVersionId: version.id,
+    subjectEmployeeId: params.subjectEmployeeId,
+    ...(params.assistance ? { assisted: true, assistanceReason: params.assistance.assistanceReason } : {}),
+  });
   return created;
 }
 
@@ -532,6 +662,47 @@ export async function saveDraft(params: { organizationId: number; submissionId: 
   return revision;
 }
 
+/**
+ * Tell whoever can now act (S1). Called only AFTER the workflow transaction has
+ * committed, and deliberately cannot fail the caller: a form that has moved has
+ * moved whether or not a notification could be created. See
+ * lib/formEngine/formNotifications.ts for the recipient and privacy rules.
+ */
+async function notifyTransition(
+  organizationId: number,
+  submission: FormSubmission,
+  templateTitle: string,
+  stages: readonly FormWorkflowStage[],
+  kind: FormNotificationKind,
+): Promise<void> {
+  try {
+    const [subject] = await db
+      .select({ firstName: employeesTable.firstName, lastName: employeesTable.lastName })
+      .from(employeesTable)
+      .where(eq(employeesTable.id, submission.subjectEmployeeId))
+      .limit(1);
+    await notifyFormTransition({
+      organizationId,
+      submission,
+      templateTitle,
+      subjectName: `${subject?.firstName ?? ""} ${subject?.lastName ?? ""}`.trim(),
+      stages,
+      kind,
+    });
+  } catch {
+    // Never surfaces to the workflow.
+  }
+}
+
+/** Which transition a committed stage action represents, for notification purposes. */
+function outcomeKind(action: StageAction, status: FormSubmission["status"]): FormNotificationKind | null {
+  if (action === "return") return "returned";
+  if (action === "reject") return "rejected";
+  if (status === "approved") return "approved";
+  if (status === "pending_approval") return "stage_entered";
+  return null;
+}
+
 export async function submit(params: { organizationId: number; submissionId: number; answers?: unknown; viewer: ViewerContext; actor: FormActor }) {
   const { submission, definition, current, stages, version, template } = await loadForWrite(params.organizationId, params.submissionId);
   if (submission.status !== "draft" && submission.status !== "returned") throw new FormSubmissionStateError("Only a draft or returned form can be submitted");
@@ -545,6 +716,11 @@ export async function submit(params: { organizationId: number; submissionId: num
   const autofill = await resolveAutofill(params.organizationId, submission.subjectEmployeeId, definition);
   const computed = computeValues(definition, answers);
   const resubmission = submission.status === "returned";
+  // An assisted form submitted by someone other than its subject (the HR user
+  // who raised it) is recorded as submitted ON BEHALF, never as the employee's
+  // own submission. The subject submitting their own assisted form is a plain
+  // submission.
+  const submittedOnBehalf = submission.assisted && params.viewer.employeeId !== submission.subjectEmployeeId;
   const stageCount = submission.stageCountSnapshot ?? stages.length;
   const now = new Date();
 
@@ -559,12 +735,100 @@ export async function submit(params: { organizationId: number; submissionId: num
       .where(and(eq(formSubmissionsTable.id, submission.id), inArray(formSubmissionsTable.status, ["draft", "returned"])))
       .returning();
     if (!s) throw new FormSubmissionStateError("Form state changed; reload and try again");
-    await appendEvent(tx, { organizationId: params.organizationId, submissionId: s.id, eventType: resubmission ? "resubmitted" : "submitted", revisionId: revision.id, actor: params.actor, details: { stageCount } });
+    await appendEvent(tx, {
+      organizationId: params.organizationId,
+      submissionId: s.id,
+      eventType: resubmission ? "resubmitted" : submittedOnBehalf ? "submitted_on_behalf" : "submitted",
+      revisionId: revision.id,
+      actor: params.actor,
+      // Category only — assistance notes never enter the chronology.
+      details: { stageCount, ...(submittedOnBehalf ? { assisted: true, assistanceReason: submission.assistanceReason, subjectEmployeeId: submission.subjectEmployeeId } : {}) },
+    });
     if (stageCount === 0) await appendEvent(tx, { organizationId: params.organizationId, submissionId: s.id, eventType: "approved", revisionId: revision.id, actor: params.actor, details: { automatic: true } });
     return s;
   });
-  await audit(params.actor, params.organizationId, resubmission ? "form.resubmitted" : "form.submitted", updated.id, { templateId: template.id, templateVersionId: version.id, stageCount });
+  await audit(
+    params.actor,
+    params.organizationId,
+    resubmission ? "form.resubmitted" : submittedOnBehalf ? "form.submitted_on_behalf" : "form.submitted",
+    updated.id,
+    {
+      templateId: template.id,
+      templateVersionId: version.id,
+      stageCount,
+      ...(submission.assisted ? { assisted: true, assistanceReason: submission.assistanceReason, subjectEmployeeId: submission.subjectEmployeeId } : {}),
+    },
+  );
+  // A submitted form is now waiting on somebody: the first stage's actor, or —
+  // for a stageless template that auto-approves — the subject.
+  await notifyTransition(
+    params.organizationId,
+    updated,
+    template.title,
+    stages,
+    updated.status === "approved" ? "approved" : "stage_entered",
+  );
   return updated;
+}
+
+/** Stable JSON for content equality (object keys sorted at every depth). */
+function stableJson(value: unknown): string {
+  const norm = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(norm)
+      : v && typeof v === "object"
+        ? Object.fromEntries(Object.keys(v as Record<string, unknown>).sort().map((k) => [k, norm((v as Record<string, unknown>)[k])]))
+        : v ?? null;
+  return JSON.stringify(norm(value));
+}
+
+/**
+ * A subject-employee attestation stage that owns a REQUIRED signature slot
+ * cannot advance until the subject employee has personally signed the content
+ * being attested.
+ *
+ * Satisfied only by an active (unrevoked) signature on that slot that represents
+ * this submission's subject — applySignature already refuses anyone who does
+ * not resolve as the subject and any stored asset the signer does not own — and
+ * that was applied to the current revision or to a revision with identical
+ * answers (signing a draft and then submitting it unchanged is the same
+ * content). If the answers changed after signing, the employee must sign again.
+ * There is no waiver.
+ *
+ * Scope is deliberate: only `subject_employee` stages. Approver stages that own
+ * a signature slot (e.g. the Leave form's supervisor stage) keep their current
+ * behaviour; that workflow belongs to the dedicated Leave integration work.
+ */
+async function assertSubjectSignatureApplied(p: {
+  organizationId: number;
+  submission: FormSubmission;
+  stage: FormWorkflowStage;
+  version: FormTemplateVersion;
+  currentAnswers: Answers;
+}): Promise<void> {
+  if (p.stage.resolver !== "subject_employee" || !p.stage.signatureSlotKey) return;
+  const policy = p.version.signaturePolicy as { slots?: { key: string; required?: boolean }[] } | null;
+  const slot = policy?.slots?.find((s) => s.key === p.stage.signatureSlotKey);
+  if (!slot || slot.required === false) return;
+
+  const signatures = await db
+    .select()
+    .from(formSignaturesTable)
+    .where(
+      and(
+        eq(formSignaturesTable.organizationId, p.organizationId),
+        eq(formSignaturesTable.submissionId, p.submission.id),
+        eq(formSignaturesTable.slotKey, p.stage.signatureSlotKey),
+        isNull(formSignaturesTable.revokedAt),
+      ),
+    );
+  for (const sig of signatures) {
+    if (sig.representedEmployeeId !== p.submission.subjectEmployeeId) continue;
+    if (sig.revisionId === p.submission.currentRevisionId) return;
+    const signed = await getRevision(p.organizationId, sig.revisionId);
+    if (signed && stableJson(signed.answers) === stableJson(p.currentAnswers)) return;
+  }
+  throw new FormSubmissionStateError("The employee must apply their own signature to the current form before confirming it");
 }
 
 export async function stageAction(params: {
@@ -590,6 +854,17 @@ export async function stageAction(params: {
     const isCreator = submission.createdByMembershipId === params.viewer.membershipId || creator?.userId === params.viewer.userId;
     const isSubject = params.viewer.employeeId != null && params.viewer.employeeId === submission.subjectEmployeeId;
     if (isCreator || isSubject) throw new FormStageAuthorityError("A form cannot be decided by the person who raised it or whom it concerns");
+  }
+  // Checked after authority, so an unauthorized caller still gets 403.
+  assertDecisionReason(params.action, params.notes);
+  if (params.action === "complete" || params.action === "approve") {
+    await assertSubjectSignatureApplied({
+      organizationId: params.organizationId,
+      submission,
+      stage,
+      version,
+      currentAnswers: (current?.answers as Answers) ?? {},
+    });
   }
 
   const editable = new Set(stage.editableSectionKeys as string[]);
@@ -642,6 +917,8 @@ export async function stageAction(params: {
     stageName: stage.name,
     action: params.action,
   });
+  const kind = outcomeKind(params.action, updated.status);
+  if (kind) await notifyTransition(params.organizationId, updated, template.title, stages, kind);
   return updated;
 }
 
@@ -695,6 +972,7 @@ export async function finalize(params: { organizationId: number; submissionId: n
     throw err;
   }
   await audit(params.actor, params.organizationId, "form.finalized", result.id, { templateId: template.id, templateVersionId: version.id, generatedDocumentId: result.finalDocumentId, sha256: hash });
+  await notifyTransition(params.organizationId, result, template.title, await listStages(params.organizationId, result.templateVersionId), "finalized");
   return result;
 }
 

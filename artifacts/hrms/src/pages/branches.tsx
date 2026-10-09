@@ -29,6 +29,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 export default function Branches() {
   const queryClient = useQueryClient();
@@ -85,9 +86,13 @@ export default function Branches() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<{ id: number; name: string; status: string } | null>(null);
+
+  // Returned so the confirmation stays open (with the error toast) when the
+  // server refuses, e.g. a branch that still has departments.
   const handleToggleStatus = (branch: { id: number; status: string }) => {
     const mutation = branch.status === 'inactive' ? reactivateMutation : archiveMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, id: branch.id },
       {
         onSuccess: () => {
@@ -236,7 +241,7 @@ export default function Branches() {
                       <Button
                         size="sm"
                         variant={branch.status === 'inactive' ? 'default' : 'destructive'}
-                        onClick={() => handleToggleStatus(branch)}
+                        onClick={() => setStatusTarget(branch)}
                         disabled={archiveMutation.isPending || reactivateMutation.isPending}
                         data-testid={`button-toggle-branch-status-${branch.id}`}
                       >
@@ -251,6 +256,31 @@ export default function Branches() {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.status === 'inactive' ? 'Reactivate branch?' : 'Archive branch?'}
+        description={
+          statusTarget?.status === 'inactive' ? (
+            <p>“{statusTarget?.name}” will be marked active again.</p>
+          ) : (
+            <>
+              <p>
+                “{statusTarget?.name}” will be archived (marked inactive). Its historical records will be preserved, and it can be
+                reactivated later.
+              </p>
+              <p>A branch that still has departments assigned to it cannot be archived.</p>
+            </>
+          )
+        }
+        confirmLabel={statusTarget?.status === 'inactive' ? 'Reactivate Branch' : 'Archive Branch'}
+        tone={statusTarget?.status === 'inactive' ? 'default' : 'destructive'}
+        onConfirm={() => (statusTarget ? handleToggleStatus(statusTarget) : undefined)}
+        testId="dialog-branch-status"
+      />
 
       <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent>

@@ -12,13 +12,13 @@
  * here and get minimal, non-crashing default mocks.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 import EmployeeDetail from '@/pages/employee-detail';
-import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation, PersonnelFileCustodyDetail, PersonnelFileMovement, RecordsLocation, PerformanceCycle, PerformanceReviewListResponse, ReportRunResult } from '@workspace/api-client-react';
+import type { Employee, EmploymentPeriodSummary, PersonnelFile, EmployeeNumberAllocation, PersonnelFileCustodyDetail, PersonnelFileMovement, RecordsLocation, PerformanceCycle, PerformanceReviewListResponse, ReportRunResult, EmployeeDocument, EmployeeSkill, EmployeeQualification, EmployeeCertification } from '@workspace/api-client-react';
 
 const { state } = vi.hoisted(() => ({
   state: {
@@ -30,6 +30,9 @@ const { state } = vi.hoisted(() => ({
     employmentHistoryError: false,
     refetchEmploymentHistory: vi.fn(),
     disciplinaryRecordsError: undefined as unknown,
+    // 2026-09-15 authorization fix — exit process read is HR-only (403 otherwise).
+    exitProcessesError: undefined as unknown,
+    updateEmployeeMutate: vi.fn(),
     // Phase 3H, W115 — Personnel File / PIF card.
     personnelFile: undefined as PersonnelFile | undefined,
     personnelFileLoading: false,
@@ -62,6 +65,20 @@ const { state } = vi.hoisted(() => ({
     // pre-existing test below (written before this gating existed) still
     // exercises the mutating controls it expects to see.
     myOrgRoles: ['org_admin'] as string[],
+    // Destructive-action confirmations — lists that render row actions, and
+    // the mutateAsync spies each confirmation dialog awaits.
+    members: [] as Array<{ applicationUserId: number; firstName: string; lastName: string; email: string }>,
+    documents: [] as EmployeeDocument[],
+    skills: [] as EmployeeSkill[],
+    qualifications: [] as EmployeeQualification[],
+    certifications: [] as EmployeeCertification[],
+    unlinkMutateAsync: vi.fn(),
+    rehireMutateAsync: vi.fn(),
+    separateMutate: vi.fn(),
+    removeDocumentMutateAsync: vi.fn(),
+    removeSkillMutateAsync: vi.fn(),
+    removeQualificationMutateAsync: vi.fn(),
+    removeCertificationMutateAsync: vi.fn(),
   },
 }));
 
@@ -87,25 +104,25 @@ vi.mock('@workspace/api-client-react', () => ({
     refetch: vi.fn(),
   }),
   getGetEmployeeQueryKey: (orgId: number, id: number) => ['employee', orgId, id],
-  useUpdateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
+  useUpdateEmployee: () => ({ mutate: state.updateEmployeeMutate, isPending: false }),
   useUploadEmployeeProfilePicture: () => ({ mutate: vi.fn(), isPending: false }),
   useLinkEmployeeToUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useUnlinkEmployeeFromUser: () => ({ mutate: vi.fn(), isPending: false }),
-  useSeparateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
-  useRehireEmployee: () => ({ mutate: vi.fn(), isPending: false }),
+  useUnlinkEmployeeFromUser: () => ({ mutate: vi.fn(), mutateAsync: state.unlinkMutateAsync, isPending: false }),
+  useSeparateEmployee: () => ({ mutate: state.separateMutate, isPending: false }),
+  useRehireEmployee: () => ({ mutate: vi.fn(), mutateAsync: state.rehireMutateAsync, isPending: false }),
   getRemoveEmployeeProfilePictureUrl: (orgId: number, id: number) => `/api/organizations/${orgId}/employees/${id}/profile-picture`,
 
-  useListMembers: () => ({ data: [] }),
+  useListMembers: () => ({ data: state.members }),
   getListMembersQueryKey: (orgId: number) => ['members', orgId],
   useListMasterDataItems: () => ({ data: [] }),
   getListMasterDataItemsQueryKey: (orgId: number, domain: string) => ['masterDataItems', orgId, domain],
 
-  useListEmployeeDocuments: () => ({ data: [] }),
+  useListEmployeeDocuments: () => ({ data: state.documents }),
   getListEmployeeDocumentsQueryKey: (orgId: number, empId: number) => ['employeeDocuments', orgId, empId],
   useUploadEmployeeDocument: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveEmployeeDocument: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveEmployeeDocument: () => ({ mutate: vi.fn(), mutateAsync: state.removeDocumentMutateAsync, isPending: false }),
 
-  useListEmployeeSkills: () => ({ data: [] }),
+  useListEmployeeSkills: () => ({ data: state.skills }),
   // WS-15 P2/P3 (§31.29) — the Employee 360 sections component mounted on this
   // page. Mocked at the same module boundary as every other hook here; its own
   // behaviour is covered by employee-360-sections.test.tsx and the live suite.
@@ -113,17 +130,17 @@ vi.mock('@workspace/api-client-react', () => ({
   getGetEmployee360SectionsQueryKey: (o: number, e: number) => ["emp360", o, e],
   getListEmployeeSkillsQueryKey: (orgId: number, empId: number) => ['employeeSkills', orgId, empId],
   useAddEmployeeSkill: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveEmployeeSkill: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveEmployeeSkill: () => ({ mutate: vi.fn(), mutateAsync: state.removeSkillMutateAsync, isPending: false }),
 
-  useListEmployeeQualifications: () => ({ data: [] }),
+  useListEmployeeQualifications: () => ({ data: state.qualifications }),
   getListEmployeeQualificationsQueryKey: (orgId: number, empId: number) => ['employeeQualifications', orgId, empId],
   useAddEmployeeQualification: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveEmployeeQualification: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveEmployeeQualification: () => ({ mutate: vi.fn(), mutateAsync: state.removeQualificationMutateAsync, isPending: false }),
 
-  useListEmployeeCertifications: () => ({ data: [] }),
+  useListEmployeeCertifications: () => ({ data: state.certifications }),
   getListEmployeeCertificationsQueryKey: (orgId: number, empId: number) => ['employeeCertifications', orgId, empId],
   useAddEmployeeCertification: () => ({ mutate: vi.fn(), isPending: false }),
-  useRemoveEmployeeCertification: () => ({ mutate: vi.fn(), isPending: false }),
+  useRemoveEmployeeCertification: () => ({ mutate: vi.fn(), mutateAsync: state.removeCertificationMutateAsync, isPending: false }),
 
   // Employment History (Phase 3F, W105) — the feature under test.
   useListEmployeeEmploymentHistory: () => ({
@@ -169,7 +186,7 @@ vi.mock('@workspace/api-client-react', () => ({
   getListEmployeeDisciplinaryRecordsQueryKey: (orgId: number, empId: number) => ['employeeDisciplinaryRecords', orgId, empId],
   useAddEmployeeDisciplinaryRecord: () => ({ mutate: vi.fn(), isPending: false }),
 
-  useListEmployeeExitProcesses: () => ({ data: [] }),
+  useListEmployeeExitProcesses: () => ({ data: state.exitProcessesError ? undefined : [], error: state.exitProcessesError }),
   getListEmployeeExitProcessesQueryKey: (orgId: number, empId: number) => ['employeeExitProcesses', orgId, empId],
   useCreateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateEmployeeExitProcess: () => ({ mutate: vi.fn(), isPending: false }),
@@ -292,6 +309,8 @@ function resetState() {
   state.employmentHistoryError = false;
   state.refetchEmploymentHistory = vi.fn();
   state.disciplinaryRecordsError = undefined;
+  state.exitProcessesError = undefined;
+  state.updateEmployeeMutate = vi.fn();
   state.personnelFile = undefined;
   state.personnelFileLoading = false;
   state.personnelFileError = undefined;
@@ -318,6 +337,37 @@ function resetState() {
   state.performanceReviews = undefined;
   state.unreturnedAssetsReport = undefined;
   state.myOrgRoles = ['org_admin'];
+  state.members = [];
+  state.documents = [];
+  state.skills = [];
+  state.qualifications = [];
+  state.certifications = [];
+  state.unlinkMutateAsync = resolvingMutateAsync();
+  state.rehireMutateAsync = resolvingMutateAsync();
+  state.separateMutate = vi.fn();
+  state.removeDocumentMutateAsync = resolvingMutateAsync();
+  state.removeSkillMutateAsync = resolvingMutateAsync();
+  state.removeQualificationMutateAsync = resolvingMutateAsync();
+  state.removeCertificationMutateAsync = resolvingMutateAsync();
+}
+
+type MutationCallbacks = { onSuccess?: (data: unknown) => void; onError?: (err: unknown) => void };
+
+/** A mutateAsync that succeeds, running the page's own onSuccess callback first (as TanStack Query does). */
+function resolvingMutateAsync() {
+  return vi.fn().mockImplementation((_vars: unknown, options?: MutationCallbacks) => {
+    options?.onSuccess?.(undefined);
+    return Promise.resolve(undefined);
+  });
+}
+
+/** A mutateAsync that fails, running the page's own onError callback first (as TanStack Query does). */
+function rejectingMutateAsync() {
+  return vi.fn().mockImplementation((_vars: unknown, options?: MutationCallbacks) => {
+    const err = { error: 'Server said no' };
+    options?.onError?.(err);
+    return Promise.reject(err);
+  });
 }
 
 function custodyDetail(overrides: Partial<PersonnelFileCustodyDetail> = {}): PersonnelFileCustodyDetail {
@@ -682,6 +732,8 @@ describe('Employee detail page', () => {
 
       const user = userEvent.setup();
       await user.click(screen.getByTestId('button-separate-employee'));
+      await user.click(screen.getByTestId('dialog-confirm-separate-employee-confirm'));
+      expect(screen.getByTestId('input-separation-date')).toBeInTheDocument();
 
       expect(screen.queryByTestId('alert-separation-warnings')).not.toBeInTheDocument();
     });
@@ -702,6 +754,7 @@ describe('Employee detail page', () => {
 
       const user = userEvent.setup();
       await user.click(screen.getByTestId('button-separate-employee'));
+      await user.click(screen.getByTestId('dialog-confirm-separate-employee-confirm'));
 
       const alert = screen.getByTestId('alert-separation-warnings');
       expect(within(alert).getByText(/still checked out/)).toBeInTheDocument();
@@ -742,6 +795,247 @@ describe('Employee detail page', () => {
       expect(screen.getByTestId('button-transfer-employee')).toBeInTheDocument();
       expect(screen.getByTestId('button-promote-employee')).toBeInTheDocument();
       expect(screen.getByTestId('button-separate-employee')).toBeInTheDocument();
+    });
+  });
+
+  describe('Authorization fix (2026-09-15): exit process and phone number', () => {
+    it('shows the Exit Management card when the exit-process read succeeds', () => {
+      resetState();
+      renderPage();
+
+      expect(screen.getByTestId('card-exit-management')).toBeInTheDocument();
+    });
+
+    it('hides the Exit Management card (no crash, no "none started") when the read is forbidden', () => {
+      resetState();
+      state.myOrgRoles = ['employee'];
+      state.exitProcessesError = { status: 403 };
+      renderPage();
+
+      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.queryByTestId('card-exit-management')).not.toBeInTheDocument();
+      expect(screen.queryByText('No exit process started.')).not.toBeInTheDocument();
+    });
+
+    it('keeps a redacted phone number read-only and never sends it back on save', async () => {
+      resetState();
+      state.employee = baseEmployee({ phoneNumber: null, sensitiveFieldsRedacted: true });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-edit-employee'));
+      expect(screen.getByTestId('input-detail-phone')).toBeDisabled();
+      // The page seeds form state only when the employee changes after mount;
+      // with data present at mount the required name fields start empty.
+      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
+      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
+      await user.click(screen.getByTestId('button-save-employee'));
+
+      expect(state.updateEmployeeMutate).toHaveBeenCalledTimes(1);
+      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(payload.data).not.toHaveProperty('phoneNumber');
+    });
+
+    it('sends the phone number when the caller can see it', async () => {
+      resetState();
+      state.employee = baseEmployee({ phoneNumber: '+233200000000', sensitiveFieldsRedacted: false });
+      renderPage();
+
+      const user = userEvent.setup();
+      await user.click(screen.getByTestId('button-edit-employee'));
+      expect(screen.getByTestId('input-detail-phone')).toBeEnabled();
+      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
+      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
+      await user.type(screen.getByTestId('input-detail-phone'), '+233200000000');
+      await user.click(screen.getByTestId('button-save-employee'));
+
+      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
+      expect(payload.data.phoneNumber).toBe('+233200000000');
+    });
+  });
+
+  describe('Destructive action confirmations', () => {
+    const now = new Date().toISOString();
+
+    function qualificationRow(overrides: Partial<EmployeeQualification> = {}): EmployeeQualification {
+      return { id: 5, organizationId: 10, employeeId: 42, qualificationTypeCode: 'BSc Mathematics', institution: null, createdAt: now, updatedAt: now, ...overrides };
+    }
+
+    it('Separate asks for confirmation first, and only Continue opens the separation form', async () => {
+      resetState();
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-separate-employee'));
+      const dialog = screen.getByTestId('dialog-confirm-separate-employee');
+      expect(within(dialog).getByText('Separate employee?')).toBeInTheDocument();
+      expect(within(dialog).getByText(/You are about to separate “Ada Lovelace” from the organization\./)).toBeInTheDocument();
+      expect(within(dialog).getByText(/historical HR record will be preserved/)).toBeInTheDocument();
+      expect(within(dialog).queryByText(/delete/i)).not.toBeInTheDocument();
+      expect(screen.queryByTestId('input-separation-date')).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId('dialog-confirm-separate-employee-cancel'));
+      expect(screen.queryByTestId('dialog-confirm-separate-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('input-separation-date')).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId('button-separate-employee'));
+      await user.click(screen.getByTestId('dialog-confirm-separate-employee-confirm'));
+      expect(screen.queryByTestId('dialog-confirm-separate-employee')).not.toBeInTheDocument();
+      expect(screen.getByTestId('input-separation-date')).toBeInTheDocument();
+      // Continue only opens the form — the separation itself still needs the form's own submit.
+      expect(state.separateMutate).not.toHaveBeenCalled();
+    });
+
+    it('Rehire runs only after confirmation', async () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'terminated', separationDate: '2026-01-31' });
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-rehire-employee'));
+      expect(screen.getByTestId('dialog-rehire-employee')).toBeInTheDocument();
+      expect(within(screen.getByTestId('dialog-rehire-employee')).getByText(/returned to active status/)).toBeInTheDocument();
+      expect(state.rehireMutateAsync).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-rehire-employee-cancel'));
+      expect(state.rehireMutateAsync).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('button-rehire-employee'));
+      await user.click(screen.getByTestId('dialog-rehire-employee-confirm'));
+      expect(state.rehireMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.rehireMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-rehire-employee')).not.toBeInTheDocument());
+    });
+
+    it('Unlink says the user account and membership are untouched, and unlinks only after confirmation', async () => {
+      resetState();
+      state.employee = baseEmployee({ linkedApplicationUserId: 7 });
+      state.members = [{ applicationUserId: 7, firstName: 'Ada', lastName: 'Login', email: 'ada@login.example.com' }];
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-unlink-user'));
+      const dialog = screen.getByTestId('dialog-unlink-user');
+      expect(within(dialog).getByText(/Ada Login \(ada@login\.example\.com\)/)).toBeInTheDocument();
+      expect(within(dialog).getByText(/user account and its organization membership are not changed/)).toBeInTheDocument();
+      expect(state.unlinkMutateAsync).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-unlink-user-confirm'));
+      expect(state.unlinkMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.unlinkMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-unlink-user')).not.toBeInTheDocument());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employee', 10, 42] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('Remove qualification: opening and cancelling never removes anything', async () => {
+      resetState();
+      state.qualifications = [qualificationRow()];
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-remove-qualification-5'));
+      const dialog = screen.getByTestId('dialog-remove-qualification');
+      expect(within(dialog).getByText('Remove qualification?')).toBeInTheDocument();
+      expect(within(dialog).getByText(/remove “BSc Mathematics” from this employee's record/)).toBeInTheDocument();
+      expect(state.removeQualificationMutateAsync).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-remove-qualification-cancel'));
+      expect(screen.queryByTestId('dialog-remove-qualification')).not.toBeInTheDocument();
+      expect(state.removeQualificationMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('Remove qualification: confirming removes it once, closes, and refreshes the list', async () => {
+      resetState();
+      state.qualifications = [qualificationRow()];
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-remove-qualification-5'));
+      await user.click(screen.getByTestId('dialog-remove-qualification-confirm'));
+
+      expect(state.removeQualificationMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.removeQualificationMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42, qualificationId: 5 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-qualification')).not.toBeInTheDocument());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['employeeQualifications', 10, 42] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('Remove qualification: a failed removal keeps the dialog open and the row in place', async () => {
+      resetState();
+      state.qualifications = [qualificationRow()];
+      state.removeQualificationMutateAsync = rejectingMutateAsync();
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-remove-qualification-5'));
+      await user.click(screen.getByTestId('dialog-remove-qualification-confirm'));
+
+      expect(state.removeQualificationMutateAsync).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(screen.getByTestId('dialog-remove-qualification-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-remove-qualification')).toBeInTheDocument();
+      expect(screen.getByTestId('row-qualification-5')).toBeInTheDocument();
+    });
+
+    it('Remove document, skill and certification each confirm before removing the right record', async () => {
+      resetState();
+      state.documents = [{ id: 3, organizationId: 10, employeeId: 42, categoryCode: 'contract', fileName: 'contract.pdf', mimeType: 'application/pdf', fileSize: 2048, createdAt: now }];
+      state.skills = [{ id: 4, organizationId: 10, employeeId: 42, skillCode: 'Excel', proficiencyLevel: null, createdAt: now, updatedAt: now }];
+      state.certifications = [{ id: 6, organizationId: 10, employeeId: 42, certificationTypeCode: 'PMP', issuingOrganization: null, createdAt: now, updatedAt: now }];
+      renderPage();
+      const user = userEvent.setup();
+
+      await user.click(screen.getByTestId('button-remove-document-3'));
+      expect(within(screen.getByTestId('dialog-remove-document')).getByText(/“contract\.pdf”.*stored file will be permanently deleted/)).toBeInTheDocument();
+      expect(state.removeDocumentMutateAsync).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId('dialog-remove-document-confirm'));
+      expect(state.removeDocumentMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.removeDocumentMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42, documentId: 3 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-document')).not.toBeInTheDocument());
+
+      await user.click(screen.getByTestId('button-remove-skill-4'));
+      expect(state.removeSkillMutateAsync).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId('dialog-remove-skill-confirm'));
+      expect(state.removeSkillMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.removeSkillMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42, skillId: 4 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-skill')).not.toBeInTheDocument());
+
+      await user.click(screen.getByTestId('button-remove-certification-6'));
+      expect(state.removeCertificationMutateAsync).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId('dialog-remove-certification-confirm'));
+      expect(state.removeCertificationMutateAsync).toHaveBeenCalledTimes(1);
+      expect(state.removeCertificationMutateAsync.mock.calls[0][0]).toEqual({ organizationId: 10, employeeId: 42, certificationId: 6 });
+      await waitFor(() => expect(screen.queryByTestId('dialog-remove-certification')).not.toBeInTheDocument());
+    });
+
+    it('keeps every confirmation trigger hidden from a plain employee viewer', () => {
+      resetState();
+      state.myOrgRoles = ['employee'];
+      state.employee = baseEmployee({ linkedApplicationUserId: 7 });
+      state.documents = [{ id: 3, organizationId: 10, employeeId: 42, categoryCode: 'contract', fileName: 'contract.pdf', mimeType: 'application/pdf', fileSize: 2048, createdAt: now }];
+      state.skills = [{ id: 4, organizationId: 10, employeeId: 42, skillCode: 'Excel', proficiencyLevel: null, createdAt: now, updatedAt: now }];
+      state.qualifications = [qualificationRow()];
+      state.certifications = [{ id: 6, organizationId: 10, employeeId: 42, certificationTypeCode: 'PMP', issuingOrganization: null, createdAt: now, updatedAt: now }];
+      renderPage();
+
+      expect(screen.getByTestId('row-qualification-5')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-separate-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-unlink-user')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-remove-document-3')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-remove-skill-4')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-remove-qualification-5')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-remove-certification-6')).not.toBeInTheDocument();
+    });
+
+    it('keeps Rehire hidden from a plain employee viewer', () => {
+      resetState();
+      state.myOrgRoles = ['employee'];
+      state.employee = baseEmployee({ employmentStatus: 'terminated' });
+      renderPage();
+
+      expect(screen.queryByTestId('button-rehire-employee')).not.toBeInTheDocument();
     });
   });
 });

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, Link, useLocation } from 'wouter';
 import { Building2, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/foundation';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useGetPasswordResetStatus, getGetPasswordResetStatusQueryKey, useResetPassword } from '@workspace/api-client-react';
@@ -122,13 +122,13 @@ export default function ResetPassword() {
               <form onSubmit={handleSubmit} className="space-y-4" data-testid="form-reset-password">
                 <div className="space-y-2">
                   <Label htmlFor="password">New password</Label>
-                  <Input
+                  <PasswordInput
                     id="password"
-                    type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={8}
                     required
+                    autoComplete="new-password"
                     disabled={resetMutation.isPending}
                     data-testid="input-password"
                   />

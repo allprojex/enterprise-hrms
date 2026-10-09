@@ -32,6 +32,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { QueryError } from '@/components/query-error';
 import { isHrCapableRole } from '@/hooks/use-hr-capable';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 function errorMessage(err: unknown): string | undefined {
   return err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
@@ -162,9 +163,13 @@ export default function PerformanceCycles() {
   const isOpen = cycle?.status === 'open';
   const isClosed = cycle?.status === 'closed';
 
+  const [generateTarget, setGenerateTarget] = useState<{ name: string; manualCount: number | null } | null>(null);
+  const [closeTarget, setCloseTarget] = useState<{ name: string } | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<{ name: string; fromStatus: 'draft' | 'closed' } | null>(null);
+
   const handleGenerateReviews = () => {
     if (manageId == null) return;
-    generateMutation.mutate(
+    return generateMutation.mutateAsync(
       {
         organizationId,
         id: manageId,
@@ -183,7 +188,7 @@ export default function PerformanceCycles() {
 
   const handleTransition = (status: 'closed' | 'archived') => {
     if (manageId == null) return;
-    updateMutation.mutate(
+    return updateMutation.mutateAsync(
       { organizationId, id: manageId, data: { status } },
       {
         onSuccess: () => {
@@ -430,12 +435,17 @@ export default function PerformanceCycles() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <Button type="button" variant="destructive" onClick={() => handleTransition('archived')} disabled={updateMutation.isPending} data-testid="button-archive-cycle">
+                    <Button type="button" variant="destructive" onClick={() => setArchiveTarget({ name: cycle.name, fromStatus: 'draft' })} disabled={updateMutation.isPending} data-testid="button-archive-cycle">
                       Archive Draft
                     </Button>
                     <Button
                       type="button"
-                      onClick={handleGenerateReviews}
+                      onClick={() =>
+                        setGenerateTarget({
+                          name: cycle.name,
+                          manualCount: cycle.applicabilityScope === 'manual' ? parseIdList(manualEmployeeIds).length : null,
+                        })
+                      }
                       disabled={generateMutation.isPending || (cycle.applicabilityScope === 'manual' && parseIdList(manualEmployeeIds).length === 0)}
                       data-testid="button-generate-reviews"
                     >
@@ -447,7 +457,7 @@ export default function PerformanceCycles() {
 
               {isOpen && (
                 <div className="border-t pt-4 flex justify-end">
-                  <Button type="button" variant="outline" onClick={() => handleTransition('closed')} disabled={updateMutation.isPending} data-testid="button-close-cycle">
+                  <Button type="button" variant="outline" onClick={() => setCloseTarget({ name: cycle.name })} disabled={updateMutation.isPending} data-testid="button-close-cycle">
                     Close Cycle
                   </Button>
                 </div>
@@ -455,7 +465,7 @@ export default function PerformanceCycles() {
 
               {isClosed && (
                 <div className="border-t pt-4 flex justify-end">
-                  <Button type="button" variant="outline" onClick={() => handleTransition('archived')} disabled={updateMutation.isPending} data-testid="button-archive-closed-cycle">
+                  <Button type="button" variant="outline" onClick={() => setArchiveTarget({ name: cycle.name, fromStatus: 'closed' })} disabled={updateMutation.isPending} data-testid="button-archive-closed-cycle">
                     Archive Cycle
                   </Button>
                 </div>
@@ -464,6 +474,65 @@ export default function PerformanceCycles() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmActionDialog
+        open={generateTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setGenerateTarget(null);
+        }}
+        title="Generate performance reviews?"
+        description={
+          <p>
+            This opens “{generateTarget?.name}” and creates a performance review, ready for self-assessment,{' '}
+            {generateTarget?.manualCount != null ? `for each of the ${generateTarget.manualCount} employee(s) you listed` : 'for every eligible employee'}.
+            Reviews can only be generated once per cycle, and the cycle cannot be returned to draft afterwards.
+          </p>
+        }
+        confirmLabel="Generate Reviews"
+        tone="default"
+        onConfirm={handleGenerateReviews}
+        testId="dialog-generate-reviews"
+      />
+
+      <ConfirmActionDialog
+        open={closeTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setCloseTarget(null);
+        }}
+        title="Close performance cycle?"
+        description={
+          <p>
+            “{closeTarget?.name}” will be closed. A closed cycle cannot be reopened — it can only be archived afterwards. Reviews already created
+            in this cycle are not changed.
+          </p>
+        }
+        confirmLabel="Close Cycle"
+        onConfirm={() => handleTransition('closed')}
+        testId="dialog-close-cycle"
+      />
+
+      <ConfirmActionDialog
+        open={archiveTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setArchiveTarget(null);
+        }}
+        title={archiveTarget?.fromStatus === 'draft' ? 'Archive draft cycle?' : 'Archive performance cycle?'}
+        description={
+          archiveTarget?.fromStatus === 'draft' ? (
+            <p>
+              “{archiveTarget?.name}” will be archived without generating any reviews. An archived cycle is final — it cannot be edited, opened or
+              restored.
+            </p>
+          ) : (
+            <p>
+              “{archiveTarget?.name}” will be archived. Its reviews are preserved, but an archived cycle is final and cannot be restored.
+            </p>
+          )
+        }
+        confirmLabel={archiveTarget?.fromStatus === 'draft' ? 'Archive Draft' : 'Archive Cycle'}
+        onConfirm={() => handleTransition('archived')}
+        testId="dialog-archive-cycle"
+      />
     </div>
   );
 }

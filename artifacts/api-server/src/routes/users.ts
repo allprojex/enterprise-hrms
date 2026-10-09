@@ -3,11 +3,20 @@ import { and, eq, notInArray } from "drizzle-orm";
 import { db, usersTable, notificationsTable, employeesTable, assetsTable, officeInventoryItemsTable } from "@workspace/db";
 import { UpdateMyProfileBody } from "@workspace/api-zod";
 import { requireAuth, type AuthenticatedRequest } from "../middlewares/requireAuth";
+import { recordAuditEvent } from "../lib/auditLog";
+import {
+  AccountIdentityManagedByHrError,
+  AccountProfileValidationError,
+  assertNoHrOwnedChanges,
+  computeAccountProfileChanges,
+  isLinkedToEmployee,
+  type AccountProfilePatch,
+} from "../lib/accountProfile";
 import { resolveActiveOrganizationId, getActiveMembership } from "../lib/membership";
 import { listOrganizationModules, getModuleAccess } from "../lib/organizationModules";
 import { hasPermission } from "../lib/permissions";
 import { resolveOwnEmployeeId } from "../lib/leaveRequests";
-import { listPendingApprovals } from "../lib/leaveApprovals";
+import { listPendingApprovals, partitionPendingApprovalsForActor } from "../lib/leaveApprovals";
 import { listDepartmentsHeadedByMembership } from "../lib/departmentHeads";
 import { listLiveDirectReportEmployeeIds } from "../lib/directReports";
 import { getLeaveDashboardMetrics, type LeaveDashboardMetrics } from "../lib/leaveDashboardMetrics";
@@ -51,11 +60,19 @@ async function resolveLeaveDashboardMetrics(
 
   const headedDepartmentIds = isOrgWide ? [] : await listDepartmentsHeadedByMembership(organizationId, membership.id);
   const pendingApprovals = await listPendingApprovals(organizationId, { isOrgWideHr: isOrgWide, headedDepartmentIds });
+  // HR sees both approval stages; only the stage this viewer can decide is theirs to act on.
+  const split = await partitionPendingApprovalsForActor(organizationId, pendingApprovals, {
+    membershipId: membership.id,
+    employeeId: ownEmployeeId,
+    isHr: isOrgWide,
+  });
 
   return getLeaveDashboardMetrics({
     organizationId,
     employeeIds,
     pendingApprovalCount: pendingApprovals.length,
+    awaitingMyActionCount: split.actionable.length,
+    awaitingOtherStageCount: split.awaitingOtherStage.length,
   });
 }
 
@@ -140,15 +157,30 @@ async function resolveInventoryDashboardMetrics(organizationId: number, membersh
  * for a caller without it — the same "hide, don't fabricate zero" contract
  * every other dashboard metric here already follows.
  */
-async function resolveTotalEmployees(organizationId: number, membershipId: number): Promise<number | null> {
+/**
+ * Employment statuses counted as the current workforce. `suspended` and
+ * `terminated` are excluded: neither is someone HR expects at work.
+ */
+export const ACTIVE_WORKFORCE_STATUSES = ["active", "probation", "on_leave"] as const;
+
+async function resolveEmployeeCounts(
+  organizationId: number,
+  membershipId: number,
+): Promise<{ total: number; active: number } | null> {
   if (!(await hasPermission(membershipId, "employee.write"))) return null;
-  const rows = await db.select({ id: employeesTable.id }).from(employeesTable).where(eq(employeesTable.organizationId, organizationId));
-  return rows.length;
+  const rows = await db
+    .select({ id: employeesTable.id, employmentStatus: employeesTable.employmentStatus })
+    .from(employeesTable)
+    .where(eq(employeesTable.organizationId, organizationId));
+  const active = rows.filter((r) => (ACTIVE_WORKFORCE_STATUSES as readonly string[]).includes(r.employmentStatus ?? "active")).length;
+  return { total: rows.length, active };
 }
 
 const router = Router();
 
 // PATCH /users/me
+// Account profile only — see lib/accountProfile.ts for why a login linked to
+// an employee record may not change its name, job title or department here.
 router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, res): Promise<void> => {
   const parsed = UpdateMyProfileBody.safeParse(req.body);
   if (!parsed.success) {
@@ -156,18 +188,41 @@ router.patch("/users/me", requireAuth as any, async (req: AuthenticatedRequest, 
     return;
   }
 
-  const updated = await db
-    .update(usersTable)
-    .set(parsed.data)
-    .where(eq(usersTable.id, req.userId!))
-    .returning();
-
-  if (!updated.length) {
-    res.status(404).json({ error: "User not found" });
-    return;
+  const current = req.user!;
+  let changes: AccountProfilePatch;
+  try {
+    changes = computeAccountProfileChanges(current, parsed.data);
+    assertNoHrOwnedChanges(changes, await isLinkedToEmployee(current.id));
+  } catch (err) {
+    if (err instanceof AccountProfileValidationError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof AccountIdentityManagedByHrError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
 
-  const user = updated[0];
+  let user = current;
+  if (Object.keys(changes).length > 0) {
+    const updated = await db.update(usersTable).set(changes).where(eq(usersTable.id, current.id)).returning();
+    if (!updated.length) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    user = updated[0];
+    // Field NAMES only: the account phone is personal data, and the audit
+    // trail needs to show that (and which parts of) an identity changed.
+    await recordAuditEvent({
+      actorApplicationUserId: current.id,
+      eventType: "user.profile_updated",
+      targetType: "user",
+      targetId: String(current.id),
+      metadata: { changedFields: Object.keys(changes).sort() },
+    });
+  }
   const activeOrganizationId = await resolveActiveOrganizationId(
     req.userId!,
     req.session?.activeOrganizationId,
@@ -200,9 +255,9 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
 
   const activeMembership = activeOrganizationId ? await getActiveMembership(req.userId!, activeOrganizationId) : null;
 
-  const [totalEmployees, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
+  const [employeeCounts, activeModules, leaveMetrics, attendanceMetrics, assetMetrics, inventoryMetrics] = await Promise.all([
     activeOrganizationId && activeMembership
-      ? resolveTotalEmployees(activeOrganizationId, activeMembership.id)
+      ? resolveEmployeeCounts(activeOrganizationId, activeMembership.id)
       : Promise.resolve(null),
     activeOrganizationId ? listOrganizationModules(activeOrganizationId) : Promise.resolve([]),
     activeOrganizationId ? resolveLeaveDashboardMetrics(req.userId!, activeOrganizationId) : Promise.resolve(null),
@@ -225,7 +280,8 @@ router.get("/dashboard/summary", requireAuth as any, async (req: AuthenticatedRe
   const unreadCount = unreadNotifications.filter((n) => !n.read).length;
 
   res.json({
-    totalEmployees,
+    totalEmployees: employeeCounts?.total ?? null,
+    activeEmployees: employeeCounts?.active ?? null,
     activeModules: activeModules.filter((m) => m.enabled).length,
     unreadNotifications: unreadCount,
     leaveMetrics,

@@ -4,7 +4,7 @@
  * network requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PerformanceTemplates from '@/pages/performance-templates';
@@ -21,6 +21,7 @@ const { state } = vi.hoisted(() => ({
     detailLoading: false,
     createMutate: vi.fn() as (...args: unknown[]) => void,
     updateMutate: vi.fn() as (...args: unknown[]) => void,
+    updateMutateAsync: vi.fn() as (...args: unknown[]) => Promise<unknown>,
     replaceCompetenciesMutate: vi.fn() as (...args: unknown[]) => void,
   },
 }));
@@ -37,7 +38,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useListPerformanceRatingScales: () => ({ data: state.ratingScales }),
   getListPerformanceRatingScalesQueryKey: () => ['scales'],
   useCreatePerformanceReviewTemplate: () => ({ mutate: state.createMutate, isPending: false }),
-  useUpdatePerformanceReviewTemplate: () => ({ mutate: state.updateMutate, isPending: false }),
+  useUpdatePerformanceReviewTemplate: () => ({ mutate: state.updateMutate, mutateAsync: state.updateMutateAsync, isPending: false }),
   useReplacePerformanceTemplateCompetencies: () => ({ mutate: state.replaceCompetenciesMutate, isPending: false }),
 }));
 
@@ -68,8 +69,29 @@ function template(overrides: Partial<PerformanceReviewTemplate> = {}): Performan
   };
 }
 
+let lastQueryClient: QueryClient | null = null;
+
+type MutationCallbacks = { onSuccess?: (...args: unknown[]) => void; onError?: (err: unknown) => void };
+
+/** mutateAsync stand-in that runs the page's own onSuccess callback and resolves. */
+function resolvingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    opts?.onSuccess?.({ reviewsCreated: 3 });
+  });
+}
+
+/** mutateAsync stand-in that runs the page's own onError callback and rejects. */
+function rejectingMutateAsync() {
+  return vi.fn(async (_vars: unknown, opts?: MutationCallbacks) => {
+    const err = { error: 'Server refused' };
+    opts?.onError?.(err);
+    throw err;
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastQueryClient = queryClient;
   return render(
     <QueryClientProvider client={queryClient}>
       <PerformanceTemplates />
@@ -87,6 +109,7 @@ function resetState() {
   state.detailLoading = false;
   state.createMutate = vi.fn();
   state.updateMutate = vi.fn();
+  state.updateMutateAsync = resolvingMutateAsync();
   state.replaceCompetenciesMutate = vi.fn();
 }
 
@@ -183,5 +206,66 @@ describe('Performance Review Templates page', () => {
       expect.objectContaining({ organizationId: 10, id: 1, data: expect.objectContaining({ competencies: [expect.objectContaining({ label: 'Communication', weight: 100 })] }) }),
       expect.anything(),
     );
+  });
+
+  it('archiving a template asks for confirmation first and only archives on confirm', async () => {
+    resetState();
+    state.templates = [template({ status: 'active' })];
+    state.detail = { template: template({ status: 'active' }), competencies: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-template-1'));
+    await userEvent.click(screen.getByTestId('button-toggle-template-status'));
+    const dialog = screen.getByTestId('dialog-template-status');
+    expect(dialog).toHaveTextContent('Archive review template?');
+    expect(dialog).toHaveTextContent('Annual Review');
+    expect(state.updateMutateAsync).not.toHaveBeenCalled();
+    expect(state.updateMutate).not.toHaveBeenCalled();
+
+    const invalidateSpy = vi.spyOn(lastQueryClient!, 'invalidateQueries');
+    await userEvent.click(screen.getByTestId('dialog-template-status-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledTimes(1);
+    expect(state.updateMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { status: 'archived' } }, expect.anything());
+    await waitFor(() => expect(screen.queryByTestId('dialog-template-status')).not.toBeInTheDocument());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['templates'] });
+  });
+
+  it('cancelling the archive template dialog changes nothing', async () => {
+    resetState();
+    state.templates = [template({ status: 'active' })];
+    state.detail = { template: template({ status: 'active' }), competencies: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-template-1'));
+    await userEvent.click(screen.getByTestId('button-toggle-template-status'));
+    await userEvent.click(screen.getByTestId('dialog-template-status-cancel'));
+    await waitFor(() => expect(screen.queryByTestId('dialog-template-status')).not.toBeInTheDocument());
+    expect(state.updateMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('a failed archive keeps the confirmation open and the template listed', async () => {
+    resetState();
+    state.templates = [template({ status: 'active' })];
+    state.detail = { template: template({ status: 'active' }), competencies: [] };
+    state.updateMutateAsync = rejectingMutateAsync();
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-template-1'));
+    await userEvent.click(screen.getByTestId('button-toggle-template-status'));
+    await userEvent.click(screen.getByTestId('dialog-template-status-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('dialog-template-status-confirm')).not.toBeDisabled());
+    expect(screen.getByTestId('dialog-template-status')).toBeInTheDocument();
+    expect(screen.getByTestId('row-template-1')).toBeInTheDocument();
+  });
+
+  it('reactivating an archived template confirms with a restorative dialog', async () => {
+    resetState();
+    state.templates = [template({ status: 'archived' })];
+    state.detail = { template: template({ status: 'archived' }), competencies: [] };
+    renderPage();
+    await userEvent.click(screen.getByTestId('button-manage-template-1'));
+    await userEvent.click(screen.getByTestId('button-toggle-template-status'));
+    expect(screen.getByTestId('dialog-template-status')).toHaveTextContent('Reactivate review template?');
+    expect(screen.getByTestId('dialog-template-status-confirm')).toHaveTextContent('Reactivate Template');
+    await userEvent.click(screen.getByTestId('dialog-template-status-confirm'));
+    expect(state.updateMutateAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: { status: 'active' } }, expect.anything());
   });
 });

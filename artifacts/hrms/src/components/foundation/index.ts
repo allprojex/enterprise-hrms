@@ -18,3 +18,4 @@ export { LoadingState, TableSkeleton, ListSkeleton, type LoadingStateProps, type
 export { PasswordInput, type PasswordInputProps } from './password-input';
 export { SearchInput, type SearchInputProps } from './search-input';
 export { OrganizationLogo, type OrganizationLogoProps, type OrganizationLogoSize } from './organization-logo';
+export { ConfirmActionDialog, type ConfirmActionDialogProps } from './confirm-action-dialog';

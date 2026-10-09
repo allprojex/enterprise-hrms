@@ -10,7 +10,9 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      'peer grid size-4 shrink-0 place-content-center rounded-sm border border-border-strong bg-surface shadow-xs motion-interactive ' +
+      // `touch-target` keeps the painted box at 16px and only widens the
+      // pressable area (see index.css).
+      'peer touch-target grid size-4 shrink-0 place-content-center rounded-sm border border-border-strong bg-surface shadow-xs motion-interactive ' +
         'hover:border-primary ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-background ' +
         'disabled:cursor-not-allowed disabled:border-border disabled:bg-disabled disabled:text-disabled-foreground ' +

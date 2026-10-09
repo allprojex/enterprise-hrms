@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- No maximum-scale and no user-scalable=no: pinch zoom must stay available (WCAG 1.4.4 Resize Text). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Enterprise HRMS</title>
     <meta name="description" content="Enterprise HRMS — secure, multi-tenant human resource management. Access is restricted to authorised organisation members." />
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
@@ -13,6 +14,20 @@
     <meta name="twitter:title" content="Enterprise HRMS" />
     <meta name="twitter:description" content="Secure, multi-tenant human resource management for authorised organisation members." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!--
+      Installable application (PWA). The manifest carries the platform
+      identity — "Enterprise HRMS" — for every tenant; tenant branding is
+      applied inside the authenticated application through the existing
+      organisation-branding mechanism, not here. One manifest, one installed
+      app, all organisations.
+    -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#2A4074" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Enterprise HRMS" />
   </head>
   <body>
     <div id="root"></div>

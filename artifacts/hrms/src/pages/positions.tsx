@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useIsHrCapable } from '@/hooks/use-hr-capable';
 import { QueryError } from '@/components/query-error';
+import { ConfirmActionDialog } from '@/components/foundation';
 
 const NONE = '__none__';
 
@@ -96,9 +97,12 @@ export default function Positions() {
     );
   };
 
+  const [statusTarget, setStatusTarget] = useState<{ id: number; title: string; status: string } | null>(null);
+
+  // Returned so the confirmation stays open (with the error toast) on failure.
   const handleToggleStatus = (position: { id: number; status: string }) => {
     const mutation = position.status === 'inactive' ? reactivateMutation : archiveMutation;
-    mutation.mutate(
+    return mutation.mutateAsync(
       { organizationId, id: position.id },
       {
         onSuccess: () => {
@@ -294,7 +298,7 @@ export default function Positions() {
                       <Button
                         size="sm"
                         variant={position.status === 'inactive' ? 'default' : 'destructive'}
-                        onClick={() => handleToggleStatus(position)}
+                        onClick={() => setStatusTarget(position)}
                         disabled={archiveMutation.isPending || reactivateMutation.isPending}
                         data-testid={`button-toggle-position-status-${position.id}`}
                       >
@@ -309,6 +313,23 @@ export default function Positions() {
           </Table>
         </Card>
       )}
+
+      <ConfirmActionDialog
+        open={statusTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setStatusTarget(null);
+        }}
+        title={statusTarget?.status === 'inactive' ? 'Reactivate position?' : 'Archive position?'}
+        description={
+          statusTarget?.status === 'inactive'
+            ? `“${statusTarget?.title}” will be marked active again.`
+            : `“${statusTarget?.title}” will be archived (marked inactive). Its historical records will be preserved, and it can be reactivated later.`
+        }
+        confirmLabel={statusTarget?.status === 'inactive' ? 'Reactivate Position' : 'Archive Position'}
+        tone={statusTarget?.status === 'inactive' ? 'default' : 'destructive'}
+        onConfirm={() => (statusTarget ? handleToggleStatus(statusTarget) : undefined)}
+        testId="dialog-position-status"
+      />
 
       <Dialog open={editId !== null} onOpenChange={(open) => !open && setEditId(null)}>
         <DialogContent>

@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { SignatureAssetView } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmActionDialog } from "@/components/foundation";
 import { useToast } from "@/hooks/use-toast";
 
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -70,8 +71,12 @@ export function SignatureAssetsManager({ organizationId }: { organizationId: num
     );
   };
 
-  const revoke = (assetId: number) => {
-    revokeMutation.mutate(
+  const [revokeTarget, setRevokeTarget] = useState<SignatureAssetView | null>(null);
+
+  // Revocation is permanent (there is no reinstate endpoint). The promise is
+  // returned so the confirmation stays open on failure.
+  const revoke = (assetId: number) =>
+    revokeMutation.mutateAsync(
       { organizationId, assetId, data: {} },
       {
         onSuccess: () => {
@@ -81,7 +86,6 @@ export function SignatureAssetsManager({ organizationId }: { organizationId: num
         onError: (err) => toast({ title: "Signature not revoked", description: errorMessage(err), variant: "destructive" }),
       },
     );
-  };
 
   const assets = listQuery.data?.items ?? [];
 
@@ -118,7 +122,7 @@ export function SignatureAssetsManager({ organizationId }: { organizationId: num
                 {a.status === "revoked" ? (
                   <Badge variant="secondary">Revoked</Badge>
                 ) : (
-                  <Button type="button" variant="outline" size="sm" onClick={() => revoke(a.id)} disabled={revokeMutation.isPending} data-testid={`signature-asset-revoke-${a.id}`}>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRevokeTarget(a)} disabled={revokeMutation.isPending} data-testid={`signature-asset-revoke-${a.id}`}>
                     Revoke
                   </Button>
                 )}
@@ -127,6 +131,22 @@ export function SignatureAssetsManager({ organizationId }: { organizationId: num
           ))}
         </ul>
       )}
+
+      <ConfirmActionDialog
+        open={revokeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRevokeTarget(null);
+        }}
+        title="Revoke signature?"
+        description={
+          <p>
+            {`“${revokeTarget ? assetLabel(revokeTarget) : ""}” can no longer be applied to documents. Documents already signed with it are not changed. This cannot be undone — to sign with a stored image again, upload a new signature.`}
+          </p>
+        }
+        confirmLabel="Revoke Signature"
+        onConfirm={() => (revokeTarget ? revoke(revokeTarget.id) : undefined)}
+        testId="dialog-revoke-signature-asset"
+      />
     </div>
   );
 }

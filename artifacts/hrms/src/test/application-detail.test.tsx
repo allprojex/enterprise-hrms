@@ -4,7 +4,8 @@
  * requests are made.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
@@ -24,8 +25,11 @@ const { state } = vi.hoisted(() => ({
     offerError: undefined as unknown,
     requirements: undefined as unknown,
     convertMutate: vi.fn() as (...args: unknown[]) => void,
+    reopenAsync: (() => Promise.resolve()) as (vars: unknown, opts?: unknown) => Promise<unknown>,
   },
 }));
+
+type MutateOpts = { onSuccess?: (data?: unknown) => void; onError?: (err: unknown) => void };
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
@@ -44,7 +48,7 @@ vi.mock('@workspace/api-client-react', () => ({
   useMoveApplicationStage: () => ({ mutate: vi.fn(), isPending: false }),
   useRejectApplication: () => ({ mutate: vi.fn(), isPending: false }),
   useWithdrawApplication: () => ({ mutate: vi.fn(), isPending: false }),
-  useReopenApplication: () => ({ mutate: vi.fn(), isPending: false }),
+  useReopenApplication: () => ({ mutate: vi.fn(), mutateAsync: state.reopenAsync, isPending: false }),
   useSubmitApplicationScore: () => ({ mutate: vi.fn(), isPending: false }),
   useListApplicationInterviews: () => ({ data: state.interviews, refetch: vi.fn() }),
   getListApplicationInterviewsQueryKey: (orgId: number, appId: number) => ['applicationInterviews', orgId, appId],
@@ -154,6 +158,63 @@ describe('Application detail page', () => {
     expect(screen.queryByTestId('button-withdraw-application')).not.toBeInTheDocument();
     expect(screen.queryByTestId('select-move-target-stage')).not.toBeInTheDocument();
     expect(screen.getByText('not_qualified')).toBeInTheDocument();
+  });
+
+  describe('reopen confirmation', () => {
+    it('asks before reopening a terminal application, and Cancel reopens nothing', async () => {
+      state.application = baseApplication({ currentStageCategory: 'rejected', currentStageName: 'Rejected' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.reopenAsync = vi.fn(() => Promise.resolve());
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-reopen-application'));
+      const dialog = screen.getByTestId('dialog-reopen-application');
+      expect(dialog).toHaveTextContent('Reopen application?');
+      expect(dialog).toHaveTextContent('Jane Doe’s application for “Software Engineer” will move from “Rejected” back to the applied stage');
+      expect(state.reopenAsync).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByTestId('dialog-reopen-application-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-reopen-application')).not.toBeInTheDocument());
+      expect(state.reopenAsync).not.toHaveBeenCalled();
+    });
+
+    it('reopens exactly once on confirm, invalidates the application, and closes', async () => {
+      state.application = baseApplication({ currentStageCategory: 'withdrawn' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.reopenAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        opts?.onSuccess?.();
+        return Promise.resolve();
+      });
+      const invalidateSpy = vi.spyOn(QueryClient.prototype, 'invalidateQueries');
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-reopen-application'));
+      await userEvent.click(screen.getByTestId('dialog-reopen-application-confirm'));
+
+      await waitFor(() => expect(screen.queryByTestId('dialog-reopen-application')).not.toBeInTheDocument());
+      expect(state.reopenAsync).toHaveBeenCalledTimes(1);
+      expect(state.reopenAsync).toHaveBeenCalledWith({ organizationId: 10, id: 1, data: {} }, expect.anything());
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['application', 10, 1] });
+      invalidateSpy.mockRestore();
+    });
+
+    it('keeps the dialog open when reopening fails', async () => {
+      state.application = baseApplication({ currentStageCategory: 'rejected' });
+      state.isLoading = false;
+      state.error = undefined;
+      state.reopenAsync = vi.fn((_vars: unknown, opts?: MutateOpts) => {
+        const err = { error: 'No applied-category stage is configured for this workflow' };
+        opts?.onError?.(err);
+        return Promise.reject(err);
+      });
+      renderPage();
+      await userEvent.click(screen.getByTestId('button-reopen-application'));
+      await userEvent.click(screen.getByTestId('dialog-reopen-application-confirm'));
+
+      await waitFor(() => expect(state.reopenAsync).toHaveBeenCalledTimes(1));
+      expect(screen.getByTestId('dialog-reopen-application')).toBeInTheDocument();
+      expect(screen.getByTestId('button-reopen-application')).toBeInTheDocument();
+    });
   });
 
   it('renders immutable history entries', () => {

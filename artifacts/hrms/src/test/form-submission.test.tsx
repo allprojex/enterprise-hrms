@@ -11,12 +11,13 @@ import { Router, Route } from 'wouter';
 import { memoryLocation } from 'wouter/memory-location';
 
 const { state, spies } = vi.hoisted(() => ({
-  state: { detail: null as Record<string, unknown> | null, error: null as unknown },
+  state: { detail: null as Record<string, unknown> | null, error: null as unknown, signatures: [] as unknown[], failMutations: false },
   spies: {
     saveDraft: vi.fn(),
     submit: vi.fn(),
     stage: vi.fn(),
     finalize: vi.fn(),
+    archive: vi.fn(),
     downloadDoc: vi.fn(async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
     downloadBlank: vi.fn(async () => new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
   },
@@ -29,6 +30,16 @@ function mutation(spy: (vars: unknown) => unknown) {
       spy(vars);
       opts.onSuccess?.(state.detail);
     },
+    mutateAsync: async (vars: unknown, opts?: { onSuccess?: (d: unknown) => void; onError?: (e: unknown) => void }) => {
+      spy(vars);
+      if (state.failMutations) {
+        const err = { data: { error: 'Form state changed; reload and try again' } };
+        opts?.onError?.(err);
+        throw err;
+      }
+      opts?.onSuccess?.(state.detail);
+      return state.detail;
+    },
   });
 }
 
@@ -38,13 +49,13 @@ vi.mock('@workspace/api-client-react', () => ({
   useGetFormSubmission: () => ({ data: state.detail, isLoading: false, error: state.error }),
   getGetFormSubmissionQueryKey: (o: number, id: number) => ['formSubmission', o, id],
   getListFormSubmissionsQueryKey: (o: number) => ['formSubmissions', o],
-  useListFormSubmissionSignatures: () => ({ data: { items: [] }, isLoading: false }),
+  useListFormSubmissionSignatures: () => ({ data: { items: state.signatures }, isLoading: false }),
   getListFormSubmissionSignaturesQueryKey: (o: number, id: number) => ['formSignatures', o, id],
   useSaveFormSubmissionDraft: mutation(spies.saveDraft),
   useSubmitFormSubmission: mutation(spies.submit),
   useActOnFormSubmissionStage: mutation(spies.stage),
   useFinalizeFormSubmission: mutation(spies.finalize),
-  useArchiveFormSubmission: mutation(vi.fn()),
+  useArchiveFormSubmission: mutation(spies.archive),
   downloadFormSubmissionDocument: spies.downloadDoc,
   downloadFormTemplateBlank: spies.downloadBlank,
 }));
@@ -87,10 +98,95 @@ function renderPage() {
 beforeEach(() => {
   state.detail = detailFor();
   state.error = null;
+  state.signatures = [];
+  state.failMutations = false;
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
   }
+});
+
+const PIF_V2_STAGES = [
+  { id: 21, stageOrder: 1, name: 'Employee Confirmation & Signature', participant: 'employee', resolver: 'subject_employee', editableSectionKeys: [], allowedActions: ['complete'], signatureSlotKey: 'employee_signature' },
+  { id: 22, stageOrder: 2, name: 'HR review', participant: 'hr', resolver: 'permission_holder', editableSectionKeys: [], allowedActions: ['approve', 'return', 'reject'], signatureSlotKey: null },
+];
+
+function pifDetail(submission: Record<string, unknown>, viewer: Record<string, unknown>) {
+  const base = detailFor();
+  return detailFor({
+    submission: {
+      ...(base.submission as Record<string, unknown>),
+      templateKey: 'wwm_personal_information',
+      templateTitle: 'Staff Personal Information Form',
+      subjectName: 'Kwame Owusu',
+      assisted: true,
+      assistanceReason: 'accessibility_assistance',
+      ...submission,
+    },
+    template: { id: 1, templateKey: 'wwm_personal_information', title: 'Staff Personal Information Form', formType: 'personal_information' },
+    stages: PIF_V2_STAGES,
+    viewer: { canEdit: false, editableSectionKeys: [], canSubmit: false, availableActions: [], canFinalize: false, canArchive: false, isSubject: false, ...viewer },
+  });
+}
+
+const employeeSignature = {
+  id: 90, submissionId: 7, revisionId: 11, slotKey: 'employee_signature', signerUserId: 4, signerMembershipId: 6, representedEmployeeId: 3,
+  authority: 'subject_employee', stageOrder: 1, method: 'drawn', sourceAssetId: null, deviceProvider: null, sha256: 'x', mimeType: 'image/png',
+  widthPx: 10, heightPx: 5, signedAt: '2026-09-06T11:00:00Z', revokedAt: null, revokeReason: null,
+};
+
+describe('FormSubmissionPage — PIF employee confirmation & signature stage', () => {
+  it('shows HR an assisted PIF awaiting the employee, with no way for HR to confirm it', async () => {
+    state.detail = pifDetail({ status: 'pending_approval', currentStageOrder: 1, stageCountSnapshot: 2 }, {});
+    renderPage();
+    const panel = await screen.findByTestId('panel-awaiting-employee-signature');
+    expect(panel).toHaveTextContent('Awaiting Employee Confirmation & Signature');
+    expect(panel).toHaveTextContent('Kwame Owusu must review the form and apply their own signature before HR review');
+    expect(screen.getByTestId('panel-assisted')).toHaveTextContent('HR cannot sign for them');
+    expect(screen.queryByTestId('button-stage-complete')).not.toBeInTheDocument();
+  });
+
+  it('asks the subject employee to sign first, and enables confirmation only once their signature is applied', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'pending_approval', currentStageOrder: 1, stageCountSnapshot: 2 }, { isSubject: true, availableActions: ['complete'] });
+    const first = renderPage();
+    expect(await screen.findByTestId('panel-awaiting-employee-signature')).toHaveTextContent('Awaiting your confirmation & signature');
+    expect(screen.getByTestId('form-actions')).toHaveTextContent('Apply your signature in the form above before confirming.');
+    expect(screen.getByTestId('button-stage-complete')).toHaveTextContent('Confirm & send to HR');
+    expect(screen.getByTestId('button-stage-complete')).toBeDisabled();
+    first.unmount();
+
+    state.signatures = [employeeSignature];
+    renderPage();
+    const confirm = await screen.findByTestId('button-stage-complete');
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect((spies.stage.mock.calls[0][0] as { data: { action: string } }).data.action).toBe('complete');
+  });
+
+  it('lets an employee who signed their own draft submit and confirm in one step — still two backend actions', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'draft', assisted: false, assistanceReason: null }, { isSubject: true, canSubmit: true, canEdit: true, editableSectionKeys: ['leave_period'] });
+    state.signatures = [employeeSignature];
+    renderPage();
+    const submit = await screen.findByTestId('button-submit-form');
+    expect(submit).toHaveTextContent('Submit & confirm');
+    await user.click(submit);
+    expect(spies.submit).toHaveBeenCalledTimes(1);
+    expect(spies.stage).toHaveBeenCalledTimes(1);
+    expect((spies.stage.mock.calls[0][0] as { data: { action: string } }).data.action).toBe('complete');
+  });
+
+  it('submits without confirming while the employee has not signed', async () => {
+    const user = userEvent.setup();
+    state.detail = pifDetail({ status: 'draft', assisted: false, assistanceReason: null }, { isSubject: true, canSubmit: true, canEdit: true, editableSectionKeys: ['leave_period'] });
+    renderPage();
+    const submit = await screen.findByTestId('button-submit-form');
+    expect(submit).not.toHaveTextContent('confirm');
+    await user.click(submit);
+    expect(spies.submit).toHaveBeenCalledTimes(1);
+    expect(spies.stage).not.toHaveBeenCalled();
+  });
 });
 
 describe('FormSubmissionPage', () => {
@@ -142,6 +238,60 @@ describe('FormSubmissionPage', () => {
     await waitFor(() => expect(spies.downloadDoc).toHaveBeenCalledWith(10, 7, { kind: 'approved' }));
     await user.click(screen.getByTestId('button-download-blank'));
     await waitFor(() => expect(spies.downloadBlank).toHaveBeenCalledWith(10, 2));
+  });
+
+  describe('archive confirmation', () => {
+    const archiveViewer = { canEdit: false, editableSectionKeys: [], canSubmit: false, availableActions: [], canFinalize: false, canArchive: true, isSubject: false };
+    const finalizedDetail = (viewer: Record<string, unknown> = archiveViewer) =>
+      detailFor({ submission: { ...detailFor().submission, status: 'finalized' }, viewer });
+
+    it('opens a confirmation naming the form instead of archiving on click, and Cancel archives nothing', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      const dialog = screen.getByTestId('dialog-archive-form');
+      expect(dialog).toHaveTextContent('Archive form?');
+      expect(dialog).toHaveTextContent('“Employee Leave Application Form” for Ama Boateng');
+      expect(dialog).toHaveTextContent('cannot be restored');
+      expect(screen.getByTestId('dialog-archive-form-confirm')).toHaveTextContent('Archive Form');
+      expect(spies.archive).not.toHaveBeenCalled();
+
+      await user.click(screen.getByTestId('dialog-archive-form-cancel'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-form')).not.toBeInTheDocument());
+      expect(spies.archive).not.toHaveBeenCalled();
+    });
+
+    it('archives exactly once on confirm and closes the dialog', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      await user.click(screen.getByTestId('dialog-archive-form-confirm'));
+      await waitFor(() => expect(screen.queryByTestId('dialog-archive-form')).not.toBeInTheDocument());
+      expect(spies.archive).toHaveBeenCalledTimes(1);
+      expect(spies.archive).toHaveBeenCalledWith({ organizationId: 10, submissionId: 7 });
+    });
+
+    it('keeps the dialog open and the form in place when archiving fails', async () => {
+      const user = userEvent.setup();
+      state.detail = finalizedDetail();
+      state.failMutations = true;
+      renderPage();
+      await user.click(await screen.findByTestId('button-archive'));
+      await user.click(screen.getByTestId('dialog-archive-form-confirm'));
+      await waitFor(() => expect(spies.archive).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByTestId('dialog-archive-form-confirm')).toBeEnabled());
+      expect(screen.getByTestId('dialog-archive-form')).toBeInTheDocument();
+      expect(screen.getByTestId('button-archive')).toBeInTheDocument();
+    });
+
+    it('does not offer Archive when the server says the viewer cannot archive', async () => {
+      state.detail = finalizedDetail({ ...archiveViewer, canArchive: false });
+      renderPage();
+      expect(await screen.findByText('Employee Leave Application Form')).toBeInTheDocument();
+      expect(screen.queryByTestId('button-archive')).not.toBeInTheDocument();
+    });
   });
 
   it('shows a not-found state instead of a form when the server hides the submission', async () => {
