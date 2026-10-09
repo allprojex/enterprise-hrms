@@ -548,6 +548,7 @@ describeLive("WS-9 — recruitment completion, live", () => {
         applicationId: captured.application.id,
         actorApplicationUserId: userId,
         actorMembershipId: membershipId,
+        authorization: { canWriteSensitive: true, canWriteNotes: true },
       }),
     ).rejects.toThrow(conversion.HireNotAuthorizedError);
 
@@ -604,6 +605,7 @@ describeLive("WS-9 — recruitment completion, live", () => {
         applicationId: captured.application.id,
         actorApplicationUserId: userId,
         actorMembershipId: membershipId,
+        authorization: { canWriteSensitive: true, canWriteNotes: true },
       }),
     ).rejects.toThrow(conversion.OfferNotAcceptedError);
 
@@ -620,6 +622,7 @@ describeLive("WS-9 — recruitment completion, live", () => {
       applicationId: captured.application.id,
       actorApplicationUserId: userId,
       actorMembershipId: membershipId,
+      authorization: { canWriteSensitive: true, canWriteNotes: true },
     });
     expect(result.employeeId).toBeGreaterThan(0);
   });
@@ -685,6 +688,7 @@ describeLive("WS-9 — recruitment completion, live", () => {
       applicationId: app.id,
       actorApplicationUserId: otherUser.id,
       actorMembershipId: otherM.id,
+      authorization: { canWriteSensitive: true, canWriteNotes: true },
     });
     expect(result.employeeId).toBeGreaterThan(0);
     void applied;
