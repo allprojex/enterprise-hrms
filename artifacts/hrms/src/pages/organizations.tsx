@@ -38,6 +38,8 @@ import {
   useSetPrimaryOrganizationDomain,
   useGetTenantIdentity,
   getGetTenantIdentityQueryKey,
+  useGetTenantContext,
+  getGetTenantContextQueryKey,
 } from '@workspace/api-client-react';
 import { Textarea } from '@/components/ui/textarea';
 import type {
@@ -50,6 +52,7 @@ import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 import type { Organization } from '@workspace/api-client-react';
 import { QueryError } from '@/components/query-error';
+import { ErrorState } from '@/components/foundation/error-state';
 import { resolveAdministrationAccess } from '@/lib/administration-access';
 
 const ORG_TYPES: CreateOrganizationInputType[] = [
@@ -325,6 +328,8 @@ export default function Organizations() {
   const {
     data: selectedOrg,
     isLoading: orgLoading,
+    error: selectedOrgError,
+    refetch: refetchSelectedOrg,
   } = useGetOrganization(
     // Always pass a number — `enabled` guards actual execution when null.
     selectedOrgId ?? 0,
@@ -334,6 +339,34 @@ export default function Organizations() {
         queryKey: getGetOrganizationQueryKey(selectedOrgId ?? 0),
       },
     },
+  );
+
+  // GET /organizations is hostname-neutral and returns every tenant to a
+  // platform super_admin, but GET /organizations/:id is hostname-BOUND:
+  // organizations.ts runs tenantHostnameAllowsOrganization before it
+  // authorizes, and that guard has no super_admin exemption by design (see
+  // its own doc comment, and organizationTenantHostname.test.ts case 12b).
+  // So browsing from a tenant address lists organisations whose details that
+  // same address is not allowed to open — the list and the panel disagree,
+  // and the panel used to resolve that disagreement by rendering nothing at
+  // all. This query is public and hostname-scoped, exactly what is needed to
+  // tell the operator which of the two situations they are in.
+  const { data: tenantContext } = useGetTenantContext({ query: { queryKey: getGetTenantContextQueryKey() } });
+  const hostTenantOrganizationId = tenantContext?.resolved ? tenantContext.organizationId : null;
+  const hostTenantName = tenantContext?.resolved ? tenantContext.organizationName : null;
+  const selectionBlockedByTenantHost =
+    selectedOrgId !== null && hostTenantOrganizationId !== null && hostTenantOrganizationId !== selectedOrgId;
+  // The list response already carries the selected row, so the denial notice
+  // can name the organisation even though its detail fetch was refused.
+  const selectedOrgListEntry = organizations?.find((org) => org.id === selectedOrgId);
+
+  const detailsSkeleton = (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading organisation details">
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-3/4" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-4 w-2/3" />
+    </div>
   );
 
   // me.role is the legacy platform-wide role column -- it never reflects an
@@ -678,12 +711,7 @@ export default function Organizations() {
                   </p>
                 </div>
               ) : orgLoading ? (
-                <div className="space-y-4" aria-busy="true" aria-label="Loading organisation details">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-4 w-5/6" />
-                  <Skeleton className="h-4 w-2/3" />
-                </div>
+                detailsSkeleton
               ) : selectedOrg ? (
                 <dl className="space-y-4">
                   <div>
@@ -753,7 +781,32 @@ export default function Organizations() {
                     </Button>
                   )}
                 </dl>
-              ) : null}
+              ) : selectionBlockedByTenantHost ? (
+                // Not a failure to fix by retrying, and not something to hide:
+                // this address is bound to one tenant and platform
+                // administration of another has to happen from the platform
+                // address. Saying so is the whole point — the operator
+                // otherwise sees an empty panel with no way to find that out.
+                <ErrorState
+                  size="sm"
+                  title="Managed from a different address"
+                  message={`This page is open on the ${hostTenantName ?? 'current tenant'} address, which can only administer ${hostTenantName ?? 'that organisation'}. Open the platform address — the base domain, without a tenant prefix — to view or manage ${selectedOrgListEntry?.name ?? 'this organisation'}.`}
+                  data-testid="org-details-tenant-host-blocked"
+                />
+              ) : selectedOrgError ? (
+                <ErrorState
+                  size="sm"
+                  title="Failed to load organisation details"
+                  message="Could not fetch details for the selected organisation. Check your connection and try again."
+                  onRetry={() => refetchSelectedOrg()}
+                  data-testid="org-details-error"
+                />
+              ) : (
+                // Neither resolved nor failed yet (the query has been enabled
+                // but has not started): keep showing progress rather than
+                // reporting a failure that has not happened.
+                detailsSkeleton
+              )}
               {selectedOrg && me?.role === 'super_admin' && <TenantIdentityPanel organizationId={selectedOrg.id} />}
               {selectedOrg && me?.role === 'super_admin' && <DomainsPanel organizationId={selectedOrg.id} />}
             </CardContent>

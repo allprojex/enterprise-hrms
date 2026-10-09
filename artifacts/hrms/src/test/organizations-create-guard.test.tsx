@@ -37,6 +37,11 @@ vi.mock('@workspace/api-client-react', () => {
   useSetPrimaryOrganizationDomain: noMutation,
   useGetTenantIdentity: emptyObj,
   getGetTenantIdentityQueryKey: (id: number) => ['identity', id],
+  // The details panel reads the browsed hostname's tenant to explain a
+  // tenant-bound denial instead of rendering an empty card. Unresolved here:
+  // these cases are about the New Organisation control, not tenant binding.
+  useGetTenantContext: () => ({ data: { resolved: false }, isLoading: false }),
+  getGetTenantContextQueryKey: () => ['tenantContext'],
   });
 });
 
