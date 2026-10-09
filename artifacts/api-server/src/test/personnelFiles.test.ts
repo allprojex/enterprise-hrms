@@ -51,6 +51,7 @@ const {
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   departmentsTable,
   branchesTable,
   auditEventsTable,
@@ -87,6 +88,7 @@ const {
     rolesTable: mockTable("roles", ["id", "key", "organizationId", "isSystemRole"]),
     rolePermissionsTable: mockTable("role_permissions", ["roleId", "permissionId"]),
     permissionsTable: mockTable("permissions", ["id", "key"]),
+    employeeUserLinksTable: mockTable("employee_user_links", ["id", "employeeId", "applicationUserId"]),
     employeesTable: mockTable("employees", [
       "id", "organizationId", "branchId", "departmentId", "reportingManagerId",
       "employmentStatus", "employeeNumber", "firstName", "lastName", "preferredName",
@@ -233,6 +235,7 @@ vi.mock("@workspace/db", () => ({
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   departmentsTable,
   branchesTable,
   auditEventsTable,

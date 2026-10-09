@@ -20,6 +20,20 @@ import {
 } from "./eligibleFields";
 import { listStages, getStage, membershipSatisfiesStage } from "./approvalStages";
 import { violatesSeparationOfDutiesMulti } from "../separationOfDuties";
+import { resolveActorEmployeeId } from "../employeeSelfAdministration";
+
+/**
+ * Self-administration boundary (owner policy, 2026-10-09) applied to the
+ * governed request path: the SUBJECT of a request may never be the person who
+ * approves or applies it, whichever role they hold and whoever raised it. The
+ * existing maker-checker (requester ≠ approver) only covered the raising side;
+ * a request raised by a colleague about ME could still be decided by me.
+ * Identity is the authoritative employee ↔ user link, never a name match.
+ */
+async function assertActorIsNotSubject(params: { organizationId: number; subjectEmployeeId: number; actorApplicationUserId: number }): Promise<void> {
+  const own = await resolveActorEmployeeId(params.organizationId, params.actorApplicationUserId);
+  if (own !== null && own === params.subjectEmployeeId) throw new SelfApprovalForbiddenError();
+}
 
 /**
  * WS-13 — Employee data change requests (§29.2–29.11, OD #11).
@@ -643,6 +657,11 @@ async function assertMayDecide(params: {
   ) {
     throw new SelfApprovalForbiddenError();
   }
+  await assertActorIsNotSubject({
+    organizationId: params.organizationId,
+    subjectEmployeeId: params.request.employeeId,
+    actorApplicationUserId: params.actorApplicationUserId,
+  });
 
   if (params.request.stageCountAtRequest === 0 || params.request.currentStageOrder == null) {
     return { stageOrder: null, stageName: null };
@@ -947,6 +966,24 @@ export async function applyRequest(params: {
   if (request.status !== "approved" && request.status !== "application_failed") {
     throw new RequestNotActionableError(`A request in status "${request.status}" cannot be applied.`);
   }
+
+  // Self-administration boundary (owner policy, 2026-10-09): applying is the
+  // write. Neither the person who raised the request nor the person it is
+  // about may perform it — by user AND by membership, so a second role or
+  // membership held by the same human changes nothing.
+  if (
+    violatesSeparationOfDutiesMulti([
+      { makerId: request.requestedByUserId, actorId: params.actorApplicationUserId },
+      { makerId: request.requestedByMembershipId, actorId: params.actorMembershipId },
+    ])
+  ) {
+    throw new SelfApprovalForbiddenError();
+  }
+  await assertActorIsNotSubject({
+    organizationId: params.organizationId,
+    subjectEmployeeId: request.employeeId,
+    actorApplicationUserId: params.actorApplicationUserId,
+  });
 
   const stale = await detectStaleFields(params.organizationId, params.requestId);
   if (stale.length > 0) {

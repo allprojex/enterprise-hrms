@@ -11,6 +11,7 @@ import {
   EmployeeExitProcessAlreadyExistsError,
   EmployeeExitProcessNotFoundError,
 } from "../lib/employeeExitProcess";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_exit_process.create"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -94,6 +96,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_exit_process.update"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const exitProcessId = parseId(req.params.exitProcessId);

@@ -28,6 +28,7 @@ import {
   removeEmployeeCertification,
   EmployeeCertificationNotFoundError,
 } from "../lib/employeeSkillsQualifications";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -80,6 +81,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_skill.add"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -107,6 +109,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_skill.update"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const skillId = parseId(req.params.skillId);
@@ -148,6 +151,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_skill.remove"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const skillId = parseId(req.params.skillId);
@@ -202,6 +206,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_qualification.add"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -233,6 +238,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_qualification.update"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const qualificationId = parseId(req.params.qualificationId);
@@ -278,6 +284,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_qualification.remove"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const qualificationId = parseId(req.params.qualificationId);
@@ -332,6 +339,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_certification.add"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (!(await requireEmployee(req, res, employeeId))) return;
@@ -362,6 +370,7 @@ router.patch(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_certification.update"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const certificationId = parseId(req.params.certificationId);
@@ -406,6 +415,7 @@ router.delete(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee.write"),
+  forbidSelfAdministration("employee_certification.remove"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     const certificationId = parseId(req.params.certificationId);

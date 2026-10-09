@@ -19,6 +19,7 @@ const {
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   employeeExitProcessesTable,
   auditEventsTable,
 } = vi.hoisted(() => {
@@ -41,6 +42,7 @@ const {
     rolePermissionsTable: { __name: "role_permissions" },
     permissionsTable: { __name: "permissions" },
     employeesTable: { __name: "employees" },
+    employeeUserLinksTable: { __name: "employee_user_links" },
     employeeExitProcessesTable: { __name: "employee_exit_processes" },
     auditEventsTable: { __name: "audit_events" },
   };
@@ -62,6 +64,7 @@ vi.mock("@workspace/db", () => ({
   rolePermissionsTable,
   permissionsTable,
   employeesTable,
+  employeeUserLinksTable,
   employeeExitProcessesTable,
   auditEventsTable,
   db: {

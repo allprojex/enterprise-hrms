@@ -64,6 +64,7 @@ import {
   CustomFormStateError,
   DuplicateCustomFormKeyError,
 } from "../lib/customFields/forms";
+import { forbidSelfAdministration, targetFromCustomFieldEntity } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -337,6 +338,7 @@ router.put(
   "/organizations/:organizationId/custom-field-values/:scope/:entityId",
   requireAuth as any,
   requireMembership("organizationId"),
+  forbidSelfAdministration("custom_field_values.write", targetFromCustomFieldEntity()),
   async (req: MembershipRequest, res): Promise<void> => {
     try {
       const organizationId = req.membership!.organizationId;
