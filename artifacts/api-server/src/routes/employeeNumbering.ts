@@ -31,6 +31,7 @@ import {
   InvalidManualEmployeeNumberError,
 } from "../lib/numbering";
 import { db, type EmployeeNumberAllocation } from "@workspace/db";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -55,6 +56,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee_number.allocate"),
+  forbidSelfAdministration("employee_number.allocate"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);
@@ -129,6 +131,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("employee_number.allocate"),
+  forbidSelfAdministration("employee_number.release"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);

@@ -26,6 +26,7 @@ import {
 import { EmployeeNumberMissingTokenDataError } from "../lib/numbering";
 import { db, type PersonnelFile } from "@workspace/db";
 import { recordAuditEvent } from "../lib/auditLog";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -50,6 +51,7 @@ router.post(
   requireAuth as any,
   requireMembership("organizationId"),
   requirePermission("personnel_file.manage"),
+  forbidSelfAdministration("personnel_file.create"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeIdRaw = Array.isArray(req.params.employeeId) ? req.params.employeeId[0] : req.params.employeeId;
     const employeeId = parseInt(employeeIdRaw, 10);

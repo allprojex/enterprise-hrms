@@ -14,6 +14,7 @@ import {
   LeaveBalanceValidationError,
   DuplicateLedgerEntryError,
 } from "../lib/leaveBalances";
+import { forbidSelfAdministration } from "../lib/employeeSelfAdministration";
 
 const router = Router();
 
@@ -102,6 +103,7 @@ router.post(
   requireMembership("organizationId"),
   requireModuleEnabled("leave"),
   requirePermission("leave_request.manage"),
+  forbidSelfAdministration("leave_balance.adjust"),
   async (req: MembershipRequest, res): Promise<void> => {
     const employeeId = parseId(req.params.employeeId);
     if (isNaN(employeeId)) {

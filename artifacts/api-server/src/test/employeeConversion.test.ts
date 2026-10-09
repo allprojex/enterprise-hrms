@@ -71,6 +71,10 @@ const {
       branchRows: [] as Record<string, unknown>[],
       positionRows: [] as Record<string, unknown>[],
       candidateEmployeeLinkRows: [] as Record<string, unknown>[],
+      // Employee backend hardening (final review): audit rows are kept so the
+      // conversion's own events (and createEmployee's employee.created) can be
+      // asserted on — previously they were discarded by the harness.
+      auditEventRows: [] as Record<string, unknown>[],
       idCounters: new Map<string, number>(),
       // Phase 3H, W114 — always empty for this file's tests: getNamespaceConfig's
       // "no saved row" default path reproduces the pre-existing hardcoded
@@ -137,6 +141,7 @@ function matches(row: Record<string, unknown>, cond: Cond): boolean {
 }
 
 function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
+  if (table === auditEventsTable) return fixtures.auditEventRows;
   if (table === organizationModulesTable) return fixtures.organizationModuleRows;
   if (table === applicationsTable) return fixtures.applicationRows;
   if (table === recruitmentStagesTable) return fixtures.recruitmentStageRows;
@@ -159,7 +164,8 @@ function getRowsFor(table: { __name: string }): Record<string, unknown>[] {
 }
 
 function setRowsFor(table: { __name: string }, rows: Record<string, unknown>[]) {
-  if (table === employeesTable) fixtures.employeeRows = rows;
+  if (table === auditEventsTable) fixtures.auditEventRows = rows;
+  else if (table === employeesTable) fixtures.employeeRows = rows;
   else if (table === candidateEmployeeLinksTable) fixtures.candidateEmployeeLinkRows = rows;
   else if (table === candidatesTable) fixtures.candidateRows = rows;
   else if (table === numberingSequencesTable) fixtures.numberingSequenceRows = rows;
@@ -429,6 +435,7 @@ beforeEach(() => {
   fixtures.branchRows = [];
   fixtures.positionRows = [];
   fixtures.candidateEmployeeLinkRows = [];
+  fixtures.auditEventRows = [];
   fixtures.organizationSettingsRows = [];
   fixtures.numberingSequenceRows = [];
   fixtures.employeeNumberAllocationRows = [];
@@ -494,12 +501,55 @@ describe("POST /api/organizations/:organizationId/applications/:applicationId/co
     expect(res.status).toBe(201);
   });
 
-  it("maps candidate name/contact onto the created employee", async () => {
-    mockPermissions(["candidate.convert_to_employee", "employee.write"]);
+  it("maps candidate name/contact onto the created employee when the actor holds employee.sensitive.write", async () => {
+    mockPermissions(["candidate.convert_to_employee", "employee.write", "employee.sensitive.write"]);
     const res = await request(app).post(CONVERT_PATH).set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(201);
+    expect(res.body.sensitiveFieldsOmitted).toEqual([]);
     const employee = fixtures.employeeRows.find((e) => e.id === res.body.employeeId);
     expect(employee).toMatchObject({ firstName: "Jane", lastName: "Doe", personalEmail: "jane@example.com", phoneNumber: "555-1234", nationality: "Ghanaian" });
+  });
+
+  // Employee backend hardening (final security review, 2026-10-09): reading a
+  // candidate is not the right to write sensitive employee data. An actor
+  // with candidate.convert_to_employee + employee.write but WITHOUT
+  // employee.sensitive.write still converts (recruitment is not blocked), but
+  // the candidate's contact/identity fields are not copied, and the result and
+  // audit trail say so.
+  it("converts WITHOUT copying sensitive candidate fields when the actor lacks employee.sensitive.write, and says which", async () => {
+    mockPermissions(["candidate.convert_to_employee", "employee.write"]);
+    fixtures.candidateRows[0].address = { line1: "12 Liberation Rd", city: "Accra" };
+    const res = await request(app).post(CONVERT_PATH).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(201);
+    expect([...res.body.sensitiveFieldsOmitted].sort()).toEqual(["nationality", "personalEmail", "phoneNumber", "residentialAddress"]);
+    const employee = fixtures.employeeRows.find((e) => e.id === res.body.employeeId) as Record<string, unknown>;
+    expect(employee).toMatchObject({ firstName: "Jane", lastName: "Doe" });
+    expect(employee.personalEmail).toBeUndefined();
+    expect(employee.phoneNumber).toBeUndefined();
+    expect(employee.nationality).toBeUndefined();
+    expect(employee.residentialAddress).toBeUndefined();
+    const completed = getRowsFor(auditEventsTable).find((r) => r.eventType === "employee_conversion.completed");
+    expect(completed).toBeDefined();
+    expect([...(completed!.afterState as { sensitiveFieldsOmitted: string[] }).sensitiveFieldsOmitted].sort()).toEqual([
+      "nationality",
+      "personalEmail",
+      "phoneNumber",
+      "residentialAddress",
+    ]);
+    // employee.created (recorded by createEmployee through the same transaction) never carries the dropped values.
+    const created = getRowsFor(auditEventsTable).find((r) => r.eventType === "employee.created");
+    expect(created).toBeDefined();
+    expect(JSON.stringify(created)).not.toContain("jane@example.com");
+    expect(JSON.stringify(created)).not.toContain("555-1234");
+  });
+
+  it("never copies sensitive candidate fields through conversion for an actor without the key, even when the candidate carries only a phone", async () => {
+    mockPermissions(["candidate.convert_to_employee", "employee.write"]);
+    fixtures.candidateRows[0].email = null;
+    fixtures.candidateRows[0].nationality = null;
+    const res = await request(app).post(CONVERT_PATH).set("Authorization", "Bearer valid-token");
+    expect(res.status).toBe(201);
+    expect(res.body.sensitiveFieldsOmitted).toEqual(["phoneNumber"]);
   });
 
   it("maps requisition placement and offer employment fields onto the created employee", async () => {

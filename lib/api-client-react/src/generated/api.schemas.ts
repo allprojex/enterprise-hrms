@@ -1467,6 +1467,8 @@ export interface ReadinessStatus {
 
 export interface ApiError {
   error: string;
+  /** Optional stable machine-readable reason. Present on refusals a client should recognise rather than parse: `self_administration_forbidden` (403) — the acting user is linked to the employee record the administrative action targets, so the change must be made by another authorized HR officer or organisation administrator, or requested through the governed data-change workflow. Such a response may also carry `employeeId` (integer) naming the record. */
+  code?: string;
 }
 
 export interface MessageResponse {
@@ -5494,6 +5496,8 @@ export interface ConversionResult {
   employeeId: number;
   /** True only when an existing employee (an internal candidate, via candidates.linkedInternalEmployeeId) was reused rather than a new one created. */
   reusedExistingEmployee: boolean;
+  /** Candidate fields that are sensitive on the employee record (personalEmail, phoneNumber, nationality, residentialAddress) and were NOT copied because the converting actor lacks employee.sensitive.write. The conversion still succeeds; the candidate record keeps the values and an authorized HR user completes the profile. Empty when everything was copied or an existing employee was reused. */
+  sensitiveFieldsOmitted: string[];
 }
 
 /**

@@ -80,6 +80,7 @@ import {
 } from "@workspace/db";
 import { recordAuditEvent } from "./auditLog";
 import { createEmployee } from "./employees";
+import { omitUnauthorizedSensitiveFields, type EmployeeWriteAuthorization } from "./employeeRecordPolicy";
 import { isUniqueViolation } from "./dbErrors";
 import { logger } from "./logger";
 import { startOnboarding, NoApplicableTemplateError } from "./onboarding/instances";
@@ -267,6 +268,18 @@ export interface ConversionResult {
    * not be started; the conversion itself still succeeded).
    */
   onboardingInstanceId: number | null;
+  /**
+   * Employee backend hardening (final review, 2026-10-09). Candidate fields
+   * that are SENSITIVE on the employee record (personal email, phone,
+   * nationality, residential address) and were NOT copied because the
+   * converting actor lacks `employee.sensitive.write`. Reading a candidate
+   * is not the right to write sensitive employee data. The conversion still
+   * succeeds — recruitment is not blocked — the candidate record keeps the
+   * values, and an authorized HR user completes the profile. Empty when
+   * everything was copied, and always empty when an existing employee was
+   * reused (nothing is copied on that branch).
+   */
+  sensitiveFieldsOmitted: string[];
 }
 
 export async function convertApplicationToEmployee(params: {
@@ -274,6 +287,8 @@ export async function convertApplicationToEmployee(params: {
   applicationId: number;
   actorApplicationUserId: number;
   actorMembershipId: number;
+  /** The converting actor's own field-write grants, resolved by the route from effective permissions. */
+  authorization: EmployeeWriteAuthorization;
 }): Promise<ConversionResult> {
   const application = await findApplicationInOrg(params.organizationId, params.applicationId);
   if (!application) throw new ApplicationNotFoundForConversionError();
@@ -295,8 +310,9 @@ export async function convertApplicationToEmployee(params: {
 
     const reusedExistingEmployee = candidate.linkedInternalEmployeeId != null;
 
-    const { link, employeeId } = await db.transaction(async (tx) => {
+    const { link, employeeId, sensitiveFieldsOmitted } = await db.transaction(async (tx) => {
       let employeeId: number;
+      let sensitiveFieldsOmitted: string[] = [];
 
       if (candidate.linkedInternalEmployeeId != null) {
         employeeId = candidate.linkedInternalEmployeeId;
@@ -304,11 +320,15 @@ export async function convertApplicationToEmployee(params: {
         const offerVersion = await findCurrentOfferVersion(params.organizationId, params.applicationId);
         const placement = await findRequisitionPlacement(params.organizationId, application.vacancyId);
 
-        const employee = await createEmployee(tx, {
-          organizationId: params.organizationId,
-          actorApplicationUserId: params.actorApplicationUserId,
-          actorMembershipId: params.actorMembershipId,
-          fields: {
+        // The candidate's contact/identity fields are SENSITIVE employee
+        // fields. They are copied only when the converting actor holds
+        // employee.sensitive.write; otherwise they are dropped here (never
+        // written) and named in the result and the audit trail. createEmployee
+        // then enforces the same grants again on what remains — the drop is
+        // not the control, it is what keeps a legitimate conversion possible
+        // under the control.
+        const copied = omitUnauthorizedSensitiveFields(
+          {
             firstName: candidate.firstName,
             lastName: candidate.lastName,
             personalEmail: candidate.email,
@@ -322,6 +342,16 @@ export async function convertApplicationToEmployee(params: {
             hireDate: offerVersion?.proposedStartDate ? new Date(offerVersion.proposedStartDate) : null,
             workLocation: offerVersion?.location ?? null,
           },
+          params.authorization,
+        );
+        sensitiveFieldsOmitted = copied.omitted;
+
+        const employee = await createEmployee(tx, {
+          organizationId: params.organizationId,
+          actorApplicationUserId: params.actorApplicationUserId,
+          actorMembershipId: params.actorMembershipId,
+          fields: copied.fields,
+          authorization: params.authorization,
         });
         employeeId = employee.id;
 
@@ -347,7 +377,7 @@ export async function convertApplicationToEmployee(params: {
         })
         .returning();
 
-      return { link: insertedLink, employeeId };
+      return { link: insertedLink, employeeId, sensitiveFieldsOmitted };
     });
 
     await recordAuditEvent({
@@ -357,7 +387,7 @@ export async function convertApplicationToEmployee(params: {
       eventType: "employee_conversion.completed",
       targetType: "application",
       targetId: String(params.applicationId),
-      afterState: { employeeId, reusedExistingEmployee },
+      afterState: { employeeId, reusedExistingEmployee, sensitiveFieldsOmitted },
     });
 
     await recordAuditEvent({
@@ -401,7 +431,7 @@ export async function convertApplicationToEmployee(params: {
       }
     }
 
-    return { link, employeeId, reusedExistingEmployee, onboardingInstanceId };
+    return { link, employeeId, reusedExistingEmployee, onboardingInstanceId, sensitiveFieldsOmitted };
   } catch (err) {
     const translated = isUniqueViolation(err) ? new AlreadyConvertedError() : err;
     await recordAuditEvent({

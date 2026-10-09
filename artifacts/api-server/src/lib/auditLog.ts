@@ -41,8 +41,18 @@ interface AuditEventInput {
  * elevated without becoming a second, duplicate event and without any of
  * those call sites needing to change either.
  */
-export async function recordAuditEvent(input: AuditEventInput): Promise<void> {
-  await db.insert(auditEventsTable).values({
+/**
+ * Structurally accepts either the global `db` or a `db.transaction(...)`
+ * callback's `tx` (same alias as lib/employees.ts). Optional second argument
+ * so a caller already inside a transaction can make its audit row part of
+ * that transaction: if the business write rolls back, so does the event,
+ * instead of leaving a "successful" audit row for a change that never
+ * committed. Every pre-existing call site passes nothing and is unchanged.
+ */
+type AuditQueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function recordAuditEvent(input: AuditEventInput, client: AuditQueryClient = db): Promise<void> {
+  await client.insert(auditEventsTable).values({
     actorApplicationUserId: input.actorApplicationUserId ?? null,
     actorMembershipId: input.actorMembershipId ?? null,
     organizationId: input.organizationId ?? null,

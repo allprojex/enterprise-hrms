@@ -6479,7 +6479,7 @@ export const getListEmployeesUrl = (organizationId: number,
 }
 
 /**
- * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema.
+ * Search, filter, and paginate the organization's employee directory. Gated employee.read (the directory grant every role holds). Personal identity fields on each row are nulled with `sensitiveFieldsRedacted: true` unless the caller holds employee.sensitive.read or the row is their own record — see the Employee schema. `search` matches directory fields only (first, last and preferred name, employee number, work email); personal email is matched only for callers holding employee.sensitive.read, so a redacted value can never be confirmed by searching for it.
  * @summary List employees
  */
 export const listEmployees = async (organizationId: number,
@@ -6561,6 +6561,7 @@ export const getCreateEmployeeUrl = (organizationId: number,) => {
 }
 
 /**
+ * Gated employee.write. Creates the employee RECORD only — never a login account, membership or invitation; linking a login is a separate action (POST .../link-user). Writing any sensitive field (gender, date of birth, marital status, nationality, national ID, passport, personal email, phone numbers, residential address, emergency contacts) additionally requires employee.sensitive.write, and writing `notes` requires employee.notes.read; a body mixing an unauthorized field with permitted ones is rejected as a whole (403, nothing applied). Email and phone values are format-checked; date of birth cannot be in the future, hire date cannot precede it, probation end cannot precede the hire date. The reporting manager must belong to this organization and must not be separated. National ID and passport number must be unique within the organization (409). `employmentStatus` may only be an administrative state (active, probation, on_leave, suspended) — a record is never created already separated. Audited as employee.created (field names; sensitive values masked).
  * @summary Create an employee
  */
 export const createEmployee = async (organizationId: number,
@@ -6717,6 +6718,7 @@ export const getUpdateEmployeeUrl = (organizationId: number,
 }
 
 /**
+ * Gated employee.write. The generic profile update. It never performs a lifecycle transition: `employmentStatus` may move only between the administrative states (active, probation, on_leave, suspended) and never into `terminated` (use .../separate), out of `terminated` (use .../rehire) or from `probation` to `active` (use .../confirm) — such a request is refused with 400 naming the governed action; an unchanged status is a no-op. Sensitive fields and `notes` follow the same authorization as createEmployee (403, whole body refused). Validation runs on the RESULTING record (stored row merged with the patch) for date consistency, so a partial update cannot leave the dates inconsistent; email/phone formats apply to the fields sent. A reporting manager may not be the employee themself, a separated employee, another organization's employee, or anyone whose reporting line already leads back to this employee (no cycles of any length; checked and written atomically). Audited as employee.updated (changed field names, masked before/after values) plus the pre-existing employee.status_changed when the status changes; a body that changes nothing records nothing.
  * @summary Update an employee
  */
 export const updateEmployee = async (organizationId: number,

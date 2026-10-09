@@ -108,6 +108,41 @@ describe("employee directory vs personal-data keys", () => {
   });
 });
 
+/**
+ * Employee backend hardening, Phase 1 (2026-10-08): writing a sensitive field
+ * needs employee.sensitive.write on top of employee.write. The key goes to the
+ * organization administrator and to HR administrators (so the canonical hr
+ * template inherits it) — never to the employee template, and not to the
+ * deprecated hr_manager template, which must not grow after deprecation.
+ */
+describe("employee.sensitive.write", () => {
+  const key = "employee.sensitive.write";
+
+  it("is catalogued under the employee resource", () => {
+    const entry = PERMISSIONS.find((p) => p.key === key);
+    expect(entry?.resource).toBe("employee");
+    expect(entry?.action).toBe("sensitive.write");
+  });
+
+  it("is granted to org_admin, hr_administrator, hr and super_admin", () => {
+    for (const role of ["org_admin", "hr_administrator", "hr", "super_admin"]) {
+      expect(new Set(ROLE_PERMISSIONS[role]).has(key), role).toBe(true);
+    }
+  });
+
+  it("is never granted to the employee template nor to the deprecated hr_manager template", () => {
+    expect(new Set(ROLE_PERMISSIONS.employee).has(key)).toBe(false);
+    expect(new Set(ROLE_PERMISSIONS.hr_manager).has(key)).toBe(false);
+  });
+
+  it("never travels without employee.write on any template that holds it", () => {
+    for (const [role, keys] of Object.entries(ROLE_PERMISSIONS)) {
+      const held = new Set(keys);
+      if (held.has(key)) expect(held.has("employee.write"), role).toBe(true);
+    }
+  });
+});
+
 describe("hr_administrator template", () => {
   const hrAdmin = new Set(ROLE_PERMISSIONS.hr_administrator);
   const hrManager = ROLE_PERMISSIONS.hr_manager;

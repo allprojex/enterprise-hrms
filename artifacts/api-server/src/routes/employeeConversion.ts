@@ -4,6 +4,8 @@ import { requireMembership, type MembershipRequest } from "../middlewares/requir
 import { requirePermission } from "../middlewares/requirePermission";
 import { requireModuleEnabled } from "../middlewares/requireModuleEnabled";
 import { RECRUITMENT_MODULE_KEY } from "../lib/recruitmentAuthorization";
+import { hasPermission } from "../lib/permissions";
+import { EMPLOYEE_SENSITIVE_WRITE_PERMISSION, EMPLOYEE_NOTES_PERMISSION } from "../lib/employeeRecordPolicy";
 import {
   convertApplicationToEmployee,
   ApplicationNotFoundForConversionError,
@@ -40,11 +42,20 @@ router.post(
       return;
     }
     try {
+      // Employee backend hardening (final review): the converting actor's own
+      // sensitive-write grant decides whether the candidate's contact/identity
+      // fields are copied onto the employee record. Resolved from effective
+      // permissions, never from the body.
+      const [canWriteSensitive, canWriteNotes] = await Promise.all([
+        hasPermission(req.membership!.id, EMPLOYEE_SENSITIVE_WRITE_PERMISSION),
+        hasPermission(req.membership!.id, EMPLOYEE_NOTES_PERMISSION),
+      ]);
       const result = await convertApplicationToEmployee({
         organizationId: req.membership!.organizationId,
         applicationId,
         actorApplicationUserId: req.userId!,
         actorMembershipId: req.membership!.id,
+        authorization: { canWriteSensitive, canWriteNotes },
       });
       res.status(201).json(result);
     } catch (err) {
