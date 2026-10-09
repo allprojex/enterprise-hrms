@@ -78,6 +78,20 @@ export const PERMISSIONS = [
   // composition, super_admin by the blanket rule); never to employee.
   { key: "employee.sensitive.read", resource: "employee", action: "sensitive.read" },
   { key: "employee.documents.read", resource: "employee", action: "documents.read" },
+  // Employee backend hardening, Phase 1 (2026-10-08): the WRITE counterpart of
+  // employee.sensitive.read, over the same field set (identity, personal
+  // contact, residential address, emergency contacts). `employee.write` alone
+  // edits names, placement and employment fields; writing a sensitive field
+  // — alone or mixed into a general edit — additionally requires this key,
+  // enforced in lib/employeeRecordPolicy.ts for every client-input path
+  // (POST/PATCH .../employees). Notes stay under employee.notes.read; banking
+  // and statutory identifiers stay under their payroll keys. Granted to
+  // org_admin and, by composition, hr_administrator and the canonical hr
+  // template (super_admin by the blanket rule); deliberately NOT to the
+  // deprecated hr_manager template nor to employee. Organization-owned role
+  // copies are never touched by the seed — a tenant grants it through the
+  // role UI.
+  { key: "employee.sensitive.write", resource: "employee", action: "sensitive.write" },
   { key: "branch.read", resource: "branch", action: "read" },
   { key: "branch.manage", resource: "branch", action: "manage" },
   { key: "department.read", resource: "department", action: "read" },
@@ -707,6 +721,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
     "employee.disciplinary.read",
     "employee.sensitive.read",
     "employee.documents.read",
+    "employee.sensitive.write",
     "branch.read",
     "branch.manage",
     "department.read",
@@ -1111,6 +1126,10 @@ export const ROLE_PERMISSIONS: Record<string, readonly string[]> = {
 const HR_ADMINISTRATOR_ADDITIONS: readonly string[] = [
   "membership.read",
   "hr_team.manage",
+  // Phase 1 employee hardening (2026-10-08): HR administrators (and therefore
+  // the canonical hr template) may write the sensitive field set; the
+  // deprecated hr_manager template deliberately does not gain it.
+  "employee.sensitive.write",
   ...PERMISSIONS.map((p) => p.key).filter((k) => k.startsWith("office_inventory.")),
   "employment_lifecycle.configure",
   "onboarding.configure",
