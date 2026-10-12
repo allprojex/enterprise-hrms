@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, Link } from 'wouter';
-import { ArrowLeft, Loader2, Mail, Phone, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History, MapPin, AlertTriangle, PackageSearch } from 'lucide-react';
+import { ArrowLeft, Loader2, Pencil, Building, Network, Briefcase, Camera, UserPlus, UserCheck, UserX, RotateCcw, FileText, Upload, Trash2, Award, GraduationCap, Sparkles, Plus, ArrowLeftRight, TrendingUp, BadgeCheck, ShieldAlert, LogOut, IdCard, History, MapPin, AlertTriangle, PackageSearch } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Employee360Sections } from '@/components/employee-360-sections';
 import { CustomFieldValuesPanel } from '@/components/custom-fields/custom-field-values-panel';
@@ -16,7 +16,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   useGetEmployee,
   getGetEmployeeQueryKey,
-  useUpdateEmployee,
   useUploadEmployeeProfilePicture,
   useLinkEmployeeToUser,
   useUnlinkEmployeeFromUser,
@@ -86,26 +85,20 @@ import {
   getRunAssetReportQueryKey,
 } from '@workspace/api-client-react';
 import type { CreatePersonnelFileInputMode } from '@workspace/api-client-react';
-import type { UpdateEmployeeInputEmploymentStatus } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useEmployeePhoto } from '@/hooks/use-employee-photo';
-import { useIsHrCapable } from '@/hooks/use-hr-capable';
+import { isOwnEmployeeRecord, useEmployeeAccess } from '@/hooks/use-employee-access';
+import { employeeErrorDescription, isSelfAdministrationError } from '@/lib/employee-api-error';
 import { QueryError } from '@/components/query-error';
 import { EmploymentLifecyclePanel } from '@/components/employment/employment-lifecycle-panel';
 import { EmployeeRelationsPanel } from '@/components/employment/employee-relations-panel';
+import { EmployeeProfileSections } from '@/components/employees/employee-profile-sections';
+import { SelfAdministrationNotice } from '@/components/employees/self-administration-notice';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { ConfirmActionDialog } from '@/components/foundation';
 
 const NONE_PROBATION_REVIEW = '__none__';
-
-const STATUS_OPTIONS: UpdateEmployeeInputEmploymentStatus[] = [
-  'active',
-  'probation',
-  'on_leave',
-  'suspended',
-  'terminated',
-];
 
 export default function EmployeeDetail() {
   const params = useParams<{ id: string }>();
@@ -116,7 +109,12 @@ export default function EmployeeDetail() {
 
   const { data: currentUser } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
   const organizationId = currentUser?.activeOrganizationId ?? currentUser?.organizationId ?? 0;
-  const isHrCapable = useIsHrCapable(organizationId);
+  // Phase 2 — permission keys, not role names. `access.canWrite` is
+  // employee.write, the key every administrative route on this page checks
+  // (update, lifecycle, link, photo, documents, skills, exit); the personnel
+  // file controls read their own narrower keys below. The server remains the
+  // authority on every call.
+  const access = useEmployeeAccess(organizationId);
 
   const {
     data: employee,
@@ -128,6 +126,13 @@ export default function EmployeeDetail() {
   });
 
   const photoSrc = useEmployeePhoto(organizationId, employeeId, employee?.hasProfilePicture ?? false);
+
+  // The server refuses every administrative write aimed at the actor's own
+  // record (self_administration_forbidden), decided from employee_user_links.
+  // The response exposes that link, so the page can hide those controls and
+  // explain once instead of letting each click fail.
+  const isOwnRecord = isOwnEmployeeRecord(employee, currentUser?.id);
+  const canAdminister = access.canWrite && !isOwnRecord;
 
   const { data: members } = useListMembers(organizationId, {
     query: { queryKey: getListMembersQueryKey(organizationId), enabled: organizationId > 0 },
@@ -254,7 +259,6 @@ export default function EmployeeDetail() {
     },
   });
 
-  const updateMutation = useUpdateEmployee();
   const uploadMutation = useUploadEmployeeProfilePicture();
   const linkMutation = useLinkEmployeeToUser();
   const unlinkMutation = useUnlinkEmployeeFromUser();
@@ -281,12 +285,6 @@ export default function EmployeeDetail() {
   const createExitProcessMutation = useCreateEmployeeExitProcess();
   const updateExitProcessMutation = useUpdateEmployeeExitProcess();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [workEmail, setWorkEmail] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [status, setStatus] = useState<UpdateEmployeeInputEmploymentStatus>('active');
   const [linkUserId, setLinkUserId] = useState('');
   const [isSeparateOpen, setIsSeparateOpen] = useState(false);
   const [isSeparateConfirmOpen, setIsSeparateConfirmOpen] = useState(false);
@@ -385,54 +383,13 @@ export default function EmployeeDetail() {
     separationWarnings.push(`${unreturnedAssetCount} asset${unreturnedAssetCount === 1 ? '' : 's'} still assigned to this employee — not yet returned.`);
   }
 
-  const [prevEmployee, setPrevEmployee] = useState(employee);
-  if (employee && employee !== prevEmployee) {
-    setPrevEmployee(employee);
-    setFirstName(employee.firstName);
-    setLastName(employee.lastName);
-    setWorkEmail(employee.workEmail ?? '');
-    setPhoneNumber(employee.phoneNumber ?? '');
-    setStatus(employee.employmentStatus);
-  }
-
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: getGetEmployeeQueryKey(organizationId, employeeId) });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateMutation.mutate(
-      {
-        organizationId,
-        employeeId,
-        data: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          workEmail: workEmail.trim() || null,
-          // A redacted phone number arrives as null. Sending the empty field
-          // back would erase the stored value, so it is omitted instead.
-          ...(employee?.sensitiveFieldsRedacted ? {} : { phoneNumber: phoneNumber.trim() || null }),
-          employmentStatus: status,
-        },
-      },
-      {
-        onSuccess: (updated) => {
-          queryClient.setQueryData(getGetEmployeeQueryKey(organizationId, employeeId), updated);
-          setIsEditing(false);
-          toast({ title: 'Employee updated' });
-        },
-        onError: (err) => {
-          const message =
-            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
-          toast({
-            title: 'Could not update employee',
-            description: message ?? 'Please try again.',
-            variant: 'destructive',
-          });
-        },
-      },
-    );
-  };
+  // Editing moved to /employees/:id/edit (Phase 2): a full sectioned form that
+  // submits only changed fields. The page no longer carries a partial inline
+  // form whose state seeding failed when the record was already cached.
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -445,8 +402,12 @@ export default function EmployeeDetail() {
           invalidate();
           toast({ title: 'Profile picture updated' });
         },
-        onError: () => {
-          toast({ title: 'Could not upload photo', description: 'JPEG, PNG, or WebP up to 5MB.', variant: 'destructive' });
+        onError: (err) => {
+          toast({
+            title: isSelfAdministrationError(err) ? 'You cannot change your own profile picture here' : 'Could not upload photo',
+            description: employeeErrorDescription(err, 'JPEG, PNG, or WebP up to 5MB.'),
+            variant: 'destructive',
+          });
         },
       },
     );
@@ -460,12 +421,11 @@ export default function EmployeeDetail() {
       {
         onSuccess: () => {
           setLinkUserId('');
+          invalidate();
           toast({ title: 'Employee linked to login account' });
         },
         onError: (err) => {
-          const message =
-            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
-          toast({ title: 'Could not link account', description: message ?? 'Please try again.', variant: 'destructive' });
+          toast({ title: 'Could not link account', description: employeeErrorDescription(err), variant: 'destructive' });
         },
       },
     );
@@ -480,9 +440,7 @@ export default function EmployeeDetail() {
           toast({ title: 'Employee unlinked from login account' });
         },
         onError: (err) => {
-          const message =
-            err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
-          toast({ title: 'Could not unlink account', description: message ?? 'Please try again.', variant: 'destructive' });
+          toast({ title: 'Could not unlink account', description: employeeErrorDescription(err), variant: 'destructive' });
         },
       },
     );
@@ -856,9 +814,15 @@ export default function EmployeeDetail() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // Reads the server's body (ApiError.data) — including a
+  // self_administration_forbidden code — instead of a top-level `error` key the
+  // thrown object never had.
   const genericErrorHandler = (title: string) => (err: unknown) => {
-    const message = err && typeof err === 'object' && 'error' in err ? String((err as { error: unknown }).error) : undefined;
-    toast({ title, description: message ?? 'Please try again.', variant: 'destructive' });
+    toast({
+      title: isSelfAdministrationError(err) ? 'You cannot administer your own record' : title,
+      description: employeeErrorDescription(err),
+      variant: 'destructive',
+    });
   };
 
   const handleAddSkill = () => {
@@ -986,6 +950,8 @@ export default function EmployeeDetail() {
         </h1>
       </div>
 
+      {isOwnRecord && <SelfAdministrationNotice context="profile" />}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
@@ -1000,7 +966,7 @@ export default function EmployeeDetail() {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                {isHrCapable && (
+                {canAdminister && (
                 <>
                 <Button
                   type="button"
@@ -1035,7 +1001,7 @@ export default function EmployeeDetail() {
               <Badge variant="secondary" className="capitalize">
                 {employee.employmentStatus.replace('_', ' ')}
               </Badge>
-              {isHrCapable && (employee.employmentStatus === 'terminated' ? (
+              {canAdminister && (employee.employmentStatus === 'terminated' ? (
                 <div className="space-y-1 text-center">
                   {employee.separationDate && (
                     <p className="text-xs text-muted-foreground">
@@ -1416,7 +1382,7 @@ export default function EmployeeDetail() {
                     <p className="text-sm text-foreground" data-testid="text-linked-user">
                       {linkedMember ? `${linkedMember.firstName} ${linkedMember.lastName} (${linkedMember.email})` : `User #${employee.linkedApplicationUserId}`}
                     </p>
-                    {isHrCapable && (
+                    {canAdminister && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1432,7 +1398,7 @@ export default function EmployeeDetail() {
                 );
               })()
             ) : (
-              isHrCapable && (
+              canAdminister && (
               <form onSubmit={handleLink} className="pt-4 border-t border-border space-y-2">
                 <Label htmlFor="link-user" className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -1465,131 +1431,26 @@ export default function EmployeeDetail() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Employee Details</CardTitle>
-                <CardDescription>Core contact and employment information</CardDescription>
-              </div>
-              {isHrCapable && !isEditing && (
-                <Button onClick={() => setIsEditing(true)} data-testid="button-edit-employee">
-                  Edit
+        <div className="lg:col-span-2 min-w-0">
+          {/* Phase 2 — the full profile, read-only and organised by section.
+              Editing is a dedicated page (/employees/:id/edit) that submits
+              only changed fields; the Edit control appears for employee.write
+              holders and never on the viewer's own record. */}
+          <EmployeeProfileSections
+            employee={employee}
+            linkedAccountLabel={employee.linkedApplicationUserId != null ? linkedAccountLabel : null}
+            headerAction={
+              canAdminister ? (
+                <Button asChild>
+                  <Link href={`/employees/${employee.id}/edit`} data-testid="button-edit-employee">
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    Edit
+                  </Link>
                 </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="form-employee">
-              <div className="grid gap-6 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="employee-detail-first-name">First Name *</Label>
-                  <Input
-                    id="employee-detail-first-name"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    disabled={!isEditing || updateMutation.isPending}
-                    required
-                    data-testid="input-detail-first-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="employee-detail-last-name">Last Name *</Label>
-                  <Input
-                    id="employee-detail-last-name"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    disabled={!isEditing || updateMutation.isPending}
-                    required
-                    data-testid="input-detail-last-name"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employee-detail-email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  Work Email
-                </Label>
-                <Input
-                  id="employee-detail-email"
-                  type="email"
-                  value={workEmail}
-                  onChange={(e) => setWorkEmail(e.target.value)}
-                  disabled={!isEditing || updateMutation.isPending}
-                  data-testid="input-detail-email"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employee-detail-phone" className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                  Phone Number
-                </Label>
-                <Input
-                  id="employee-detail-phone"
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  disabled={!isEditing || updateMutation.isPending || !!employee.sensitiveFieldsRedacted}
-                  placeholder={employee.sensitiveFieldsRedacted ? '—' : undefined}
-                  data-testid="input-detail-phone"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="employee-detail-status">Employment Status</Label>
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatus(v as UpdateEmployeeInputEmploymentStatus)}
-                  disabled={!isEditing || updateMutation.isPending}
-                >
-                  <SelectTrigger id="employee-detail-status" data-testid="select-detail-status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((s) => (
-                      <SelectItem key={s} value={s} className="capitalize">
-                        {s.replace('_', ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {isEditing && (
-                <div className="flex gap-3 pt-4">
-                  <Button type="submit" disabled={updateMutation.isPending} data-testid="button-save-employee">
-                    {updateMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                        Saving…
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFirstName(employee.firstName);
-                      setLastName(employee.lastName);
-                      setWorkEmail(employee.workEmail ?? '');
-                      setPhoneNumber(employee.phoneNumber ?? '');
-                      setStatus(employee.employmentStatus);
-                    }}
-                    disabled={updateMutation.isPending}
-                    data-testid="button-cancel-employee"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </form>
-          </CardContent>
-        </Card>
+              ) : undefined
+            }
+          />
+        </div>
 
         <Card className="lg:col-span-3">
           <CardHeader>
@@ -1597,7 +1458,7 @@ export default function EmployeeDetail() {
             <CardDescription>Files attached to this employee's record</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isHrCapable && (
+            {canAdminister && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-64">
                 <Label htmlFor="document-category">Category</Label>
@@ -1656,7 +1517,7 @@ export default function EmployeeDetail() {
                           </p>
                         </div>
                       </div>
-                      {isHrCapable && (
+                      {canAdminister && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1698,7 +1559,7 @@ export default function EmployeeDetail() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isHrCapable && (
+            {canAdminister && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-skill-code">Skill</Label>
@@ -1750,7 +1611,7 @@ export default function EmployeeDetail() {
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         {skill.proficiencyLevel && <p className="text-xs text-muted-foreground">{skill.proficiencyLevel}</p>}
                       </div>
-                      {isHrCapable && (
+                      {canAdminister && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1780,7 +1641,7 @@ export default function EmployeeDetail() {
             <CardDescription>Education and qualifications, from the "qualification_type" Master Data domain</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isHrCapable && (
+            {canAdminister && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-qualification-code">Qualification</Label>
@@ -1838,7 +1699,7 @@ export default function EmployeeDetail() {
                         <p className="text-sm font-medium text-foreground">{label}</p>
                         {qualification.institution && <p className="text-xs text-muted-foreground">{qualification.institution}</p>}
                       </div>
-                      {isHrCapable && (
+                      {canAdminister && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -1868,7 +1729,7 @@ export default function EmployeeDetail() {
             <CardDescription>Certifications held, from the "certification_type" Master Data domain</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isHrCapable && (
+            {canAdminister && (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="space-y-2 sm:w-56">
                 <Label htmlFor="new-certification-code">Certification</Label>
@@ -1928,7 +1789,7 @@ export default function EmployeeDetail() {
                           <p className="text-xs text-muted-foreground">{certification.issuingOrganization}</p>
                         )}
                       </div>
-                      {isHrCapable && (
+                      {canAdminister && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -2011,7 +1872,7 @@ export default function EmployeeDetail() {
                     The permanent personnel record (PIF) — never released or reassigned, independent of staff-number reuse.
                   </CardDescription>
                 </div>
-                {isHrCapable && !personnelFileLoading && !personnelFile && (
+                {canAdminister && access.canManagePersonnelFile && !personnelFileLoading && !personnelFile && (
                   <Dialog open={isPersonnelFileDialogOpen} onOpenChange={setIsPersonnelFileDialogOpen}>
                     <DialogTrigger asChild>
                       <Button type="button" variant="outline" size="sm" data-testid="button-create-personnel-file">
@@ -2123,7 +1984,7 @@ export default function EmployeeDetail() {
                         )}
                       </div>
 
-                      {isHrCapable && (
+                      {canAdminister && access.canWriteCustody && (
                       <div className="flex flex-wrap gap-2">
                         {custody.currentCustodyState === 'in_registry' && (
                           <Dialog open={isCheckoutDialogOpen} onOpenChange={setIsCheckoutDialogOpen}>
@@ -2375,7 +2236,7 @@ export default function EmployeeDetail() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isHrCapable && (
+              {canAdminister && (
               <form onSubmit={handleAddDisciplinaryRecord} className="grid gap-3 sm:grid-cols-4 sm:items-end">
                 <div className="space-y-2">
                   <Label htmlFor="new-disciplinary-action-type">Action Type *</Label>
@@ -2457,7 +2318,7 @@ export default function EmployeeDetail() {
                 </CardTitle>
                 <CardDescription>Off-boarding checklist, clearance, and exit interview — attached to the separation event</CardDescription>
               </div>
-              {isHrCapable && employee.employmentStatus === 'terminated' && (
+              {canAdminister && employee.employmentStatus === 'terminated' && (
                 <Button
                   type="button"
                   variant="outline"
@@ -2498,7 +2359,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.checklistCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { checklistCompleted: checked === true })}
-                          disabled={!isHrCapable}
+                          disabled={!canAdminister}
                           data-testid={`checkbox-exit-checklist-${process.id}`}
                         />
                         Checklist complete
@@ -2507,7 +2368,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.clearanceCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { clearanceCompleted: checked === true })}
-                          disabled={!isHrCapable}
+                          disabled={!canAdminister}
                           data-testid={`checkbox-exit-clearance-${process.id}`}
                         />
                         Clearance complete
@@ -2516,7 +2377,7 @@ export default function EmployeeDetail() {
                         <Checkbox
                           checked={process.exitInterviewCompleted}
                           onCheckedChange={(checked) => handleUpdateExitProcess(process.id, { exitInterviewCompleted: checked === true })}
-                          disabled={!isHrCapable}
+                          disabled={!canAdminister}
                           data-testid={`checkbox-exit-interview-${process.id}`}
                         />
                         Exit interview complete
@@ -2529,7 +2390,7 @@ export default function EmployeeDetail() {
                         defaultValue={process.exitInterviewNotes ?? ''}
                         onBlur={(e) => handleUpdateExitProcess(process.id, { exitInterviewNotes: e.target.value })}
                         placeholder="Notes from the exit interview"
-                        disabled={!isHrCapable}
+                        disabled={!canAdminister}
                         data-testid={`input-exit-interview-notes-${process.id}`}
                       />
                     </div>
@@ -2550,7 +2411,7 @@ export default function EmployeeDetail() {
 
         {/* WS-8 — renders only when this organization has configured employee custom fields. */}
         <div className="lg:col-span-3">
-          <CustomFieldValuesPanel organizationId={organizationId} scope="employee" entityId={employeeId} readOnly={!isHrCapable} />
+          <CustomFieldValuesPanel organizationId={organizationId} scope="employee" entityId={employeeId} readOnly={!canAdminister} />
         </div>
       </div>
 

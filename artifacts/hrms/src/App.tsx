@@ -25,6 +25,8 @@ import Departments from '@/pages/departments';
 import Positions from '@/pages/positions';
 import Employees from '@/pages/employees';
 import EmployeeDetail from '@/pages/employee-detail';
+import EmployeeNew from '@/pages/employee-new';
+import EmployeeEdit from '@/pages/employee-edit';
 import Admin from '@/pages/admin';
 import PlatformAdmin from '@/pages/platform-admin';
 import LeaveTypes from '@/pages/leave-types';
@@ -179,6 +181,15 @@ function Router() {
       </Route>
       <Route path="/document-templates">
         {() => <SecureRoute component={DocumentTemplates} />}
+      </Route>
+      {/* Employee administration (Phase 2): the static /new and the /:id/edit
+          form pages are declared before the /:id profile so wouter never
+          treats "new" as an employee id. */}
+      <Route path="/employees/new">
+        {() => <SecureRoute component={EmployeeNew} />}
+      </Route>
+      <Route path="/employees/:id/edit">
+        {() => <SecureRoute component={EmployeeEdit} />}
       </Route>
       <Route path="/employees/:id">
         {() => <SecureRoute component={EmployeeDetail} />}

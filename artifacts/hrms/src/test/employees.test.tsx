@@ -20,8 +20,18 @@ const { state } = vi.hoisted(() => ({
     personnelResults: undefined as PersonnelSearchResult[] | undefined,
     personnelSearchError: undefined as unknown,
     personnelSearchFetching: false,
+    employees: [] as Array<{ id: number; firstName: string; lastName: string; employeeNumber: string | null; departmentName: string | null; employmentStatus: string; hasProfilePicture: boolean }>,
   },
 }));
+
+// Phase 2 — the Register control is gated by the employee.write permission
+// key (what POST /organizations/:id/employees checks), not by a role name.
+const HR_WRITE = ['employee.read', 'employee.write'];
+const EMPLOYEE_ONLY = ['employee.read'];
+
+function membership(permissions: string[], roles = ['custom_role']) {
+  return { data: [{ organizationId: 10, roles, permissions }], isLoading: false };
+}
 
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => ({ data: { id: 1, activeOrganizationId: 10, organizationId: 10 } }),
@@ -29,12 +39,9 @@ vi.mock('@workspace/api-client-react', () => ({
   useListMyOrganizations: vi.fn(),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
 
-  useListEmployees: () => ({ data: { items: [], total: 0 }, isLoading: false, error: undefined, refetch: vi.fn() }),
+  useListEmployees: () => ({ data: { items: state.employees, total: state.employees.length }, isLoading: false, error: undefined, refetch: vi.fn() }),
   getListEmployeesQueryKey: (orgId: number, params: unknown) => ['employees', orgId, params],
-  useCreateEmployee: () => ({ mutate: vi.fn(), isPending: false }),
-  useUploadEmployeeProfilePicture: () => ({ mutate: vi.fn(), isPending: false }),
-  useListDepartments: () => ({ data: [] }),
-  getListDepartmentsQueryKey: (orgId: number) => ['departments', orgId],
+  getRemoveEmployeeProfilePictureUrl: (orgId: number, id: number) => `/api/organizations/${orgId}/employees/${id}/profile-picture`,
 
   // Personnel Records Search (Phase 3H, W118) — the feature under test.
   useSearchPersonnelRecords: () => ({
@@ -49,7 +56,8 @@ function resetState() {
   state.personnelResults = undefined;
   state.personnelSearchError = undefined;
   state.personnelSearchFetching = false;
-  vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['org_admin'] }] } as never);
+  state.employees = [];
+  vi.mocked(useListMyOrganizations).mockReturnValue(membership(HR_WRITE, ['org_admin']) as never);
 }
 
 function resultRow(overrides: Partial<PersonnelSearchResult> = {}): PersonnelSearchResult {
@@ -157,16 +165,44 @@ describe('Employees directory page', () => {
     });
   });
 
-  it('never shows Add Employee to a plain employee (access-control bug regression)', () => {
+  it('never shows the Register control to a caller without employee.write (access-control regression)', () => {
     resetState();
-    vi.mocked(useListMyOrganizations).mockReturnValue({ data: [{ organizationId: 10, roles: ['employee'] }] } as never);
+    vi.mocked(useListMyOrganizations).mockReturnValue(membership(EMPLOYEE_ONLY, ['employee']) as never);
     renderPage();
     expect(screen.queryByTestId('button-add-employee')).not.toBeInTheDocument();
   });
 
-  it('shows Add Employee to an org_admin/hr_manager', () => {
+  it('gates the Register control on the permission key, not the role name', () => {
     resetState();
+    // An org_admin role name with no employee.write key: hidden. A custom role holding the key: shown.
+    vi.mocked(useListMyOrganizations).mockReturnValue(membership(EMPLOYEE_ONLY, ['org_admin']) as never);
+    const first = renderPage();
+    expect(screen.queryByTestId('button-add-employee')).not.toBeInTheDocument();
+    first.unmount();
+
+    vi.mocked(useListMyOrganizations).mockReturnValue(membership(HR_WRITE, ['custom_people_ops']) as never);
     renderPage();
     expect(screen.getByTestId('button-add-employee')).toBeInTheDocument();
+  });
+
+  it('routes Register employee to the dedicated registration page instead of opening a dialog', () => {
+    resetState();
+    renderPage();
+    const link = screen.getByTestId('button-add-employee');
+    expect(link).toHaveAttribute('href', '/employees/new');
+    expect(link).toHaveTextContent('Register employee');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shows each employee with a worded status badge and a link to the profile', () => {
+    resetState();
+    state.employees = [
+      { id: 5, firstName: 'Ada', lastName: 'Lovelace', employeeNumber: 'EMP-0005', departmentName: 'Engineering', employmentStatus: 'on_leave', hasProfilePicture: false },
+    ];
+    renderPage();
+    const row = screen.getByTestId('row-employee-5');
+    expect(within(row).getByTestId('link-employee-5')).toHaveAttribute('href', '/employees/5');
+    expect(within(row).getByText('On leave')).toBeInTheDocument();
+    expect(within(row).getByText('EMP-0005')).toBeInTheDocument();
   });
 });
