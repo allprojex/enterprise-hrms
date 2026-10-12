@@ -61,9 +61,11 @@ const { state } = vi.hoisted(() => ({
     performanceCycles: undefined as PerformanceCycle[] | undefined,
     performanceReviews: undefined as PerformanceReviewListResponse | undefined,
     unreturnedAssetsReport: undefined as ReportRunResult | undefined,
-    // Access-control gating (isHrCapable) — org_admin by default so every
-    // pre-existing test below (written before this gating existed) still
-    // exercises the mutating controls it expects to see.
+    // Access-control gating — Phase 2 reads PERMISSION KEYS (employee.write,
+    // personnel_file.manage, personnel_file.movement.write …) from the
+    // membership summary rather than role names. The mock derives a
+    // permission set from the role names the pre-existing tests assign, so
+    // `myOrgRoles = ['employee']` still means "no administrative keys".
     myOrgRoles: ['org_admin'] as string[],
     // Destructive-action confirmations — lists that render row actions, and
     // the mutateAsync spies each confirmation dialog awaits.
@@ -94,7 +96,19 @@ vi.mock('@workspace/api-client-react', () => ({
   useSetCustomFieldValues: () => ({ mutate: vi.fn(), isPending: false }),
 
   getGetMeQueryKey: () => ['getMe'],
-  useListMyOrganizations: () => ({ data: [{ organizationId: 10, roles: state.myOrgRoles }] }),
+  useListMyOrganizations: () => ({
+    data: [
+      {
+        organizationId: 10,
+        roles: state.myOrgRoles,
+        // The HR templates' employee-record keys (lib/db seed); a plain employee holds only employee.read.
+        permissions: state.myOrgRoles.some((r) => ['org_admin', 'hr_manager', 'hr_administrator', 'hr'].includes(r))
+          ? ['employee.read', 'employee.write', 'employee.sensitive.read', 'employee.sensitive.write', 'employee.notes.read', 'employee_number.allocate', 'personnel_file.read', 'personnel_file.manage', 'personnel_file.movement.write']
+          : ['employee.read'],
+      },
+    ],
+    isLoading: false,
+  }),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
 
   useGetEmployee: () => ({
@@ -422,7 +436,7 @@ describe('Employee detail page', () => {
   it('renders without crashing and shows the employee name', () => {
     resetState();
     renderPage();
-    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
     expect(screen.getByText('Employment History')).toBeInTheDocument();
   });
 
@@ -812,45 +826,65 @@ describe('Employee detail page', () => {
       state.exitProcessesError = { status: 403 };
       renderPage();
 
-      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
       expect(screen.queryByTestId('card-exit-management')).not.toBeInTheDocument();
       expect(screen.queryByText('No exit process started.')).not.toBeInTheDocument();
     });
 
-    it('keeps a redacted phone number read-only and never sends it back on save', async () => {
+    // Phase 2 — editing moved to /employees/:id/edit (employee-edit.test.tsx
+    // covers the diff-only PATCH and the redacted-null rule). The profile
+    // itself must say a redacted field was withheld rather than print a blank,
+    // and must never offer an inline write path.
+    it('shows redacted personal fields as withheld, with no inline editing and no update call', () => {
       resetState();
       state.employee = baseEmployee({ phoneNumber: null, sensitiveFieldsRedacted: true });
       renderPage();
 
-      const user = userEvent.setup();
-      await user.click(screen.getByTestId('button-edit-employee'));
-      expect(screen.getByTestId('input-detail-phone')).toBeDisabled();
-      // The page seeds form state only when the employee changes after mount;
-      // with data present at mount the required name fields start empty.
-      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
-      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
-      await user.click(screen.getByTestId('button-save-employee'));
-
-      expect(state.updateEmployeeMutate).toHaveBeenCalledTimes(1);
-      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
-      expect(payload.data).not.toHaveProperty('phoneNumber');
+      expect(screen.getAllByTestId('text-sensitive-redacted').length).toBeGreaterThan(0);
+      expect(screen.queryByTestId('input-detail-phone')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('form-employee')).not.toBeInTheDocument();
+      expect(state.updateEmployeeMutate).not.toHaveBeenCalled();
     });
 
-    it('sends the phone number when the caller can see it', async () => {
+    it('shows the phone number when the caller can see it, and routes Edit to the dedicated edit page', () => {
       resetState();
       state.employee = baseEmployee({ phoneNumber: '+233200000000', sensitiveFieldsRedacted: false });
       renderPage();
 
-      const user = userEvent.setup();
-      await user.click(screen.getByTestId('button-edit-employee'));
-      expect(screen.getByTestId('input-detail-phone')).toBeEnabled();
-      await user.type(screen.getByTestId('input-detail-first-name'), 'Ada');
-      await user.type(screen.getByTestId('input-detail-last-name'), 'Lovelace');
-      await user.type(screen.getByTestId('input-detail-phone'), '+233200000000');
-      await user.click(screen.getByTestId('button-save-employee'));
+      expect(screen.getByText('+233200000000')).toBeInTheDocument();
+      expect(screen.getByTestId('button-edit-employee')).toHaveAttribute('href', '/employees/42/edit');
+    });
+  });
 
-      const payload = state.updateEmployeeMutate.mock.calls[0][0] as { data: Record<string, unknown> };
-      expect(payload.data.phoneNumber).toBe('+233200000000');
+  describe('Self-administration (Phase 2): the viewer’s own record', () => {
+    it('hides every HR administrative control on the viewer’s own record and explains why, once', () => {
+      resetState();
+      // useGetMe is stubbed as user 1; a record linked to user 1 is the viewer's own.
+      state.employee = baseEmployee({ employmentStatus: 'active', linkedApplicationUserId: 1 });
+      renderPage();
+
+      expect(screen.getByTestId('notice-self-administration')).toBeInTheDocument();
+      expect(screen.getByTestId('link-my-requests')).toHaveAttribute('href', '/my-requests');
+      expect(screen.queryByTestId('button-edit-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-upload-photo')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-transfer-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-promote-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-separate-employee')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-unlink-user')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-upload-document')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('button-add-skill')).not.toBeInTheDocument();
+      // Reading is untouched.
+      expect(screen.getByRole('heading', { name: 'Ada Lovelace' })).toBeInTheDocument();
+      expect(screen.getByTestId('text-account-linked')).toBeInTheDocument();
+    });
+
+    it('keeps the controls for an HR viewer looking at someone else’s linked record', () => {
+      resetState();
+      state.employee = baseEmployee({ employmentStatus: 'active', linkedApplicationUserId: 99 });
+      renderPage();
+      expect(screen.queryByTestId('notice-self-administration')).not.toBeInTheDocument();
+      expect(screen.getByTestId('button-edit-employee')).toBeInTheDocument();
+      expect(screen.getByTestId('button-unlink-user')).toBeInTheDocument();
     });
   });
 
