@@ -6,12 +6,41 @@
  * withheld, exposes no internal identifier, and states the account status
  * honestly (an employee record is not a login).
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import type { Employee } from '@workspace/api-client-react';
 import { EmployeeProfileSections } from '@/components/employees/employee-profile-sections';
 
 const now = '2026-10-01T00:00:00.000Z';
+
+/** Labels that would announce an internal identifier. "National ID number" is a legitimate personal field. */
+const IDENTIFIER_LABEL = /\b(employee|organi[sz]ation|internal|record|tenant|user|member(ship)?)\s+(id|uuid)\b/i;
+
+/**
+ * Every place in `root` where one of `ids` appears as a whole digit run:
+ * each text node and each attribute value is tokenised separately, so
+ * adjacent text ("birth10") and other numbers (a date's day, a phone number,
+ * "EMP-0042") can neither hide nor imitate an id.
+ */
+function exposedIdentifiers(root: HTMLElement, ids: number[]): string[] {
+  const wanted = new Set(ids.map(String));
+  const found: string[] = [];
+  const hit = (value: string) => (value.match(/\d+/g) ?? []).find((token) => wanted.has(token));
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.textContent ?? '';
+    const id = hit(text);
+    if (id) found.push(`text "${text}" contains ${id}`);
+  }
+  for (const el of Array.from(root.querySelectorAll('*'))) {
+    for (const attr of Array.from(el.attributes)) {
+      const id = hit(attr.value);
+      if (id) found.push(`attribute ${attr.name}="${attr.value}" contains ${id}`);
+    }
+  }
+  return found;
+}
 
 function employee(overrides: Partial<Employee> = {}): Employee {
   return {
@@ -110,11 +139,78 @@ describe('EmployeeProfileSections', () => {
     expect(screen.queryByTestId('card-hr-notes')).not.toBeInTheDocument();
   });
 
-  it('exposes no internal identifier — only the staff number', () => {
-    const { container } = render(<EmployeeProfileSections employee={employee()} />);
-    expect(container.textContent).not.toMatch(/\b42\b/);
-    expect(container.textContent).not.toMatch(/\b10\b/);
-    expect(screen.getByText('EMP-0042')).toBeInTheDocument();
+  // Internal identifiers must never reach the profile — only the staff number.
+  //
+  // The previous assertion regex-searched the whole concatenated textContent
+  // for the bare id, which matched the "10" of a date rendered as "Dec 10,
+  // 1990" under the CI (en-US) locale and passed under en-GH only because
+  // "birth10" has no word boundary. The check below is structural instead:
+  // every TEXT NODE and every ATTRIBUTE VALUE is tokenised into digit runs,
+  // and a token must not EQUAL an internal id. A date's "10", a phone number
+  // or "EMP-0042" are different tokens and cannot be mistaken for an id; an
+  // id rendered anywhere — as text, in a data-* attribute, in an href — is.
+  // Distinctive fixture ids additionally keep a legitimately rendered day or
+  // month from ever equalling one.
+  describe('exposes no internal identifier — only the staff number', () => {
+    const INTERNAL_IDS = { employeeId: 90421, organizationId: 70913, reportingManagerId: 80557, departmentId: 60331 };
+    const internal = () =>
+      employee({
+        id: INTERNAL_IDS.employeeId,
+        organizationId: INTERNAL_IDS.organizationId,
+        reportingManagerId: INTERNAL_IDS.reportingManagerId,
+        departmentId: INTERNAL_IDS.departmentId,
+        linkedApplicationUserId: null,
+      });
+
+    describe.each([
+      { locale: 'en-US', dob: 'Dec 10, 1990' },
+      { locale: 'en-GH', dob: '10 Dec 1990' },
+    ])('under the $locale locale', ({ locale, dob }) => {
+      const original = Date.prototype.toLocaleDateString;
+      beforeEach(() => {
+        vi.spyOn(Date.prototype, 'toLocaleDateString').mockImplementation(function (this: Date, locales, options) {
+          return original.call(this, locales ?? locale, options);
+        });
+      });
+      afterEach(() => vi.restoreAllMocks());
+
+      it('renders no internal id in any text node or attribute, and no identifier label', () => {
+        const { container } = render(<EmployeeProfileSections employee={internal()} />);
+        // The locale really applied (proves the date contains a bare day number).
+        expect(screen.getByText(dob)).toBeInTheDocument();
+
+        expect(exposedIdentifiers(container, Object.values(INTERNAL_IDS))).toEqual([]);
+        expect(container.textContent ?? '').not.toMatch(IDENTIFIER_LABEL);
+        // The legitimate business identifier is shown.
+        expect(screen.getByText('EMP-0042')).toBeInTheDocument();
+      });
+    });
+
+    it('the detector catches an id rendered as text, inside a sentence, or in an attribute (negative control)', () => {
+      const { container } = render(
+        <div>
+          <p>EMP-0042</p>
+          <p>Born 10 Dec 1990 · +233 20 000 0000</p>
+          <span>Record 90421</span>
+          <a href="/organizations/70913/employees">open</a>
+          <div data-employee-id="90421" />
+        </div>,
+      );
+      expect(exposedIdentifiers(container, Object.values(INTERNAL_IDS))).toEqual([
+        'text "Record 90421" contains 90421',
+        'attribute href="/organizations/70913/employees" contains 70913',
+        'attribute data-employee-id="90421" contains 90421',
+      ]);
+    });
+
+    it('the label check catches an internal identifier label (negative control)', () => {
+      for (const label of ['Employee ID', 'Organisation ID', 'Organization id', 'Internal ID', 'Tenant UUID']) {
+        expect(label).toMatch(IDENTIFIER_LABEL);
+      }
+      for (const label of ['Employee number', 'National ID number', 'Passport number']) {
+        expect(label).not.toMatch(IDENTIFIER_LABEL);
+      }
+    });
   });
 
   it('states that no login exists and that records never create one', () => {
