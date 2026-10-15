@@ -45,7 +45,7 @@ export default function ForgotPassword() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white">
             <Building2 className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-xl font-semibold text-white font-sans">Enterprise HRMS</h1>
+          <h1 className="text-xl font-semibold text-white font-sans">HRIS Plus</h1>
         </div>
 
         <div className="space-y-6">
@@ -58,7 +58,7 @@ export default function ForgotPassword() {
         </div>
 
         <div className="text-sm text-white/70">
-          © {new Date().getFullYear()} Enterprise HRMS. All rights reserved.
+          © {new Date().getFullYear()} HRIS Plus. All rights reserved.
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export default function ForgotPassword() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
               <Building2 className="h-7 w-7 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-semibold text-foreground font-sans">Enterprise HRMS</h1>
+            <h1 className="text-xl font-semibold text-foreground font-sans">HRIS Plus</h1>
           </div>
 
           {!submitted ? (

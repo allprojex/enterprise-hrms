@@ -1,6 +1,6 @@
 {
-  "name": "Enterprise HRMS",
-  "short_name": "HRMS",
+  "name": "HRIS Plus – Human Resource Information System Plus",
+  "short_name": "HRIS Plus",
   "description": "Secure, multi-tenant human resource management for authorised organisation members.",
   "id": "/",
   "start_url": "/",

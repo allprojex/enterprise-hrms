@@ -47,7 +47,7 @@ export default function ResetPassword() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white">
             <Building2 className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-xl font-semibold text-white font-sans">Enterprise HRMS</h1>
+          <h1 className="text-xl font-semibold text-white font-sans">HRIS Plus</h1>
         </div>
         <div className="space-y-6">
           <h2 className="text-4xl font-bold text-white leading-tight">Set a new password</h2>
@@ -55,7 +55,7 @@ export default function ResetPassword() {
             Choose a new password to regain access to your account.
           </p>
         </div>
-        <div className="text-sm text-white/70">© {new Date().getFullYear()} Enterprise HRMS. All rights reserved.</div>
+        <div className="text-sm text-white/70">© {new Date().getFullYear()} HRIS Plus. All rights reserved.</div>
       </div>
 
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
@@ -64,7 +64,7 @@ export default function ResetPassword() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
               <Building2 className="h-7 w-7 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-semibold text-foreground font-sans">Enterprise HRMS</h1>
+            <h1 className="text-xl font-semibold text-foreground font-sans">HRIS Plus</h1>
           </div>
 
           {isLoading ? (

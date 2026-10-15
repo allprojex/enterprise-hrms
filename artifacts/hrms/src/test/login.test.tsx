@@ -51,14 +51,14 @@ describe('Login tenant branding', () => {
   it('shows generic platform branding when no tenant hostname is resolved', () => {
     state.tenantContext = { resolved: false };
     renderLogin();
-    expect(screen.getAllByText('Enterprise HRMS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('HRIS Plus').length).toBeGreaterThan(0);
     expect(screen.getByText('Enter your credentials to access your account')).toBeInTheDocument();
   });
 
   it('shows generic platform branding while tenant context has not loaded yet', () => {
     state.tenantContext = undefined;
     renderLogin();
-    expect(screen.getAllByText('Enterprise HRMS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('HRIS Plus').length).toBeGreaterThan(0);
   });
 
   it('shows organisation-specific branding for a resolved tenant hostname', () => {

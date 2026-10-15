@@ -83,7 +83,7 @@ export default function Login() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-white font-sans" data-testid="text-tenant-name">
-              {tenantName ?? 'Enterprise HRMS'}
+              {tenantName ?? 'HRIS Plus'}
             </h1>
             {systemDisplayName && (
               <p className="text-sm text-white/80 font-sans" data-testid="text-system-display-name">
@@ -104,7 +104,7 @@ export default function Login() {
         </div>
 
         <div className="text-sm text-white/70">
-          &copy; {new Date().getFullYear()} {tenantName ?? 'Enterprise HRMS'}. All rights reserved.
+          &copy; {new Date().getFullYear()} {tenantName ?? 'HRIS Plus'}. All rights reserved.
         </div>
 
         {/* Subtle accent wave divider — the one deliberately sparing use of
@@ -137,7 +137,7 @@ export default function Login() {
             </div>
             <div>
               <span className="block text-xl font-semibold text-foreground font-sans">
-                {tenantName ?? 'Enterprise HRMS'}
+                {tenantName ?? 'HRIS Plus'}
               </span>
               {systemDisplayName && (
                 <span className="block text-xs text-muted-foreground font-sans">{systemDisplayName}</span>

@@ -1,5 +1,5 @@
 /*
- * Enterprise HRMS service worker.
+ * HRIS Plus service worker.
  *
  * ITS ONLY JOB IS INSTALLABILITY. It exists so supported browsers offer
  * "Install app" and so the installed window has a controller. It is
