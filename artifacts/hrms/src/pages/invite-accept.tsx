@@ -34,7 +34,7 @@ export default function InviteAccept() {
   // never picks up Org B's branding. Cleared on unmount.
   const brand = invitation?.organization ?? null;
   const orgName = brand?.organizationName ?? invitation?.organizationName ?? 'your organisation';
-  const systemName = brand?.systemDisplayName ?? 'Enterprise HRMS';
+  const systemName = brand?.systemDisplayName ?? 'HRIS Plus';
   const logoUrl = brand?.logoUrl ?? null;
   useEffect(() => {
     const root = document.documentElement;

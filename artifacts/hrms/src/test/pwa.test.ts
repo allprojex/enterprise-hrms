@@ -31,8 +31,8 @@ describe('web app manifest', () => {
   );
 
   it('carries the stable platform identity, not a tenant name', () => {
-    expect(manifest.name).toBe('Enterprise HRMS');
-    expect(manifest.short_name).toBe('HRMS');
+    expect(manifest.name).toBe('HRIS Plus – Human Resource Information System Plus');
+    expect(manifest.short_name).toBe('HRIS Plus');
     // A tenant name in the manifest would mean one installed app per customer.
     expect(JSON.stringify(manifest)).not.toMatch(/volta|meridian|worldwide|wwm/i);
   });

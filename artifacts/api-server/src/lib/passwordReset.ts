@@ -42,8 +42,8 @@ function digestToken(token: string): string {
 }
 
 function buildResetEmail(params: { firstName: string; resetUrl: string }) {
-  const html = `<p>Hi ${params.firstName},</p><p>We received a request to reset your Enterprise HRMS password. This link expires in 1 hour:</p><p><a href="${params.resetUrl}">${params.resetUrl}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`;
-  const text = `Hi ${params.firstName},\n\nWe received a request to reset your Enterprise HRMS password. This link expires in 1 hour:\n${params.resetUrl}\n\nIf you didn't request this, you can safely ignore this email.`;
+  const html = `<p>Hi ${params.firstName},</p><p>We received a request to reset your HRIS Plus password. This link expires in 1 hour:</p><p><a href="${params.resetUrl}">${params.resetUrl}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`;
+  const text = `Hi ${params.firstName},\n\nWe received a request to reset your HRIS Plus password. This link expires in 1 hour:\n${params.resetUrl}\n\nIf you didn't request this, you can safely ignore this email.`;
   return { html, text };
 }
 
@@ -109,7 +109,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
     void getEmailProvider()
       .send({
         to: user.email,
-        subject: "Reset your Enterprise HRMS password",
+        subject: "Reset your HRIS Plus password",
         html,
         text,
       })

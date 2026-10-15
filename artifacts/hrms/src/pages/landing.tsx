@@ -55,7 +55,7 @@ export default function Landing() {
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
                 <Building2 className="h-6 w-6 text-primary-foreground" />
               </div>
-              <h1 className="text-lg font-semibold text-foreground font-sans">Enterprise HRMS</h1>
+              <h1 className="text-lg font-semibold text-foreground font-sans">HRIS Plus</h1>
             </div>
             <div className="flex items-center gap-3">
               <Link href="/login">
@@ -195,7 +195,7 @@ export default function Landing() {
                 Transform How You Manage People
               </h3>
               <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Stop juggling spreadsheets, paper files, and disconnected systems. Enterprise HRMS brings order to HR chaos with tools designed for clarity, efficiency, and growth.
+                Stop juggling spreadsheets, paper files, and disconnected systems. HRIS Plus brings order to HR chaos with tools designed for clarity, efficiency, and growth.
               </p>
               <ul className="space-y-4">
                 {benefits.map((benefit, i) => (
@@ -242,7 +242,7 @@ export default function Landing() {
             Ready to Modernize Your HR Operations?
           </h3>
           <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Join organizations worldwide who trust Enterprise HRMS to manage their most valuable asset—their people.
+            Join organizations worldwide who trust HRIS Plus to manage their most valuable asset—their people.
           </p>
           <Link href="/login">
             <Button size="lg" className="gap-2" data-testid="button-cta-start">
@@ -261,10 +261,10 @@ export default function Landing() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <Building2 className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-sm font-medium text-foreground">Enterprise HRMS</span>
+              <span className="text-sm font-medium text-foreground">HRIS Plus</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} Enterprise HRMS. All rights reserved.
+              © {new Date().getFullYear()} HRIS Plus. All rights reserved.
             </p>
           </div>
         </div>

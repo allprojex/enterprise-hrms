@@ -127,7 +127,7 @@ function InstallationsPanel() {
             <Server className="h-5 w-5" /> Installation Registry
           </CardTitle>
           <CardDescription>
-            Durable identity for deployed HRMS installations. Not the fleet Control Plane — identity only.
+            Durable identity for deployed HRIS Plus installations. Not the fleet Control Plane — identity only.
           </CardDescription>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>

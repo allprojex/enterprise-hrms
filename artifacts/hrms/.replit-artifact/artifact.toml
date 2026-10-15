@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Enterprise HRMS"
+title = "HRIS Plus"
 version = "1.0.0"
 id = "artifacts/hrms"
 router = "path"
