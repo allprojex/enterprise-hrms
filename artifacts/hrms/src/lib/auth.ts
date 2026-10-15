@@ -37,6 +37,23 @@ export function clearToken(): void {
 }
 
 /**
+ * Notify when the session token is removed by ANOTHER window of this origin —
+ * e.g. logging out in a browser tab while the installed app is also open.
+ * Both share one localStorage, but only the window that logged out cleared
+ * its in-memory data; the listener lets every other window do the same
+ * instead of continuing to display it. The `storage` event never fires in the
+ * window that made the change. Returns an unsubscribe function.
+ */
+export function onSignedOutElsewhere(callback: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    // key === null means localStorage.clear() in the other window.
+    if ((event.key === TOKEN_KEY || event.key === null) && getStoredToken() === null) callback();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => window.removeEventListener("storage", onStorage);
+}
+
+/**
  * Call once at app boot to wire the stored token and the browser's own
  * hostname into every API request. The hostname is only ever the caller's
  * own (window.location.hostname) — see setTenantHostnameGetter's doc
@@ -45,4 +62,9 @@ export function clearToken(): void {
 export function initAuth(): void {
   setAuthTokenGetter(() => getStoredToken());
   setTenantHostnameGetter(() => window.location.hostname);
+}
+
+/** Full-page navigation to the sign-in page, discarding all in-memory state. */
+export function redirectToSignIn(): void {
+  window.location.replace(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/login`);
 }

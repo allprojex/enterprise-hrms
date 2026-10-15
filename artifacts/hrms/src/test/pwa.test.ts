@@ -31,8 +31,9 @@ describe('web app manifest', () => {
   );
 
   it('carries the stable platform identity, not a tenant name', () => {
-    expect(manifest.name).toBe('HRIS Plus – Human Resource Information System Plus');
+    expect(manifest.name).toBe('HRIS Plus');
     expect(manifest.short_name).toBe('HRIS Plus');
+    expect(manifest.description).toContain('HRIS Plus – Human Resource Information System Plus');
     // A tenant name in the manifest would mean one installed app per customer.
     expect(JSON.stringify(manifest)).not.toMatch(/volta|meridian|worldwide|wwm/i);
   });
@@ -71,6 +72,46 @@ describe('web app manifest', () => {
     expect(html).toContain('/manifest.webmanifest');
     expect(html).toContain('name="theme-color"');
     expect(html).toContain('rel="apple-touch-icon"');
+    expect(html).toContain('name="apple-mobile-web-app-title" content="HRIS Plus"');
+  });
+
+  it('lets the installed app use the full screen without disabling pinch zoom', () => {
+    const html = fs.readFileSync(path.join(HRMS_ROOT, 'index.html'), 'utf8');
+    const viewport = /<meta name="viewport" content="([^"]+)"/.exec(html)?.[1] ?? '';
+    expect(viewport).toContain('viewport-fit=cover');
+    // WCAG 1.4.4 — zoom must stay available.
+    expect(viewport).not.toMatch(/maximum-scale|user-scalable/);
+  });
+
+  it('has an opaque Apple touch icon (iOS paints transparency black)', () => {
+    const png = fs.readFileSync(path.join(HRMS_ROOT, 'public', 'icons', 'apple-touch-icon.png'));
+    expect(png.readUInt32BE(16)).toBe(180);
+    expect(png.readUInt32BE(20)).toBe(180);
+    // IHDR colour type 2 = truecolour without alpha.
+    expect(png[25]).toBe(2);
+  });
+});
+
+// ------------------------------------------------------------ offline page --
+
+describe('offline page', () => {
+  const html = fs.readFileSync(path.join(HRMS_ROOT, 'public', 'offline.html'), 'utf8');
+
+  it('explains the connection requirement and offers Retry', () => {
+    expect(html).toMatch(/You(?:'|’)re offline/);
+    expect(html).toContain('HRIS Plus needs an internet connection');
+    expect(html).toMatch(/>Retry</);
+  });
+
+  it('loads nothing but same-origin static files and no application data', () => {
+    expect(html).not.toMatch(/\/api\//);
+    expect(html).not.toMatch(/https?:\/\//);
+    // CSP script-src 'self': no inline script blocks.
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/);
+    for (const asset of ['/offline.css', '/offline.js']) {
+      expect(html).toContain(asset);
+      expect(fs.existsSync(path.join(HRMS_ROOT, 'public', asset.slice(1)))).toBe(true);
+    }
   });
 });
 
@@ -85,6 +126,12 @@ function loadServiceWorker() {
   const source = fs.readFileSync(path.join(HRMS_ROOT, 'public', 'sw.js'), 'utf8');
   const recorded: Recorded = { puts: [], adds: [] };
   const listeners: Record<string, (event: unknown) => void> = {};
+  const network = {
+    fetch: async (..._args: unknown[]): Promise<unknown> => {
+      const response = { status: 200, type: 'basic', clone: () => response };
+      return response;
+    },
+  };
 
   const cache = {
     put: vi.fn(async (request: Request | string) => {
@@ -112,10 +159,9 @@ function loadServiceWorker() {
     // A same-origin browser response reports type 'basic'; Node's Response
     // reports 'default', so the worker's own guard would reject it. The stub
     // models the browser, since that guard is exactly what is under test.
-    fetch: vi.fn(async () => {
-      const response = { status: 200, type: 'basic', clone: () => response };
-      return response;
-    }),
+    // Routed through `network` so a test can swap the behaviour after the
+    // worker has been loaded (the vm context holds its own copy of `fetch`).
+    fetch: vi.fn((...args: unknown[]) => network.fetch(...args)),
     console,
     URL,
     Request,
@@ -128,7 +174,7 @@ function loadServiceWorker() {
 
   const context = vm.createContext({ ...scope, self: scope, globalThis: scope });
   vm.runInContext(source, context);
-  return { listeners, recorded, cache, scope };
+  return { listeners, recorded, cache, scope, network };
 }
 
 /** A synthetic FetchEvent that records whether the worker took over the response. */
@@ -219,37 +265,63 @@ describe('service worker cache policy', () => {
     expect(sw.recorded.puts).toHaveLength(0);
   });
 
-  it('serves navigations network-first and caches only the shell document', async () => {
-    const probe = fetchEvent(`${ORIGIN}/dashboard`, { mode: 'navigate' });
-    sw.listeners.fetch(probe.event);
-    expect(probe.responded).toBe(true);
-    await probe.responsePromise;
-    // The only thing written is the shell, under a single stable key.
-    expect(sw.recorded.puts).toEqual(['/']);
+  it('serves navigations from the network and never stores them', async () => {
+    for (const page of ['/dashboard', '/employees/463', '/login', '/']) {
+      const probe = fetchEvent(`${ORIGIN}${page}`, { mode: 'navigate' });
+      sw.listeners.fetch(probe.event);
+      expect(probe.responded).toBe(true);
+      await probe.responsePromise;
+    }
+    // No page — not even the application shell — is written to a cache.
+    expect(sw.recorded.puts).toHaveLength(0);
   });
 
-  it('warms only the shell and installability assets on install', async () => {
+  it('falls back to the static offline page only when the network is unavailable', async () => {
+    const offlinePage = { offline: true };
+    sw.network.fetch = async () => {
+      throw new TypeError('Failed to fetch');
+    };
+    sw.scope.caches.match = vi.fn(async (key: string) => (key === '/offline.html' ? offlinePage : undefined));
+    const probe = fetchEvent(`${ORIGIN}/employees/463`, { mode: 'navigate' });
+    sw.listeners.fetch(probe.event);
+    await expect(probe.responsePromise).resolves.toBe(offlinePage);
+    expect(sw.scope.caches.match).toHaveBeenCalledWith('/offline.html');
+    expect(sw.recorded.puts).toHaveLength(0);
+  });
+
+  it('returns server error responses as-is instead of the offline page', async () => {
+    const serverError = { status: 503, type: 'basic', clone: () => serverError };
+    sw.network.fetch = async () => serverError;
+    const probe = fetchEvent(`${ORIGIN}/dashboard`, { mode: 'navigate' });
+    sw.listeners.fetch(probe.event);
+    await expect(probe.responsePromise).resolves.toBe(serverError);
+  });
+
+  it('warms only the offline page and installability assets on install', async () => {
     const waits: Promise<unknown>[] = [];
     sw.listeners.install({ waitUntil: (p: Promise<unknown>) => waits.push(p) });
     await Promise.all(waits);
-    // Nothing tenant-scoped, nothing under /api.
+    // Nothing tenant-scoped, nothing under /api, and not the application shell.
     expect(sw.recorded.adds.some((entry) => entry.startsWith('/api'))).toBe(false);
-    expect(sw.recorded.adds).toContain('/');
+    expect(sw.recorded.adds).not.toContain('/');
+    expect(sw.recorded.adds).toContain('/offline.html');
     expect(sw.recorded.adds).toContain('/manifest.webmanifest');
+    const allowed = new Set(['/offline.html', '/offline.css', '/offline.js', '/manifest.webmanifest', '/favicon.svg']);
     for (const entry of sw.recorded.adds) {
-      expect(entry === '/' || entry.startsWith('/icons/') || entry === '/manifest.webmanifest' || entry === '/favicon.svg').toBe(true);
+      expect(allowed.has(entry) || entry.startsWith('/icons/'), `${entry} is not an allowed precache entry`).toBe(true);
     }
   });
 
-  it('drops caches from previous releases on activate', async () => {
+  it('drops caches from previous releases — including the v1 cached shell — on activate', async () => {
     const waits: Promise<unknown>[] = [];
-    sw.scope.caches.keys = vi.fn(async () => ['hrms-shell-v0', 'hrms-shell-v1', 'something-else']);
+    sw.scope.caches.keys = vi.fn(async () => ['hrms-shell-v0', 'hrms-shell-v1', 'hrms-shell-v2', 'something-else']);
     sw.listeners.activate({ waitUntil: (p: Promise<unknown>) => waits.push(p) });
     await Promise.all(waits);
     const deleted = (sw.scope.caches.delete as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
     expect(deleted).toContain('hrms-shell-v0');
+    expect(deleted).toContain('hrms-shell-v1');
     expect(deleted).toContain('something-else');
-    expect(deleted).not.toContain('hrms-shell-v1');
+    expect(deleted).not.toContain('hrms-shell-v2');
   });
 
   it('contains no runtime caching rule for API traffic', () => {

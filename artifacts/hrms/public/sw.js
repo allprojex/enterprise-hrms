@@ -1,15 +1,22 @@
 /*
  * HRIS Plus service worker.
  *
- * ITS ONLY JOB IS INSTALLABILITY. It exists so supported browsers offer
- * "Install app" and so the installed window has a controller. It is
- * deliberately NOT an offline data layer.
+ * ITS JOBS ARE INSTALLABILITY AND A SAFE OFFLINE PAGE. It exists so supported
+ * browsers offer "Install app", so the installed window has a controller, and
+ * so a navigation made without a connection shows a static "you are offline"
+ * page instead of the browser's error screen. It is deliberately NOT an
+ * offline data layer.
  *
  * WHAT IT CACHES
- *   Exactly two things, both non-sensitive and identical for every tenant:
- *     - the application shell document ("/"), network-first;
+ *   Only static, non-sensitive files that are identical for every tenant and
+ *   every user:
+ *     - the offline page and its stylesheet/script;
  *     - the manifest and its icons, which the browser needs to render the
  *       installed app.
+ *   The application shell document ("/") is NOT cached (v1 cached it): the
+ *   offline page replaces it as the fallback, so no copy of the application
+ *   can ever be revived from disk after a release, a logout or a revoked
+ *   session.
  *
  * WHAT IT MUST NEVER CACHE — enforced by bailing out before any cache write:
  *   - anything under /api/ (employee and personnel records, authentication
@@ -29,24 +36,28 @@
  *   browser's own HTTP cache already handles correctly. Precaching them would
  *   add a second, independent cache with its own invalidation rules — the
  *   classic way a PWA ends up serving a stale bundle against a newer API after
- *   a release. Network-first on the one unhashed document (the shell) means a
- *   new HRMS release is picked up on the next load with no cache versioning to
- *   get wrong, and the only stale artefact possible is a shell served while the
- *   network is unavailable.
+ *   a release. Navigations always go to the network, so a new release is
+ *   picked up on the next load; an already-open window is told about it by the
+ *   in-app update check (src/lib/app-update.ts), never reloaded by force.
  *
  * UPDATE BEHAVIOUR
  *   CACHE_NAME is versioned. On activate, every cache whose name does not match
- *   is deleted, so a release cannot leave an orphaned cache behind. The worker
- *   claims clients immediately so an installed window is controlled without a
- *   second launch.
+ *   is deleted, so a release cannot leave an orphaned cache behind — upgrading
+ *   from v1 removes the cached shell document. The worker claims clients
+ *   immediately so an installed window is controlled without a second launch.
  */
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `hrms-shell-${CACHE_VERSION}`;
 
-/** The shell document and the assets the browser needs to present the app. */
-const SHELL_URL = '/';
-const INSTALLABILITY_ASSETS = [
+/** Served for a navigation that fails because the network is unavailable. */
+const OFFLINE_URL = '/offline.html';
+
+/** Static files the offline page and the installed app need. Nothing tenant-specific. */
+const PRECACHE_ASSETS = [
+  OFFLINE_URL,
+  '/offline.css',
+  '/offline.js',
   '/manifest.webmanifest',
   '/icons/pwa-192.png',
   '/icons/pwa-512.png',
@@ -80,9 +91,7 @@ self.addEventListener('install', (event) => {
       const cache = await caches.open(CACHE_NAME);
       // Failure to warm any single asset must not fail the installation —
       // installability does not depend on the cache being complete.
-      await Promise.allSettled(
-        [SHELL_URL, ...INSTALLABILITY_ASSETS].map((path) => cache.add(path)),
-      );
+      await Promise.allSettled(PRECACHE_ASSETS.map((path) => cache.add(path)));
       await self.skipWaiting();
     })(),
   );
@@ -110,34 +119,34 @@ self.addEventListener('fetch', (event) => {
   if (isForbiddenToCache(url)) return;
   if (!isCacheableRequest(request)) return;
 
-  // Navigations: network-first, falling back to the cached shell only when the
-  // network is unavailable. A successful response refreshes the stored shell.
+  // Navigations: always the network. Only when the network itself fails (no
+  // connection — not a 4xx/5xx, which are returned as-is) is the static
+  // offline page served. Navigation responses are never stored.
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
-          const response = await fetch(request);
-          if (isCacheableResponse(response)) {
-            const cache = await caches.open(CACHE_NAME);
-            await cache.put(SHELL_URL, response.clone());
-          }
-          return response;
+          return await fetch(request);
         } catch {
-          const cached = await caches.match(SHELL_URL);
-          if (cached) return cached;
-          throw new Error('Offline and no cached application shell is available');
+          const offline = await caches.match(OFFLINE_URL);
+          if (offline) return offline;
+          return new Response(
+            '<!doctype html><meta charset="utf-8"><title>Offline · HRIS Plus</title>' +
+              '<p>HRIS Plus needs an internet connection. Reconnect and reload this page.</p>',
+            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+          );
         }
       })(),
     );
     return;
   }
 
-  // The few installability assets: cache-first, since they change only with a
+  // The precached static files: cache-first, since they change only with a
   // release and the activate handler drops the old cache when that happens.
-  if (INSTALLABILITY_ASSETS.includes(url.pathname)) {
+  if (PRECACHE_ASSETS.includes(url.pathname)) {
     event.respondWith(
       (async () => {
-        const cached = await caches.match(request);
+        const cached = await caches.match(request, { ignoreSearch: true });
         if (cached) return cached;
         const response = await fetch(request);
         if (isCacheableResponse(response)) {
