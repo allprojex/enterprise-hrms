@@ -2,8 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- No maximum-scale and no user-scalable=no: pinch zoom must stay available (WCAG 1.4.4 Resize Text). -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- No maximum-scale and no user-scalable=no: pinch zoom must stay available (WCAG 1.4.4 Resize Text).
+         viewport-fit=cover lets the installed app use the whole screen on notched / Dynamic Island
+         devices; the safe-area-* utilities in index.css keep content clear of those areas. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>HRIS Plus – Human Resource Information System Plus</title>
     <meta name="description" content="HRIS Plus – Human Resource Information System Plus. Secure, multi-tenant human resource management. Access is restricted to authorised organisation members." />
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />
@@ -24,7 +26,10 @@
     -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#2A4074" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <!-- iOS / iPadOS have no install prompt: Safari's Share → Add to Home Screen reads these.
+         The touch icon is opaque because iOS fills transparent pixels with black. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="HRIS Plus" />

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
+import { AppNotices } from '@/components/pwa/app-notices';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { AppShell } from '@/components/layout/app-shell';
@@ -537,6 +538,7 @@ function App() {
               <Router />
             </WouterRouter>
             <Toaster />
+            <AppNotices />
           </TooltipProvider>
         </MotionConfig>
       </QueryClientProvider>

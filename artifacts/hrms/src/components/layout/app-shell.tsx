@@ -1,4 +1,5 @@
 import { useState, useEffect, useId, useRef } from 'react';
+import { InstallAppButton } from '@/components/pwa/install-app-button';
 import { Link, useLocation } from 'wouter';
 import {
   Building2,
@@ -905,7 +906,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full overflow-hidden bg-background p-safe">
       {/* ── Desktop sidebar ─────────────────────────────────────────────── */}
       <aside
         className="hidden lg:flex lg:flex-col lg:w-64 border-r border-sidebar-border bg-sidebar"
@@ -961,6 +962,7 @@ export function AppShell({ children }: AppShellProps) {
               </p>
             </div>
           </div>
+          <InstallAppButton className="mb-2 w-full justify-start gap-2 text-muted-foreground" />
           <Button
             variant="outline"
             size="sm"
@@ -999,7 +1001,7 @@ export function AppShell({ children }: AppShellProps) {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar lg:hidden"
+              className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar pt-safe pb-safe pl-safe lg:hidden"
             >
               <div className="flex items-center justify-end border-b border-sidebar-border px-2 py-2">
                 <Button
@@ -1063,6 +1065,7 @@ export function AppShell({ children }: AppShellProps) {
                     </p>
                   </div>
                 </div>
+                <InstallAppButton className="mb-2 w-full justify-start gap-2 text-muted-foreground" />
                 <Button
                   variant="outline"
                   size="sm"

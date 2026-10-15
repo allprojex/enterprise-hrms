@@ -1,15 +1,25 @@
 {
-  "name": "HRIS Plus – Human Resource Information System Plus",
+  "name": "HRIS Plus",
   "short_name": "HRIS Plus",
-  "description": "Secure, multi-tenant human resource management for authorised organisation members.",
+  "description": "HRIS Plus – Human Resource Information System Plus. Secure, multi-tenant human resource management for authorised organisation members.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
   "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
   "theme_color": "#2A4074",
   "background_color": "#FFFFFF",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/pwa-192.png",

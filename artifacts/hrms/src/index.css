@@ -751,6 +751,19 @@
   min-height: var(--touch-target);
 }
 
+/* Safe areas — keep content clear of notches, the Dynamic Island, rounded
+   corners and the home indicator once the installed app draws edge to edge
+   (viewport-fit=cover in index.html). Every inset is 0 in an ordinary browser
+   tab and on devices without one, so these change nothing there. */
+@utility pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+@utility pr-safe { padding-right: env(safe-area-inset-right, 0px); }
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+@utility pl-safe { padding-left: env(safe-area-inset-left, 0px); }
+@utility p-safe {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
 /* Table foundation — shared styling every table inherits (ui/table.tsx). */
 @utility table-foundation {
   --table-row-height: 2.75rem;
