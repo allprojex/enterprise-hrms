@@ -33,6 +33,7 @@ describeLive("P0 reliability hardening — live", () => {
   let eq: any;
   let and: any;
   let sql: any;
+  let getTableName: (table: any) => string;
 
   let dataChange: typeof import("../lib/employeeRequests/dataChange");
   let serviceRequests: typeof import("../lib/employeeRequests/serviceRequests");
@@ -56,6 +57,7 @@ describeLive("P0 reliability hardening — live", () => {
     eq = drizzle.eq;
     and = drizzle.and;
     sql = drizzle.sql;
+    getTableName = drizzle.getTableName;
     const dbModule = await import("@workspace/db");
     db = dbModule.db;
     schema = dbModule;
@@ -113,16 +115,25 @@ describeLive("P0 reliability hardening — live", () => {
     return emp;
   }
 
-  /** Resolves once some backend is blocked waiting on a row lock (or after 10s). */
-  async function waitForLockWaiter(): Promise<void> {
+  /**
+   * Resolves once the code under test is blocked on a row lock while writing
+   * `tableName` — matched by its own UPDATE statement, not just any waiter.
+   * Throws after 10s: a race that never happened must fail the test, not let
+   * it pass vacuously (e.g. a write that read the row only after the holder
+   * committed).
+   */
+  async function waitForBlockedUpdate(tableName: string): Promise<void> {
+    const pattern = `update "${tableName}"%`;
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
       const result = await db.execute(
-        sql`select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`,
+        sql`select count(*)::int as n from pg_stat_activity
+            where wait_event_type = 'Lock' and datname = current_database() and query ilike ${pattern}`,
       );
       if (Number(result.rows[0].n) > 0) return;
       await new Promise((r) => setTimeout(r, 25));
     }
+    throw new Error(`the code under test never blocked writing "${tableName}": the race was not forced`);
   }
 
   /**
@@ -148,9 +159,12 @@ describeLive("P0 reliability hardening — live", () => {
       (value) => ({ ok: true as const, value }),
       (error) => ({ ok: false as const, error }),
     );
-    await waitForLockWaiter();
-    release();
-    await holder;
+    try {
+      await waitForBlockedUpdate(getTableName(table));
+    } finally {
+      release();
+      await holder;
+    }
     return outcome;
   }
 
@@ -326,6 +340,26 @@ describeLive("P0 reliability hardening — live", () => {
 
   // -- Job engine --------------------------------------------------------------
 
+  /**
+   * claimDueJobs is platform-wide by design. Claims as "p0-worker-A", then
+   * hands every claimed job that is not one of `ids` straight back to the
+   * queue, so the test never strands someone else's due job as "running".
+   */
+  async function claimOnly(ids: number[]) {
+    const claimed = await scheduledJobs.claimDueJobs({ workerId: "p0-worker-A", limit: 50 });
+    const foreign = claimed.filter((j) => !ids.includes(j.id)).map((j) => j.id);
+    if (foreign.length > 0) {
+      const { inArray } = await import("drizzle-orm");
+      await db
+        .update(schema.scheduledJobsTable)
+        .set({ status: "scheduled", lockedAt: null, lockedBy: null })
+        .where(inArray(schema.scheduledJobsTable.id, foreign));
+    }
+    const mine = claimed.filter((j) => ids.includes(j.id));
+    expect(mine.map((j) => j.id).sort()).toEqual([...ids].sort());
+    return mine;
+  }
+
   it("a slow attempt whose claim was reclaimed does not write its outcome over the new claim", async () => {
     const jobType = `p0.lease_${Date.now()}`;
     let ran = 0;
@@ -337,7 +371,7 @@ describeLive("P0 reliability hardening — live", () => {
         idempotencyKey: `lease-${suffix}`,
         scheduledFor: new Date(Date.now() - 1000),
       });
-      const claimed = (await scheduledJobs.claimDueJobs({ workerId: "p0-worker-A", limit: 50 })).find((j) => j.id === job.id);
+      const claimed = (await claimOnly([job.id]))[0];
       expect(claimed?.lockedBy).toBe("p0-worker-A");
 
       // The lease expired and worker B claimed the job while A was still running.
@@ -355,6 +389,12 @@ describeLive("P0 reliability hardening — live", () => {
       expect(row!.completedAt).toBeNull();
     } finally {
       registry.unregisterJobHandlerForTests(jobType);
+      // The simulated worker B never finishes, so the row would stay "running"
+      // and be reclaimed by the next suite's platform-wide reclaim. Retire it.
+      await db
+        .update(schema.scheduledJobsTable)
+        .set({ status: "cancelled", cancelledAt: new Date(), lockedAt: null, lockedBy: null })
+        .where(eq(schema.scheduledJobsTable.jobType, jobType));
     }
   });
 
@@ -368,7 +408,7 @@ describeLive("P0 reliability hardening — live", () => {
         idempotencyKey: `held-${suffix}`,
         scheduledFor: new Date(Date.now() - 1000),
       });
-      const claimed = (await scheduledJobs.claimDueJobs({ workerId: "p0-worker-A", limit: 50 })).find((j) => j.id === job.id);
+      const claimed = (await claimOnly([job.id]))[0];
       await scheduledJobs.executeClaimedJob(claimed!);
       const row = await scheduledJobs.getScheduledJob(job.id);
       expect(row!.status).toBe("completed");
@@ -408,8 +448,7 @@ describeLive("P0 reliability hardening — live", () => {
         idempotencyKey: `module-on-${suffix}`,
         scheduledFor: new Date(Date.now() - 1000),
       });
-      const claimed = await scheduledJobs.claimDueJobs({ workerId: "p0-worker-A", limit: 50 });
-      for (const j of claimed.filter((c) => c.id === disabledJob.id || c.id === enabledJob.id)) {
+      for (const j of await claimOnly([disabledJob.id, enabledJob.id])) {
         await scheduledJobs.executeClaimedJob(j);
       }
 
@@ -420,6 +459,36 @@ describeLive("P0 reliability hardening — live", () => {
       expect(off!.lastErrorMessage).toMatch(/module is not enabled/);
       expect(off!.lockedBy).toBeNull();
       expect((await scheduledJobs.getScheduledJob(enabledJob.id))!.status).toBe("completed");
+    } finally {
+      registry.unregisterJobHandlerForTests(jobType);
+      // The module registry is platform-wide: leave no test module behind.
+      await db.delete(schema.organizationModulesTable).where(eq(schema.organizationModulesTable.moduleId, mod.id));
+      await db.delete(schema.modulesTable).where(eq(schema.modulesTable.id, mod.id));
+    }
+  });
+
+  it("a handler declaring a module the registry does not know fails loudly instead of cancelling quietly", async () => {
+    const jobType = `p0.badmodule_${Date.now()}`;
+    let ran = false;
+    registry.registerJobHandler(jobType, {
+      moduleKey: `no_such_module_${Date.now()}`,
+      parsePayload: (raw) => raw,
+      execute: async () => void (ran = true),
+    });
+    try {
+      const job = await scheduledJobs.scheduleJob({
+        organizationId: orgId,
+        jobType,
+        idempotencyKey: `badmodule-${suffix}`,
+        scheduledFor: new Date(Date.now() - 1000),
+      });
+      const [claimed] = await claimOnly([job.id]);
+      await scheduledJobs.executeClaimedJob(claimed);
+      expect(ran).toBe(false);
+      const row = await scheduledJobs.getScheduledJob(job.id);
+      expect(row!.status).toBe("failed");
+      expect(row!.lastErrorClass).toBe("permanent");
+      expect(row!.lastErrorMessage).toMatch(/Unknown module/);
     } finally {
       registry.unregisterJobHandlerForTests(jobType);
     }
