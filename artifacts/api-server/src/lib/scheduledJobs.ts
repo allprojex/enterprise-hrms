@@ -492,6 +492,9 @@ export async function executeClaimedJob(job: ScheduledJob): Promise<void> {
   try {
     if (handler.moduleKey && job.organizationId != null) {
       const access = await getModuleAccess(job.organizationId, handler.moduleKey);
+      // A moduleKey the registry does not know is a handler bug, not a
+      // disabled module: fail loudly instead of quietly cancelling every job.
+      if (!access.found) throw new PermanentJobError(`Unknown module "${handler.moduleKey}" declared by job type "${job.jobType}"`);
       if (!access.enabled) {
         await recordOutcome(job, {
           status: "cancelled",

@@ -576,7 +576,16 @@ async function markStale(params: {
         ),
       )
       .returning({ id: dataChangeRequestsTable.id });
-    if (!marked) throw new RequestChangedConcurrentlyError();
+    if (!marked) {
+      // A concurrent decision found the same stale basis first: that is still
+      // "stale" to this caller, not an unexplained concurrent change.
+      const [current] = await tx
+        .select({ status: dataChangeRequestsTable.status })
+        .from(dataChangeRequestsTable)
+        .where(eq(dataChangeRequestsTable.id, params.requestId));
+      if (current?.status === "stale") throw new RequestStaleError();
+      throw new RequestChangedConcurrentlyError();
+    }
 
     await appendEvent(tx, {
       organizationId: params.organizationId,
@@ -1133,10 +1142,22 @@ export async function applyRequest(params: {
     // The write did not succeed. Record that truthfully rather than leaving a
     // request that claims to be applied (§29.10).
     const message = err instanceof Error ? err.message : "Unknown application failure";
-    await db
+    // Guarded like every other transition: this attempt's transaction has
+    // rolled back and released the row lock, so a concurrent apply may already
+    // have succeeded. Recording a failure over that would contradict the
+    // employee record it really changed.
+    const [failed] = await db
       .update(dataChangeRequestsTable)
       .set({ status: "application_failed", applicationFailureReason: message })
-      .where(eq(dataChangeRequestsTable.id, params.requestId));
+      .where(
+        and(
+          eq(dataChangeRequestsTable.id, params.requestId),
+          eq(dataChangeRequestsTable.organizationId, params.organizationId),
+          inArray(dataChangeRequestsTable.status, ["approved", "application_failed"]),
+        ),
+      )
+      .returning({ id: dataChangeRequestsTable.id });
+    if (!failed) throw new RequestChangedConcurrentlyError();
     await appendEvent(db, {
       organizationId: params.organizationId,
       requestId: params.requestId,
