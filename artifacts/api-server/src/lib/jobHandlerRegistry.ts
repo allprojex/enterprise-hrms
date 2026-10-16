@@ -43,6 +43,15 @@ export interface JobHandlerDefinition<TPayload = unknown> {
   execute: (ctx: JobExecutionContext<TPayload>) => Promise<void>;
   /** Overrides scheduled_jobs.maxAttempts' table default (5) for this job type, when justified. */
   defaultMaxAttempts?: number;
+  /**
+   * The module this job belongs to, when it belongs to one. A job scoped to
+   * an organization where that module is not enabled is not run: it is
+   * recorded as cancelled with the reason, never as a failure (the engine
+   * checks this before `execute`, the same `getModuleAccess` decision
+   * `requireModuleEnabled` makes for the module's routes). Leave it unset
+   * for a job whose routes are not module-gated either.
+   */
+  moduleKey?: string;
 }
 
 const registry = new Map<string, JobHandlerDefinition<any>>();

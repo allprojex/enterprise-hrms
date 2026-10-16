@@ -63,7 +63,9 @@ Lifecycle: `scheduled → running → completed | failed | cancelled`. A transie
 
 ## 5. Job-type registry and shipped handlers
 
-`registerJobHandler(jobType, { parsePayload, execute, defaultMaxAttempts? })` — a plain in-memory `Map`, populated once at process startup by both entrypoints. `scheduleJob()` rejects an unregistered `jobType` immediately (fail-fast, before any row exists); `executeClaimedJob()` independently re-checks at execution time as defense in depth (a row could in principle be inserted by some other means).
+`registerJobHandler(jobType, { parsePayload, execute, defaultMaxAttempts?, moduleKey? })` — a plain in-memory `Map`, populated once at process startup by both entrypoints. `scheduleJob()` rejects an unregistered `jobType` immediately (fail-fast, before any row exists); `executeClaimedJob()` independently re-checks at execution time as defense in depth (a row could in principle be inserted by some other means).
+
+**Module gating.** A handler that declares `moduleKey` is not run for an organization where that module is not enabled. `executeClaimedJob()` makes the same `getModuleAccess()` decision `requireModuleEnabled` makes for the module's routes, and records the job as `cancelled` with the reason in `lastErrorMessage`, not as a failure. Only handlers whose routes are module-gated declare it; today that is the three onboarding reminders (`onboarding`). Platform-scoped jobs (`organizationId` null) are never module-gated.
 
 Exactly **two** handlers ship with this workstream, both domain-neutral by construction:
 
@@ -97,6 +99,8 @@ Two concurrent claims can never return the same job (each `SKIP LOCKED` claim on
 
 **Crash recovery** (`reclaimStaleJobs(leaseMs)`): a `running` row whose `locked_at` is older than the lease window is returned to `scheduled` so another worker can claim it. The lease is deliberately generous — the cost of reclaiming too early is a job running twice concurrently for the remainder of a merely-slow attempt; the cost of reclaiming too late is only a delayed retry. Proven live: a simulated crash (back-dating a lock past the lease) is reclaimed and the job completes correctly on the rescuing worker; a fresh lock within the lease window is never touched.
 
+**A reclaimed attempt cannot overwrite the new claim.** Every outcome `executeClaimedJob()` writes (completed, retry, failed, not run) is conditioned on the row still being `running` under the claiming worker's own `locked_by`. If the lease expired and another worker claimed the job, the slow attempt's outcome is discarded and logged (`scheduled job outcome discarded: claim no longer held`) instead of marking a job "completed" that another worker is still running. `locked_by` is unique per worker process, and a worker runs its claimed jobs one at a time, so one worker never holds two claims on a job. Proven live in `reliabilityHardeningLive.test.ts`.
+
 The database's own `now()` — not the application clock — decides "due" and "stale," avoiding app/server clock-skew risk.
 
 ---
@@ -107,6 +111,7 @@ Mandatory per the brief even though the frozen Master Owner Review did not spell
 
 - **Scheduling-time dedup**: a unique index on `(jobType, idempotencyKey)`. `scheduleJob()` with a colliding key returns the existing row rather than erroring or creating a duplicate — proven live, including a hand-forged duplicate insert being refused by Postgres itself.
 - **Execution-time dedup**: a completed job is never re-claimed (it's no longer `scheduled`) — proven live across repeated polls.
+- **Transactional scheduling**: `scheduleJob(params, tx)` and `notifyUser(params, tx)` accept the caller's transaction, so follow-up work commits or rolls back with the change that caused it. `scheduleJob` uses `ON CONFLICT DO NOTHING` on the idempotency index rather than catching the unique violation, because a raised violation would abort the caller's transaction; a duplicate inside a transaction returns the existing row and leaves the transaction usable. `notifyUser` resolves recipients through the same transaction, so a membership created earlier in it counts. Existing call sites pass nothing and behave as before. Proven live.
 - **Notification-side dedup**: `notifyUser()` checks `sourceJobId` before inserting — a job that legitimately re-executes (e.g. after a crash/reclaim) does not send a second notification for the same job, even if the payload differs between attempts. Proven live.
 
 This is deliberately two independent guards (the job's own key, and the notification's own job-linkage), not one relied on for both purposes.

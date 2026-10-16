@@ -57,13 +57,23 @@ export class RecipientNotFoundError extends Error {
   }
 }
 
+/**
+ * Structurally accepts either the global `db` or a `db.transaction(...)`
+ * callback's `tx` (the same alias as lib/auditLog.ts). A caller already inside
+ * a transaction passes its `tx` so the notification commits or rolls back
+ * with the change it describes, and recipients are resolved against that
+ * transaction's own view of the data. Every existing call site passes nothing
+ * and is unchanged.
+ */
+export type NotificationQueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 /** One resolved, membership-verified recipient. */
 interface ResolvedRecipient {
   userId: number;
 }
 
-async function activeMembershipUserId(userId: number, organizationId: number): Promise<number | null> {
-  const [row] = await db
+async function activeMembershipUserId(userId: number, organizationId: number, client: NotificationQueryClient): Promise<number | null> {
+  const [row] = await client
     .select({ userId: organizationMembershipsTable.applicationUserId })
     .from(organizationMembershipsTable)
     .where(
@@ -86,16 +96,20 @@ async function activeMembershipUserId(userId: number, organizationId: number): P
  * target the caller explicitly asked for), where an unauthorized or
  * nonexistent target is a caller error worth surfacing distinctly.
  */
-export async function resolveRecipients(spec: RecipientSpec, organizationId: number): Promise<ResolvedRecipient[]> {
+export async function resolveRecipients(
+  spec: RecipientSpec,
+  organizationId: number,
+  client: NotificationQueryClient = db,
+): Promise<ResolvedRecipient[]> {
   switch (spec.kind) {
     case "user": {
-      const userId = await activeMembershipUserId(spec.userId, organizationId);
+      const userId = await activeMembershipUserId(spec.userId, organizationId, client);
       if (!userId) throw new RecipientNotAuthorizedError();
       return [{ userId }];
     }
 
     case "membership": {
-      const [membership] = await db
+      const [membership] = await client
         .select()
         .from(organizationMembershipsTable)
         .where(
@@ -111,7 +125,7 @@ export async function resolveRecipients(spec: RecipientSpec, organizationId: num
     }
 
     case "employee": {
-      const [link] = await db
+      const [link] = await client
         .select({ userId: employeeUserLinksTable.applicationUserId, membershipId: employeeUserLinksTable.organizationMembershipId })
         .from(employeeUserLinksTable)
         .innerJoin(employeesTable, eq(employeesTable.id, employeeUserLinksTable.employeeId))
@@ -133,14 +147,14 @@ export async function resolveRecipients(spec: RecipientSpec, organizationId: num
       // same "never cached, never a snapshot" precedent
       // assetReporting.ts/attendanceReporting.ts already establish for
       // manager relationships in this codebase.
-      const [employee] = await db
+      const [employee] = await client
         .select({ reportingManagerId: employeesTable.reportingManagerId })
         .from(employeesTable)
         .where(and(eq(employeesTable.id, spec.employeeId), eq(employeesTable.organizationId, organizationId)))
         .limit(1);
       if (!employee?.reportingManagerId) return [];
 
-      const [link] = await db
+      const [link] = await client
         .select({ userId: employeeUserLinksTable.applicationUserId })
         .from(employeeUserLinksTable)
         .innerJoin(organizationMembershipsTable, eq(organizationMembershipsTable.id, employeeUserLinksTable.organizationMembershipId))
@@ -150,7 +164,7 @@ export async function resolveRecipients(spec: RecipientSpec, organizationId: num
     }
 
     case "permission_holders": {
-      const rows = await db
+      const rows = await client
         .selectDistinct({ userId: organizationMembershipsTable.applicationUserId })
         .from(organizationMembershipsTable)
         .innerJoin(membershipRolesTable, eq(membershipRolesTable.membershipId, organizationMembershipsTable.id))
@@ -196,14 +210,14 @@ export interface NotifyUserParams {
  * job that legitimately re-executes, e.g. after a crash/reclaim, and must
  * not re-notify).
  */
-export async function notifyUser(params: NotifyUserParams): Promise<Notification[]> {
-  const recipients = await resolveRecipients(params.recipient, params.organizationId);
+export async function notifyUser(params: NotifyUserParams, client: NotificationQueryClient = db): Promise<Notification[]> {
+  const recipients = await resolveRecipients(params.recipient, params.organizationId, client);
   if (recipients.length === 0) return [];
 
   const created: Notification[] = [];
   for (const recipient of recipients) {
     if (params.sourceJobId != null) {
-      const [existing] = await db
+      const [existing] = await client
         .select()
         .from(notificationsTable)
         .where(and(eq(notificationsTable.sourceJobId, params.sourceJobId), eq(notificationsTable.userId, recipient.userId)))
@@ -214,7 +228,7 @@ export async function notifyUser(params: NotifyUserParams): Promise<Notification
       }
     }
 
-    const [row] = await db
+    const [row] = await client
       .insert(notificationsTable)
       .values({
         userId: recipient.userId,

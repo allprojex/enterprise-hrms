@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import {
   db,
   dataChangeRequestsTable,
@@ -11,6 +11,7 @@ import {
   type DataChangeEvent,
 } from "@workspace/db";
 import { recordAuditEvent } from "../auditLog";
+import { RequestChangedConcurrentlyError } from "./concurrency";
 import {
   ELIGIBLE_FIELDS,
   requireEligibleField,
@@ -520,6 +521,27 @@ export async function detectStaleFields(organizationId: number, requestId: numbe
   return stale;
 }
 
+/** Statuses a request can still be found stale from (approve and apply both detect it). */
+const STALE_DETECTABLE_STATUSES: DataChangeRequest["status"][] = ["pending", "returned", "approved", "application_failed"];
+
+/**
+ * Compare-and-set guard for every transition: the UPDATE matches only while
+ * the row is still in the exact state the decision was checked against. A
+ * concurrent approval, withdrawal or re-confirmation in between makes it match
+ * nothing, and the caller throws inside its transaction so the event row it
+ * would have appended is rolled back too.
+ */
+function stillAsRead(request: DataChangeRequest): SQL {
+  return and(
+    eq(dataChangeRequestsTable.id, request.id),
+    eq(dataChangeRequestsTable.organizationId, request.organizationId),
+    eq(dataChangeRequestsTable.status, request.status),
+    request.currentStageOrder == null
+      ? isNull(dataChangeRequestsTable.currentStageOrder)
+      : eq(dataChangeRequestsTable.currentStageOrder, request.currentStageOrder),
+  )!;
+}
+
 async function markStale(params: {
   organizationId: number;
   requestId: number;
@@ -543,10 +565,27 @@ async function markStale(params: {
           ),
         );
     }
-    await tx
+    const [marked] = await tx
       .update(dataChangeRequestsTable)
       .set({ status: "stale" })
-      .where(eq(dataChangeRequestsTable.id, params.requestId));
+      .where(
+        and(
+          eq(dataChangeRequestsTable.id, params.requestId),
+          eq(dataChangeRequestsTable.organizationId, params.organizationId),
+          inArray(dataChangeRequestsTable.status, STALE_DETECTABLE_STATUSES),
+        ),
+      )
+      .returning({ id: dataChangeRequestsTable.id });
+    if (!marked) {
+      // A concurrent decision found the same stale basis first: that is still
+      // "stale" to this caller, not an unexplained concurrent change.
+      const [current] = await tx
+        .select({ status: dataChangeRequestsTable.status })
+        .from(dataChangeRequestsTable)
+        .where(eq(dataChangeRequestsTable.id, params.requestId));
+      if (current?.status === "stale") throw new RequestStaleError();
+      throw new RequestChangedConcurrentlyError();
+    }
 
     await appendEvent(tx, {
       organizationId: params.organizationId,
@@ -607,8 +646,9 @@ export async function reconfirm(params: {
         currentStageOrder: request.stageCountAtRequest > 0 ? 1 : null,
         decidedAt: null,
       })
-      .where(eq(dataChangeRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
 
     await appendEvent(tx, {
       organizationId: params.organizationId,
@@ -617,7 +657,7 @@ export async function reconfirm(params: {
       actorUserId: params.actorApplicationUserId,
       actorMembershipId: params.actorMembershipId,
     });
-    return row!;
+    return row;
   });
 
   await recordAuditEvent({
@@ -737,8 +777,9 @@ export async function approve(params: {
           ? { status: "approved", currentStageOrder: null, decidedAt: new Date() }
           : { currentStageOrder: (stageOrder ?? 0) + 1 },
       )
-      .where(eq(dataChangeRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
 
     await appendEvent(tx, {
       organizationId: params.organizationId,
@@ -750,7 +791,7 @@ export async function approve(params: {
       actorUserId: params.actorApplicationUserId,
       actorMembershipId: params.actorMembershipId,
     });
-    return row!;
+    return row;
   });
 
   await recordAuditEvent({
@@ -793,8 +834,9 @@ export async function reject(params: {
     const [row] = await tx
       .update(dataChangeRequestsTable)
       .set({ status: "rejected", currentStageOrder: null, decidedAt: new Date() })
-      .where(eq(dataChangeRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     // Terminal — the (employee, field) slot is released.
     await tx
       .update(dataChangeRequestFieldsTable)
@@ -809,7 +851,7 @@ export async function reject(params: {
       actorUserId: params.actorApplicationUserId,
       actorMembershipId: params.actorMembershipId,
     });
-    return row!;
+    return row;
   });
 
   await recordAuditEvent({
@@ -853,8 +895,9 @@ export async function returnForInformation(params: {
     const [row] = await tx
       .update(dataChangeRequestsTable)
       .set({ status: "returned" })
-      .where(eq(dataChangeRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -863,7 +906,7 @@ export async function returnForInformation(params: {
       actorUserId: params.actorApplicationUserId,
       actorMembershipId: params.actorMembershipId,
     });
-    return row!;
+    return row;
   });
 
   await recordAuditEvent({
@@ -903,8 +946,9 @@ export async function withdraw(params: {
     const [row] = await tx
       .update(dataChangeRequestsTable)
       .set({ status: "withdrawn", currentStageOrder: null })
-      .where(eq(dataChangeRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await tx
       .update(dataChangeRequestFieldsTable)
       .set({ activeStatus: false })
@@ -916,7 +960,7 @@ export async function withdraw(params: {
       actorUserId: params.actorApplicationUserId,
       actorMembershipId: params.actorMembershipId,
     });
-    return row!;
+    return row;
   });
 
   await recordAuditEvent({
@@ -1008,7 +1052,8 @@ export async function applyRequest(params: {
         .select()
         .from(dataChangeRequestsTable)
         .where(eq(dataChangeRequestsTable.id, params.requestId))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (!current || (current.status !== "approved" && current.status !== "application_failed")) {
         throw new RequestNotActionableError("This request was already applied or is no longer approved.");
       }
@@ -1092,15 +1137,27 @@ export async function applyRequest(params: {
 
     return updated;
   } catch (err) {
-    if (err instanceof RequestNotActionableError) throw err;
+    if (err instanceof RequestNotActionableError || err instanceof RequestChangedConcurrentlyError) throw err;
 
     // The write did not succeed. Record that truthfully rather than leaving a
     // request that claims to be applied (§29.10).
     const message = err instanceof Error ? err.message : "Unknown application failure";
-    await db
+    // Guarded like every other transition: this attempt's transaction has
+    // rolled back and released the row lock, so a concurrent apply may already
+    // have succeeded. Recording a failure over that would contradict the
+    // employee record it really changed.
+    const [failed] = await db
       .update(dataChangeRequestsTable)
       .set({ status: "application_failed", applicationFailureReason: message })
-      .where(eq(dataChangeRequestsTable.id, params.requestId));
+      .where(
+        and(
+          eq(dataChangeRequestsTable.id, params.requestId),
+          eq(dataChangeRequestsTable.organizationId, params.organizationId),
+          inArray(dataChangeRequestsTable.status, ["approved", "application_failed"]),
+        ),
+      )
+      .returning({ id: dataChangeRequestsTable.id });
+    if (!failed) throw new RequestChangedConcurrentlyError();
     await appendEvent(db, {
       organizationId: params.organizationId,
       requestId: params.requestId,
