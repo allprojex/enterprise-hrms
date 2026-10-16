@@ -45,6 +45,8 @@ The reason is concrete: `employees` mixes three ownership classes in one row, so
 
 **Stale protection, per field.** The previous value of each field is captured when the request is raised and re-compared against the live value at decision time *and again* at application time. A moved value marks the request `stale` and it is never silently applied — it waits for an audited re-confirmation. Crucially, **an edit to an unrelated column does not invalidate an untouched request**, which is why `employees.updatedAt` is only a coarse signal and never the concurrency authority. Both behaviours are tested.
 
+**Compare-and-set transitions.** Every data-change and service-request transition writes with a WHERE clause that requires the row to still be in the exact state that was read and checked: status, plus current stage for data change; and status, approval status, stage and assignee for service requests. If someone else decided, withdrew, re-confirmed or reassigned the request in between, the write matches nothing and the transition throws `RequestChangedConcurrentlyError` inside its transaction. Its event row rolls back with it, and the API answers **409**. Before this, an approval racing a withdrawal could revive the withdrawn request. Proven live with a forced, lock-ordered race (`reliabilityHardeningLive.test.ts`).
+
 **One active request per (employee, field).** A partial unique index over the active statuses only, so history is fully preserved: an employee may have twenty rejected requests for the same field and still raise a new one.
 
 **No scheduled application.** `effectiveDate` is recorded as a business fact. There is deliberately no "apply due changes" job handler, and `applyRequest` is unreachable from any job — §29.11's rule that a future effective date does not licence a scheduled write.
@@ -53,7 +55,7 @@ The reason is concrete: `employees` mixes three ownership classes in one row, so
 
 ## Application
 
-Transactional and idempotent. The status guard is re-asserted **inside** the transaction, so two concurrent applies cannot both pass and a partially applied multi-field change is not representable. A retried apply returns the same `appliedAt` and produces exactly one `applied` event.
+Transactional and idempotent. The status guard is re-asserted **inside** the transaction under `SELECT … FOR UPDATE`, so two concurrent applies cannot both pass (the second waits, then sees `applied`) and a partially applied multi-field change is not representable. A retried apply returns the same `appliedAt` and produces exactly one `applied` event.
 
 A failure is recorded as `application_failed` with its reason rather than swallowed — §29.10 forbids a request that claims to be applied when the write did not succeed.
 

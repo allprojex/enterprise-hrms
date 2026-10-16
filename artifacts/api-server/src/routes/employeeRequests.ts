@@ -29,6 +29,7 @@ import { resolveOwnEmployeeId } from "../lib/leaveRequests";
 import * as dataChange from "../lib/employeeRequests/dataChange";
 import * as serviceRequests from "../lib/employeeRequests/serviceRequests";
 import * as stages from "../lib/employeeRequests/approvalStages";
+import { RequestChangedConcurrentlyError } from "../lib/employeeRequests/concurrency";
 import { ELIGIBLE_FIELDS, UnknownEligibleFieldError, FieldNotEligibleForOriginError } from "../lib/employeeRequests/eligibleFields";
 
 /**
@@ -75,6 +76,11 @@ function mapDomainError(err: unknown, res: import("express").Response): boolean 
   // validation ones — 403 so a caller cannot mistake them for a bad payload.
   if (err instanceof dataChange.SelfApprovalForbiddenError || err instanceof dataChange.NotAnApproverError) {
     res.status(403).json({ error: (err as Error).message });
+    return true;
+  }
+  if (err instanceof RequestChangedConcurrentlyError) {
+    // 409: somebody else acted first. Reloading shows what they did.
+    res.status(409).json({ error: (err as Error).message });
     return true;
   }
   if (err instanceof dataChange.DuplicatePendingFieldError) {

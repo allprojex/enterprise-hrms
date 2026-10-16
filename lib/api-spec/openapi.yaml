@@ -28943,7 +28943,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: The record changed after the request was raised
+          description: The record changed after the request was raised; or another person changed the request while this action was being made; reload and try again
           content:
             application/json:
               schema:
@@ -28984,6 +28984,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/data-change-requests/{requestId}/return:
     post:
@@ -29014,6 +29020,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/DataChangeRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/data-change-requests/{requestId}/reconfirm:
     post:
@@ -29048,6 +29060,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/data-change-requests/{requestId}/apply:
     post:
@@ -29077,7 +29095,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/DataChangeRequest"
         "409":
-          description: The record changed after the request was raised
+          description: The record changed after the request was raised; or another person changed the request while this action was being made; reload and try again
           content:
             application/json:
               schema:
@@ -29199,6 +29217,12 @@ paths:
                 $ref: "#/components/schemas/DataChangeEssView"
         "404":
           description: Not found, or not the caller's own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
           content:
             application/json:
               schema:
@@ -29427,6 +29451,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ServiceRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/assign:
     post:
@@ -29460,6 +29490,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ServiceRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/approve:
     post:
@@ -29497,6 +29533,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/reject:
     post:
@@ -29527,6 +29569,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ServiceRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/request-information:
     post:
@@ -29557,6 +29605,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ServiceRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/fulfil:
     post:
@@ -29597,6 +29651,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/service-requests/{requestId}/close:
     post:
@@ -29627,6 +29687,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ServiceRequest"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/my-service-request-types:
     get:
@@ -29737,6 +29803,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /organizations/{organizationId}/my-service-requests/{requestId}/withdraw:
     post:
@@ -29763,6 +29835,12 @@ paths:
                 $ref: "#/components/schemas/ServiceRequestEssView"
         "404":
           description: Not found, or not the caller's own
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Another person changed the request while this action was being made; reload and try again
           content:
             application/json:
               schema:

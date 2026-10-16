@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, type SQL } from "drizzle-orm";
 import {
   db,
   serviceRequestTypesTable,
@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { assertBelongsToOrganization } from "../orgScopedRefs";
 import { recordAuditEvent } from "../auditLog";
+import { RequestChangedConcurrentlyError } from "./concurrency";
 import { listStages, getStage, membershipSatisfiesStage } from "./approvalStages";
 import { SelfApprovalForbiddenError, NotAnApproverError } from "./dataChange";
 import { violatesSeparationOfDuties } from "../separationOfDuties";
@@ -453,8 +454,9 @@ export async function acknowledge(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ status: request.status === "submitted" ? "acknowledged" : request.status, acknowledgedAt: new Date() })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -510,8 +512,9 @@ export async function assign(params: {
         assignedMembershipId: params.assignedMembershipId,
         status: request.status === "submitted" || request.status === "acknowledged" ? "in_progress" : request.status,
       })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -537,6 +540,28 @@ export async function assign(params: {
   });
 
   return updated;
+}
+
+/**
+ * Compare-and-set guard for every transition: the UPDATE matches only while
+ * the row is still in the exact state that was read — request status, approval
+ * status, stage and assignee. A concurrent decision, withdrawal or reassignment
+ * in between makes it match nothing, and the caller throws inside its
+ * transaction so the event row it would have appended is rolled back too.
+ */
+function stillAsRead(request: ServiceRequest): SQL {
+  return and(
+    eq(serviceRequestsTable.id, request.id),
+    eq(serviceRequestsTable.organizationId, request.organizationId),
+    eq(serviceRequestsTable.status, request.status),
+    eq(serviceRequestsTable.approvalStatus, request.approvalStatus),
+    request.currentStageOrder == null
+      ? isNull(serviceRequestsTable.currentStageOrder)
+      : eq(serviceRequestsTable.currentStageOrder, request.currentStageOrder),
+    request.assignedMembershipId == null
+      ? isNull(serviceRequestsTable.assignedMembershipId)
+      : eq(serviceRequestsTable.assignedMembershipId, request.assignedMembershipId),
+  )!;
 }
 
 async function assertMayDecide(params: {
@@ -601,8 +626,9 @@ export async function approve(params: {
           ? { approvalStatus: "approved", currentStageOrder: null }
           : { currentStageOrder: (stageOrder ?? 0) + 1 },
       )
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -656,8 +682,9 @@ export async function reject(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ approvalStatus: "rejected", currentStageOrder: null, status: "closed", closedAt: new Date() })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -701,8 +728,9 @@ export async function requestInformation(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ status: "awaiting_employee" })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -746,8 +774,9 @@ export async function respond(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ status: "in_progress" })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -825,8 +854,9 @@ export async function fulfil(params: {
         resolutionSummary: params.resolutionSummary.trim(),
         generatedDocumentId: params.generatedDocumentId ?? request.generatedDocumentId,
       })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -868,8 +898,9 @@ export async function close(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ status: "closed", closedAt: new Date() })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
@@ -913,8 +944,9 @@ export async function withdraw(params: {
     const [row] = await tx
       .update(serviceRequestsTable)
       .set({ status: "withdrawn", closedAt: new Date() })
-      .where(eq(serviceRequestsTable.id, params.requestId))
+      .where(stillAsRead(request))
       .returning();
+    if (!row) throw new RequestChangedConcurrentlyError();
     await appendEvent(tx, {
       organizationId: params.organizationId,
       requestId: params.requestId,
