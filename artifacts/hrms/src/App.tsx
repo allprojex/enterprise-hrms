@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { createAppQueryClient } from '@/lib/query-client';
 import { Toaster } from '@/components/ui/toaster';
 import { AppNotices } from '@/components/pwa/app-notices';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -117,14 +118,8 @@ import MyOnboarding from '@/pages/my-onboarding';
 import ManualCandidateCapture from '@/pages/manual-candidate-capture';
 import { ModuleGate } from '@/components/module-gate';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
+// Also ends the window's session on any 401 (see lib/query-client.ts).
+const queryClient = createAppQueryClient();
 
 function SecureRoute({ component: Component, moduleKey }: { component: React.ComponentType; moduleKey?: string }) {
   const content = (

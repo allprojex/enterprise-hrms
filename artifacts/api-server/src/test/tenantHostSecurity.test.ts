@@ -357,6 +357,28 @@ describe("POST /api/auth/login — hostname/organization consistency", () => {
       .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
 
     expect(res.status).toBe(200);
+    // Not a member of the hostname's tenant: the session is not scoped to it.
+    expect(fixtures.insertedSessions[0]).toMatchObject({ activeOrganizationId: null });
+  });
+
+  it("scopes a super_admin's session to the hostname's tenant when they are an active member of it", async () => {
+    // Home organization 1, also a member of WWM (3): signing in on WWM's
+    // hostname must land in WWM, not in the home organization the hostname rejects.
+    fixtures.userRows = [user({ role: "super_admin", organizationId: 1 })];
+    fixtures.domainRows = [{ hostname: "wwm.localhost", status: "active", organizationId: 3, orgStatus: "active" }];
+    fixtures.membershipRows = [
+      { applicationUserId: 1, organizationId: 1, status: "active" },
+      { applicationUserId: 1, organizationId: 3, status: "active" },
+    ];
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Tenant-Hostname", "wwm.localhost")
+      .send({ email: "admin@wwm.test", password: REAL_PASSWORD });
+
+    expect(res.status).toBe(200);
+    expect(fixtures.insertedSessions[0]).toMatchObject({ activeOrganizationId: 3 });
+    expect(res.body.user.activeOrganizationId).toBe(3);
   });
 
   it("still returns 401 for wrong credentials regardless of hostname", async () => {

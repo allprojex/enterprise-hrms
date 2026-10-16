@@ -98,15 +98,22 @@ router.post("/auth/login", loginRateLimiter, async (req: TenantAwareRequest, res
     return;
   }
 
+  // A session started on a tenant hostname is scoped to that tenant whenever
+  // the account is an active member of it — super_admin included. Without
+  // this, a super_admin's session fell back to their home organization, which
+  // the tenant hostname then rejects on every org-scoped request (403s until
+  // a manual organization switch). A super_admin who is NOT a member keeps the
+  // existing exemption and an unscoped session: membership is never implied.
   let tenantOrganizationId: number | null = null;
   const resolvedTenant = req.resolvedTenantOrganizationId;
-  if (resolvedTenant != null && !isSuperAdmin(user)) {
+  if (resolvedTenant != null) {
     const tenantMembership = await getActiveMembership(user.id, resolvedTenant);
-    if (!tenantMembership) {
+    if (tenantMembership) {
+      tenantOrganizationId = resolvedTenant;
+    } else if (!isSuperAdmin(user)) {
       res.status(403).json({ error: "This account does not have access to this organization" });
       return;
     }
-    tenantOrganizationId = resolvedTenant;
   }
 
   const token = generateToken();

@@ -617,6 +617,29 @@ describe("Numbering configuration engine — partial-update safety (deep merge)"
     const audit = fixtures.auditRows.find((r) => r.eventType === "numbering_config.updated");
     expect(audit).toBeDefined();
   });
+
+  it("records a branding_config.updated audit event with the before and after values", async () => {
+    mockPermissions(["organization.read", "organization.update"]);
+    const first = await request(app)
+      .patch(`/api/organizations/${ORG_ID}/config/branding`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { systemDisplayName: "HRIS Plus" } });
+    expect(first.status).toBe(200);
+    await request(app)
+      .patch(`/api/organizations/${ORG_ID}/config/branding`)
+      .set("Authorization", "Bearer valid-token")
+      .send({ data: { systemDisplayName: "Human Resource Information System Plus" } });
+    const audits = fixtures.auditRows.filter((r) => r.eventType === "branding_config.updated");
+    expect(audits).toHaveLength(2);
+    expect(audits[1]).toMatchObject({
+      organizationId: ORG_ID,
+      targetType: "organization_settings",
+      targetId: "branding",
+      beforeState: { systemDisplayName: "HRIS Plus" },
+      afterState: { systemDisplayName: "Human Resource Information System Plus" },
+    });
+    expect(audits[1].actorApplicationUserId).toBeDefined();
+  });
 });
 
 describe("GET .../number/history and .../employee-numbers/:employeeNumber/history authorization", () => {

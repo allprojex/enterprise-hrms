@@ -114,6 +114,20 @@ router.patch(
           beforeState: before.data,
           afterState: config.data,
         });
+      } else if (namespace === "branding") {
+        // Branding is the tenant's identity on every screen (display name,
+        // theme). Without this event an overwritten value left no trace of
+        // who changed it or what it was before — the row is updated in place.
+        await recordAuditEvent({
+          actorApplicationUserId: req.userId!,
+          actorMembershipId: req.membership!.id,
+          organizationId: req.membership!.organizationId,
+          eventType: "branding_config.updated",
+          targetType: "organization_settings",
+          targetId: namespace,
+          beforeState: before.data,
+          afterState: config.data,
+        });
       }
 
       res.json(config);

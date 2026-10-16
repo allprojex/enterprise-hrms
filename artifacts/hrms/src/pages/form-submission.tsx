@@ -67,7 +67,7 @@ export default function FormSubmissionPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const organizationId = user?.organizationId ?? 0;
+  const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
   const enabled = organizationId > 0 && Number.isInteger(submissionId) && submissionId > 0;
 
   const detailQuery = useGetFormSubmission(organizationId, submissionId, {

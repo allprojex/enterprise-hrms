@@ -33,7 +33,7 @@ export default function FormsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const organizationId = user?.organizationId ?? 0;
+  const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
 
   const templatesQuery = useListFormTemplates(organizationId, { query: { queryKey: getListFormTemplatesQueryKey(organizationId), enabled: organizationId > 0 } });
   const submissionsQuery = useListFormSubmissions(organizationId, undefined, {

@@ -18,8 +18,12 @@ const { state, spies } = vi.hoisted(() => ({
     roles: ['hr_manager'] as string[],
     rolesLoading: false,
     failMutations: false,
+    me: { id: 1, organizationId: 10 } as Record<string, unknown>,
+    rolesOrganizationId: 10,
   },
   spies: {
+    templatesOrg: vi.fn(),
+    submissionsOrg: vi.fn(),
     createSubmission: vi.fn(),
     createTemplate: vi.fn(),
     publish: vi.fn(),
@@ -50,13 +54,13 @@ function mutation(spy: (vars: unknown) => unknown, result: () => unknown) {
 }
 
 vi.mock('@workspace/api-client-react', () => ({
-  useGetMe: () => ({ data: { id: 1, organizationId: 10 }, isLoading: false }),
+  useGetMe: () => ({ data: state.me, isLoading: false }),
   getGetMeQueryKey: () => ['getMe'],
-  useListMyOrganizations: () => ({ data: state.rolesLoading ? undefined : [{ organizationId: 10, roles: state.roles }], isLoading: state.rolesLoading }),
+  useListMyOrganizations: () => ({ data: state.rolesLoading ? undefined : [{ organizationId: state.rolesOrganizationId, roles: state.roles }], isLoading: state.rolesLoading }),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
-  useListFormTemplates: () => ({ data: { templates: state.templates }, isLoading: false, error: null, refetch: vi.fn() }),
+  useListFormTemplates: (o: number) => (spies.templatesOrg(o), { data: { templates: state.templates }, isLoading: false, error: null, refetch: vi.fn() }),
   getListFormTemplatesQueryKey: (o: number) => ['formTemplates', o],
-  useListFormSubmissions: () => ({ data: { submissions: state.submissions }, isLoading: false, error: null, refetch: vi.fn() }),
+  useListFormSubmissions: (o: number) => (spies.submissionsOrg(o), { data: { submissions: state.submissions }, isLoading: false, error: null, refetch: vi.fn() }),
   getListFormSubmissionsQueryKey: (o: number) => ['formSubmissions', o],
   useCreateFormSubmission: mutation(spies.createSubmission, () => ({ submission: { id: 42 }, template: { title: 'Employee Leave Application Form' } })),
   useCreateFormTemplate: mutation(spies.createTemplate, () => ({})),
@@ -102,6 +106,8 @@ beforeEach(() => {
   state.roles = ['hr_manager'];
   state.rolesLoading = false;
   state.failMutations = false;
+  state.me = { id: 1, organizationId: 10 };
+  state.rolesOrganizationId = 10;
   Object.values(spies).forEach((s) => s.mockClear());
   if (typeof URL.createObjectURL !== 'function') {
     Object.assign(URL, { createObjectURL: () => 'blob:test', revokeObjectURL: () => undefined });
@@ -131,9 +137,29 @@ describe('FormsPage', () => {
     expect(row).toHaveTextContent('1 of 1');
     expect(screen.getByTestId('link-form-7')).toHaveAttribute('href', '/forms/7');
   });
+
+  it('uses the active organization, not the home organization, for a member working in another tenant', async () => {
+    // e.g. a WWM (3) HR user whose account was created under organization 1.
+    state.me = { id: 433, organizationId: 1, activeOrganizationId: 3 };
+    wrap(<FormsPage />, '/forms');
+    await screen.findByText('No forms yet');
+    expect(spies.templatesOrg).toHaveBeenCalledWith(3);
+    expect(spies.submissionsOrg).toHaveBeenCalledWith(3);
+    expect(spies.templatesOrg).not.toHaveBeenCalledWith(1);
+    expect(spies.submissionsOrg).not.toHaveBeenCalledWith(1);
+  });
 });
 
 describe('FormTemplatesPage', () => {
+  it('administers the active organization, not the home organization', async () => {
+    state.me = { id: 433, organizationId: 1, activeOrganizationId: 3 };
+    state.rolesOrganizationId = 3;
+    wrap(<FormTemplatesPage />, '/form-templates');
+    expect(await screen.findByText('Employee Leave Application Form')).toBeInTheDocument();
+    expect(spies.templatesOrg).toHaveBeenCalledWith(3);
+    expect(spies.templatesOrg).not.toHaveBeenCalledWith(1);
+  });
+
   // WWM Employee Access Remediation (2026-09-07): the administrative page is
   // never shown to an ordinary employee, even by typing the URL directly —
   // the sidebar already hides it; this closes the direct-route path. The

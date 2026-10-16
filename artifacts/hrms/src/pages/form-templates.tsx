@@ -89,7 +89,7 @@ function FormTemplatesAdminGate({ organizationId, children }: { organizationId: 
 
 export default function FormTemplatesPage() {
   const { data: user } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
-  const organizationId = user?.organizationId ?? 0;
+  const organizationId = user?.activeOrganizationId ?? user?.organizationId ?? 0;
   return (
     <FormTemplatesAdminGate organizationId={organizationId}>
       <FormTemplatesAdmin organizationId={organizationId} />
