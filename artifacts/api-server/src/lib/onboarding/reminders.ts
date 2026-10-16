@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { and, eq } from "drizzle-orm";
 import { db, onboardingTasksTable, onboardingInstancesTable, documentAcknowledgementsTable } from "@workspace/db";
 import { registerJobHandler, zodPayloadParser, PermanentJobError } from "../jobHandlerRegistry";
+import { ONBOARDING_MODULE_KEY } from "./moduleKey";
 import { scheduleJob, listScheduledJobs, cancelJob } from "../scheduledJobs";
 import { notifyUser } from "../notifications";
 import { resolveResponsibility } from "./responsibility";
@@ -82,6 +83,7 @@ export function registerOnboardingJobHandlers(): void {
 
   registerJobHandler<z.infer<typeof taskReminderPayload>>(ONBOARDING_TASK_REMINDER, {
     parsePayload: zodPayloadParser(taskReminderPayload),
+    moduleKey: ONBOARDING_MODULE_KEY,
     execute: async (ctx) => {
       if (ctx.organizationId == null) throw new PermanentJobError("Onboarding reminders are organization-scoped.");
       const row = await loadLiveTask(ctx.organizationId, ctx.payload.taskId);
@@ -103,6 +105,7 @@ export function registerOnboardingJobHandlers(): void {
 
   registerJobHandler<z.infer<typeof taskReminderPayload>>(ONBOARDING_OVERDUE_REMINDER, {
     parsePayload: zodPayloadParser(taskReminderPayload),
+    moduleKey: ONBOARDING_MODULE_KEY,
     execute: async (ctx) => {
       if (ctx.organizationId == null) throw new PermanentJobError("Onboarding reminders are organization-scoped.");
       const row = await loadLiveTask(ctx.organizationId, ctx.payload.taskId);
@@ -130,6 +133,7 @@ export function registerOnboardingJobHandlers(): void {
 
   registerJobHandler<z.infer<typeof acknowledgementReminderPayload>>(ONBOARDING_ACKNOWLEDGEMENT_REMINDER, {
     parsePayload: zodPayloadParser(acknowledgementReminderPayload),
+    moduleKey: ONBOARDING_MODULE_KEY,
     execute: async (ctx) => {
       if (ctx.organizationId == null) throw new PermanentJobError("Onboarding reminders are organization-scoped.");
       const [row] = await db

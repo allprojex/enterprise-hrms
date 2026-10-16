@@ -41,9 +41,18 @@
  */
 import { and, eq, isNull, lt, desc, sql, type SQL } from "drizzle-orm";
 import { db, scheduledJobsTable, type ScheduledJob } from "@workspace/db";
-import { isUniqueViolation } from "./dbErrors";
 import { recordAuditEvent } from "./auditLog";
 import { getJobHandler, TransientJobError, PermanentJobError } from "./jobHandlerRegistry";
+import { getModuleAccess } from "./organizationModules";
+import { logger } from "./logger";
+
+/**
+ * Structurally accepts either the global `db` or a `db.transaction(...)`
+ * callback's `tx` (the same alias as lib/auditLog.ts), so a domain change can
+ * schedule its follow-up work atomically: if the change rolls back, so does
+ * the job. Every existing call site passes nothing and is unchanged.
+ */
+export type JobQueryClient = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export class UnknownJobTypeError extends Error {
   constructor(jobType: string) {
@@ -109,39 +118,40 @@ export interface ScheduleJobParams {
  * of silently creating a row that can only ever fail once a worker claims
  * it.
  */
-export async function scheduleJob(params: ScheduleJobParams): Promise<ScheduledJob> {
+export async function scheduleJob(params: ScheduleJobParams, client: JobQueryClient = db): Promise<ScheduledJob> {
   if (!getJobHandler(params.jobType)) throw new UnknownJobTypeError(params.jobType);
 
-  try {
-    const [job] = await db
-      .insert(scheduledJobsTable)
-      .values({
-        organizationId: params.organizationId,
-        jobType: params.jobType,
-        idempotencyKey: params.idempotencyKey,
-        scheduledFor: params.scheduledFor,
-        sourceReferenceType: params.sourceReferenceType ?? null,
-        sourceReferenceId: params.sourceReferenceId ?? null,
-        payload: params.payload ?? null,
-        priority: params.priority ?? 0,
-        maxAttempts: params.maxAttempts ?? 5,
-        createdBy: params.createdBy ?? null,
-      })
-      .returning();
-    return job;
-  } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
-    const [existing] = await db
-      .select()
-      .from(scheduledJobsTable)
-      .where(and(eq(scheduledJobsTable.jobType, params.jobType), eq(scheduledJobsTable.idempotencyKey, params.idempotencyKey)))
-      .limit(1);
-    // The row that just lost the race is guaranteed to exist by the
-    // constraint that raised the violation; absent here would mean it was
-    // deleted between the failed insert and this read, which no code path
-    // in this codebase does (scheduled_jobs rows are never hard-deleted).
-    return existing;
-  }
+  // ON CONFLICT DO NOTHING rather than catching the unique violation: a raised
+  // violation aborts the enclosing transaction, so catching it could never
+  // work for a caller that passed its `tx`. The outcome is otherwise the same.
+  const [job] = await client
+    .insert(scheduledJobsTable)
+    .values({
+      organizationId: params.organizationId,
+      jobType: params.jobType,
+      idempotencyKey: params.idempotencyKey,
+      scheduledFor: params.scheduledFor,
+      sourceReferenceType: params.sourceReferenceType ?? null,
+      sourceReferenceId: params.sourceReferenceId ?? null,
+      payload: params.payload ?? null,
+      priority: params.priority ?? 0,
+      maxAttempts: params.maxAttempts ?? 5,
+      createdBy: params.createdBy ?? null,
+    })
+    .onConflictDoNothing({ target: [scheduledJobsTable.jobType, scheduledJobsTable.idempotencyKey] })
+    .returning();
+  if (job) return job;
+
+  const [existing] = await client
+    .select()
+    .from(scheduledJobsTable)
+    .where(and(eq(scheduledJobsTable.jobType, params.jobType), eq(scheduledJobsTable.idempotencyKey, params.idempotencyKey)))
+    .limit(1);
+  // The conflicting row is guaranteed to exist by the constraint that
+  // suppressed the insert; absent here would mean it was deleted in between,
+  // which no code path in this codebase does (scheduled_jobs rows are never
+  // hard-deleted).
+  return existing;
 }
 
 export async function getScheduledJob(jobId: number): Promise<ScheduledJob | null> {
@@ -414,33 +424,87 @@ function classifyError(err: unknown): "transient" | "permanent" {
 }
 
 /**
- * Executes exactly one claimed job and persists its outcome. Never called
- * concurrently for the same job (the claim above already guarantees
- * exclusivity) and never throws — every outcome, including an unknown job
- * type or a handler crash, is recorded on the row rather than propagated,
- * so one bad job can never take down the worker's poll loop.
+ * Matches the row only while this worker still holds the claim it was given.
+ *
+ * `reclaimStaleJobs` hands a job whose lease expired back to the queue, and
+ * another worker can claim and run it while the first, merely slow, attempt is
+ * still in flight. Without this guard the slow attempt would finish by writing
+ * its own outcome over the new claim — marking a job "completed" while another
+ * worker is running it, or rescheduling it a second time. `lockedBy` is unique
+ * per worker process, and one worker runs its claimed jobs one after another
+ * (lib/workerRuntime.ts), so a worker can never hold two claims on one job.
+ */
+function stillClaimedBy(job: ScheduledJob): SQL {
+  return and(
+    eq(scheduledJobsTable.id, job.id),
+    eq(scheduledJobsTable.status, "running"),
+    job.lockedBy == null ? isNull(scheduledJobsTable.lockedBy) : eq(scheduledJobsTable.lockedBy, job.lockedBy),
+  )!;
+}
+
+/** Writes an outcome for `job` if its claim is still held; reports whether it was. */
+async function recordOutcome(job: ScheduledJob, outcome: Partial<typeof scheduledJobsTable.$inferInsert>): Promise<boolean> {
+  const rows = await db
+    .update(scheduledJobsTable)
+    .set(outcome)
+    .where(stillClaimedBy(job))
+    .returning({ id: scheduledJobsTable.id });
+  if (rows.length === 0) {
+    // The lease expired and the job was reclaimed. The newer claim owns the
+    // row's state now; this attempt's outcome is discarded, not written over it.
+    logger.warn({ jobId: job.id, jobType: job.jobType }, "scheduled job outcome discarded: claim no longer held");
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Executes exactly one claimed job and persists its outcome. Never throws —
+ * every outcome, including an unknown job type or a handler crash, is recorded
+ * on the row rather than propagated, so one bad job can never take down the
+ * worker's poll loop. Every outcome is written only while this worker still
+ * holds the claim (see `stillClaimedBy`).
+ *
+ * A job whose handler declares a `moduleKey` is not run for an organization
+ * where that module is not enabled — the same `getModuleAccess` decision the
+ * module's routes enforce. It is recorded as cancelled with the reason, not as
+ * a failure: nothing went wrong, the work is simply not wanted there.
  */
 export async function executeClaimedJob(job: ScheduledJob): Promise<void> {
   const handler = getJobHandler(job.jobType);
 
   if (!handler) {
-    await db
-      .update(scheduledJobsTable)
-      .set({
-        status: "failed",
-        failedAt: new Date(),
-        lastAttemptAt: new Date(),
-        lastErrorClass: "permanent",
-        lastErrorMessage: `Unknown job type "${job.jobType}"`,
-        attemptCount: job.attemptCount + 1,
-      })
-      .where(eq(scheduledJobsTable.id, job.id));
+    await recordOutcome(job, {
+      status: "failed",
+      failedAt: new Date(),
+      lastAttemptAt: new Date(),
+      lastErrorClass: "permanent",
+      lastErrorMessage: `Unknown job type "${job.jobType}"`,
+      attemptCount: job.attemptCount + 1,
+      lockedAt: null,
+      lockedBy: null,
+    });
     return;
   }
 
   const attemptCount = job.attemptCount + 1;
 
   try {
+    if (handler.moduleKey && job.organizationId != null) {
+      const access = await getModuleAccess(job.organizationId, handler.moduleKey);
+      if (!access.enabled) {
+        await recordOutcome(job, {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          lastAttemptAt: new Date(),
+          lastErrorMessage: `Not run: the "${handler.moduleKey}" module is not enabled for this organization.`,
+          lockedAt: null,
+          lockedBy: null,
+        });
+        return;
+      }
+    }
+
     const payload = handler.parsePayload(job.payload);
     await handler.execute({
       jobId: job.id,
@@ -451,47 +515,42 @@ export async function executeClaimedJob(job: ScheduledJob): Promise<void> {
       attemptCount,
     });
 
-    await db
-      .update(scheduledJobsTable)
-      .set({
-        status: "completed",
-        completedAt: new Date(),
-        lastAttemptAt: new Date(),
-        attemptCount,
-        lockedAt: null,
-        lockedBy: null,
-      })
-      .where(eq(scheduledJobsTable.id, job.id));
+    await recordOutcome(job, {
+      status: "completed",
+      completedAt: new Date(),
+      lastAttemptAt: new Date(),
+      attemptCount,
+      lockedAt: null,
+      lockedBy: null,
+    });
   } catch (err) {
     const errorClass = classifyError(err);
     const maxAttempts = handler.defaultMaxAttempts ?? job.maxAttempts;
     const terminal = errorClass === "permanent" || attemptCount >= maxAttempts;
 
-    await db
-      .update(scheduledJobsTable)
-      .set(
-        terminal
-          ? {
-              status: "failed",
-              failedAt: new Date(),
-              lastAttemptAt: new Date(),
-              lastErrorClass: errorClass,
-              lastErrorMessage: toSafeErrorMessage(err),
-              attemptCount,
-              lockedAt: null,
-              lockedBy: null,
-            }
-          : {
-              status: "scheduled",
-              scheduledFor: new Date(Date.now() + computeBackoffDelayMs(attemptCount)),
-              lastAttemptAt: new Date(),
-              lastErrorClass: errorClass,
-              lastErrorMessage: toSafeErrorMessage(err),
-              attemptCount,
-              lockedAt: null,
-              lockedBy: null,
-            },
-      )
-      .where(eq(scheduledJobsTable.id, job.id));
+    await recordOutcome(
+      job,
+      terminal
+        ? {
+            status: "failed",
+            failedAt: new Date(),
+            lastAttemptAt: new Date(),
+            lastErrorClass: errorClass,
+            lastErrorMessage: toSafeErrorMessage(err),
+            attemptCount,
+            lockedAt: null,
+            lockedBy: null,
+          }
+        : {
+            status: "scheduled",
+            scheduledFor: new Date(Date.now() + computeBackoffDelayMs(attemptCount)),
+            lastAttemptAt: new Date(),
+            lastErrorClass: errorClass,
+            lastErrorMessage: toSafeErrorMessage(err),
+            attemptCount,
+            lockedAt: null,
+            lockedBy: null,
+          },
+    );
   }
 }
