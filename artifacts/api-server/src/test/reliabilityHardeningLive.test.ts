@@ -122,18 +122,61 @@ describeLive("P0 reliability hardening — live", () => {
    * it pass vacuously (e.g. a write that read the row only after the holder
    * committed).
    */
-  async function waitForBlockedUpdate(tableName: string): Promise<void> {
-    const pattern = `update "${tableName}"%`;
+  async function waitForBlockedUpdate(tableName: string, waiters = 1): Promise<void> {
+    await waitForLockWaiters(`update "${tableName}"%`, waiters, `writing "${tableName}"`);
+  }
+
+  /** As waitForBlockedUpdate, for any statement matching `pattern` (ILIKE). */
+  async function waitForLockWaiters(pattern: string, waiters: number, what: string): Promise<void> {
     const deadline = Date.now() + 10_000;
     while (Date.now() < deadline) {
       const result = await db.execute(
         sql`select count(*)::int as n from pg_stat_activity
             where wait_event_type = 'Lock' and datname = current_database() and query ilike ${pattern}`,
       );
-      if (Number(result.rows[0].n) > 0) return;
+      if (Number(result.rows[0].n) >= waiters) return;
       await new Promise((r) => setTimeout(r, 25));
     }
-    throw new Error(`the code under test never blocked writing "${tableName}": the race was not forced`);
+    throw new Error(`the code under test never blocked ${what} (${waiters} expected): the race was not forced`);
+  }
+
+  /** Audit rows recorded for one data-change request, by event type. */
+  async function auditEventTypes(requestId: number): Promise<string[]> {
+    const rows = await db
+      .select()
+      .from(schema.auditEventsTable)
+      .where(
+        and(
+          eq(schema.auditEventsTable.targetType, "data_change_request"),
+          eq(schema.auditEventsTable.targetId, String(requestId)),
+        ),
+      );
+    return rows.map((r: any) => r.eventType);
+  }
+
+  /** The message of an error and of everything it wraps (drizzle wraps driver errors). */
+  function fullMessage(err: unknown): string {
+    const parts: string[] = [];
+    for (let e: any = err; e; e = e.cause) parts.push(String(e.message ?? e));
+    return parts.join(" <- ");
+  }
+
+  async function approvedRequest(tag: string, requestedValue: string) {
+    const emp = await makeEmployee(tag);
+    const { request } = await dataChange.createRequest({
+      organizationId: orgId,
+      employeeId: emp.id,
+      origin: "hr_originated",
+      fields: [{ fieldKey: "preferredName", requestedValue }],
+      ...asRequester(),
+    });
+    await dataChange.approve({ organizationId: orgId, requestId: request.id, ...asApprover() });
+    return { emp, request };
+  }
+
+  async function preferredNameOf(employeeId: number): Promise<string | null> {
+    const [row] = await db.select().from(schema.employeesTable).where(eq(schema.employeesTable.id, employeeId));
+    return row.preferredName;
   }
 
   /**
@@ -220,6 +263,175 @@ describeLive("P0 reliability hardening — live", () => {
     for (const r of results) {
       if (r.status === "rejected") expect(r.reason).toBeInstanceOf(dataChange.RequestNotActionableError);
     }
+  });
+
+  it("an audit-write failure during apply rolls the application back and is recorded as application_failed, not as a concurrent change", async () => {
+    const { emp, request } = await approvedRequest("DcAuditFail", "Audited");
+    // Rejects exactly one insert: this request's "applied" audit row.
+    const fn = `p0_fail_applied_audit_${request.id}`;
+    await db.execute(
+      sql.raw(`create function ${fn}() returns trigger language plpgsql as $$
+        begin
+          if new.event_type = 'data_change_request.applied' and new.target_id = '${request.id}' then
+            raise exception 'p0 injected audit failure';
+          end if;
+          return new;
+        end $$`),
+    );
+    await db.execute(sql.raw(`create trigger ${fn} before insert on audit_events for each row execute function ${fn}()`));
+    let failure: unknown;
+    try {
+      failure = await dataChange
+        .applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() })
+        .then(() => undefined, (err) => err);
+    } finally {
+      await db.execute(sql.raw(`drop trigger if exists ${fn} on audit_events`));
+      await db.execute(sql.raw(`drop function if exists ${fn}()`));
+    }
+
+    // The caller is told the truth: the apply failed, with its own cause.
+    expect(failure).toBeDefined();
+    expect(failure).not.toBeInstanceOf(concurrency.RequestChangedConcurrentlyError);
+    expect(fullMessage(failure)).toMatch(/p0 injected audit failure/);
+    // Nothing was applied without its audit row.
+    expect(await preferredNameOf(emp.id)).toBeNull();
+    const failed = (await dataChange.getRequest(orgId, request.id))!;
+    expect(failed.status).toBe("application_failed");
+    const events = (await dataChange.listRequestEvents(orgId, request.id)).map((e: any) => e.eventType);
+    expect(events).toContain("application_failed");
+    expect(events).not.toContain("applied");
+    expect(await auditEventTypes(request.id)).toContain("data_change_request.application_failed");
+    expect(await auditEventTypes(request.id)).not.toContain("data_change_request.applied");
+
+    // Recoverable: once the audit log accepts writes, applying again succeeds.
+    const applied = await dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() });
+    expect(applied.status).toBe("applied");
+    expect(await preferredNameOf(emp.id)).toBe("Audited");
+    expect((await auditEventTypes(request.id)).filter((t) => t === "data_change_request.applied")).toHaveLength(1);
+  });
+
+  it("a failing apply that loses the race to a successful apply does not record a failure over it", async () => {
+    const { emp, request } = await approvedRequest("DcFailRace", "Winner");
+    // The FIRST employee write for this subject waits on an advisory lock the
+    // test holds, then fails. Every later write passes. A sequence, because
+    // nextval survives the failing transaction's rollback.
+    const fn = `p0_fail_first_apply_${request.id}`;
+    const lockKey = 380_000_000 + request.id;
+    await db.execute(sql.raw(`create sequence ${fn}_seq`));
+    await db.execute(
+      sql.raw(`create function ${fn}() returns trigger language plpgsql as $$
+        begin
+          if new.id = ${emp.id} then
+            -- Nested, so nextval is consumed only by this subject's writes.
+            if nextval('${fn}_seq') = 1 then
+              perform pg_advisory_xact_lock(${lockKey});
+              raise exception 'p0 injected apply failure';
+            end if;
+          end if;
+          return new;
+        end $$`),
+    );
+    await db.execute(sql.raw(`create trigger ${fn} before update on employees for each row execute function ${fn}()`));
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let signalLocked!: () => void;
+    const locked = new Promise<void>((resolve) => (signalLocked = resolve));
+    const holder = db.transaction(async (tx: any) => {
+      await tx.execute(sql.raw(`select pg_advisory_xact_lock(${lockKey})`));
+      signalLocked();
+      await gate;
+    });
+    const settle = (p: Promise<unknown>) =>
+      p.then((value) => ({ ok: true as const, value }), (error) => ({ ok: false as const, error }));
+
+    let failing: Awaited<ReturnType<typeof settle>>;
+    let winning: Awaited<ReturnType<typeof settle>>;
+    try {
+      await locked;
+      // 1. The failing attempt holds the request's row lock and waits inside its write.
+      const failingRun = settle(dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() }));
+      await waitForLockWaiters(`update "employees"%`, 1, "inside the failing apply's employee write");
+      // 2. The winning attempt queues behind that row lock.
+      const winningRun = settle(dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() }));
+      await waitForLockWaiters(`select%from "data_change_requests"%for update%`, 1, "the winning apply on the row lock");
+      // 3. The failing attempt rolls back; the winner applies while the loser
+      //    is about to record its failure. The winner is already waiting
+      //    in the server when the loser's ROLLBACK releases the row, while the
+      //    loser needs a further client round trip before its failure UPDATE
+      //    arrives, so the winner takes the row first. (Postgres does not
+      //    promise a woken waiter the row ahead of a new writer; if the loser
+      //    ever won, it would record a truthful application_failed that the
+      //    winner then applies, and this test would fail loudly, not pass.)
+      release();
+      await holder;
+      [failing, winning] = await Promise.all([failingRun, winningRun]);
+    } finally {
+      release();
+      await holder.catch(() => undefined);
+      await db.execute(sql.raw(`drop trigger if exists ${fn} on employees`));
+      await db.execute(sql.raw(`drop function if exists ${fn}()`));
+      await db.execute(sql.raw(`drop sequence if exists ${fn}_seq`));
+    }
+
+    expect(winning.ok).toBe(true);
+    expect(failing.ok).toBe(false);
+    expect((failing as any).error).toBeInstanceOf(concurrency.RequestChangedConcurrentlyError);
+    // The successful application stands, and its record is not contradicted.
+    expect((await dataChange.getRequest(orgId, request.id))!.status).toBe("applied");
+    expect(await preferredNameOf(emp.id)).toBe("Winner");
+    const events = (await dataChange.listRequestEvents(orgId, request.id)).map((e: any) => e.eventType);
+    expect(events.filter((t: string) => t === "applied")).toHaveLength(1);
+    expect(events).not.toContain("application_failed");
+    const audits = await auditEventTypes(request.id);
+    expect(audits.filter((t) => t === "data_change_request.applied")).toHaveLength(1);
+    expect(audits).not.toContain("data_change_request.application_failed");
+  });
+
+  it("two concurrent applies of the same stale request both report it stale, and it is marked stale once", async () => {
+    const { emp, request } = await approvedRequest("DcDoubleStale", "Requested");
+    // The live value moves after approval: the request's basis is now stale.
+    await db.update(schema.employeesTable).set({ preferredName: "Moved" }).where(eq(schema.employeesTable.id, emp.id));
+
+    // Hold the request's field rows so both callers pass every check, detect
+    // the staleness, and block inside markStale before either can mark it.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let signalLocked!: () => void;
+    const locked = new Promise<void>((resolve) => (signalLocked = resolve));
+    const fields = schema.dataChangeRequestFieldsTable;
+    const holder = db.transaction(async (tx: any) => {
+      await tx.select().from(fields).where(eq(fields.requestId, request.id)).for("update");
+      signalLocked();
+      await gate;
+    });
+
+    let results: PromiseSettledResult<unknown>[];
+    try {
+      await locked;
+      const both = Promise.allSettled([
+        dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() }),
+        dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() }),
+      ]);
+      await waitForBlockedUpdate(getTableName(fields), 2);
+      release();
+      await holder;
+      results = await both;
+    } finally {
+      release();
+      await holder.catch(() => undefined);
+    }
+
+    // Each caller is told the request is stale; neither is told it changed concurrently.
+    for (const r of results) {
+      expect(r.status).toBe("rejected");
+      expect((r as PromiseRejectedResult).reason).toBeInstanceOf(dataChange.RequestStaleError);
+    }
+    expect((await dataChange.getRequest(orgId, request.id))!.status).toBe("stale");
+    const events = (await dataChange.listRequestEvents(orgId, request.id)).map((e: any) => e.eventType);
+    expect(events.filter((t: string) => t === "stale_detected")).toHaveLength(1);
+    expect((await auditEventTypes(request.id)).filter((t) => t === "data_change_request.stale_detected")).toHaveLength(1);
+    expect(await preferredNameOf(emp.id)).toBe("Moved");
   });
 
   it("a service-request approval that loses a race with withdrawal is refused, and nothing is recorded for it", async () => {
