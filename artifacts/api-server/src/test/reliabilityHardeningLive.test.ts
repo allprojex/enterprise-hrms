@@ -321,9 +321,12 @@ describeLive("P0 reliability hardening — live", () => {
     await db.execute(
       sql.raw(`create function ${fn}() returns trigger language plpgsql as $$
         begin
-          if new.id = ${emp.id} and nextval('${fn}_seq') = 1 then
-            perform pg_advisory_xact_lock(${lockKey});
-            raise exception 'p0 injected apply failure';
+          if new.id = ${emp.id} then
+            -- Nested, so nextval is consumed only by this subject's writes.
+            if nextval('${fn}_seq') = 1 then
+              perform pg_advisory_xact_lock(${lockKey});
+              raise exception 'p0 injected apply failure';
+            end if;
           end if;
           return new;
         end $$`),
@@ -353,7 +356,13 @@ describeLive("P0 reliability hardening — live", () => {
       const winningRun = settle(dataChange.applyRequest({ organizationId: orgId, requestId: request.id, ...asApprover() }));
       await waitForLockWaiters(`select%from "data_change_requests"%for update%`, 1, "the winning apply on the row lock");
       // 3. The failing attempt rolls back; the winner applies while the loser
-      //    is about to record its failure.
+      //    is about to record its failure. The winner is already waiting
+      //    in the server when the loser's ROLLBACK releases the row, while the
+      //    loser needs a further client round trip before its failure UPDATE
+      //    arrives, so the winner takes the row first. (Postgres does not
+      //    promise a woken waiter the row ahead of a new writer; if the loser
+      //    ever won, it would record a truthful application_failed that the
+      //    winner then applies, and this test would fail loudly, not pass.)
       release();
       await holder;
       [failing, winning] = await Promise.all([failingRun, winningRun]);
