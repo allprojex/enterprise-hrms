@@ -1110,29 +1110,39 @@ export async function applyRequest(params: {
         actorMembershipId: params.actorMembershipId,
       });
 
-      return row!;
-    });
+      // Part of the same transaction as the write it records. Written after
+      // the commit instead, a failed audit insert would surface in the catch
+      // below for a request that IS applied: the guarded failure write then
+      // matches nothing and the caller is told someone else changed it, while
+      // the employee record has changed with no audit row. Inside, the audit
+      // failure rolls the whole application back and is recorded truthfully as
+      // `application_failed`, which can be applied again.
+      await recordAuditEvent(
+        {
+          actorApplicationUserId: params.actorApplicationUserId,
+          actorMembershipId: params.actorMembershipId,
+          organizationId: params.organizationId,
+          eventType: "data_change_request.applied",
+          targetType: "data_change_request",
+          targetId: String(params.requestId),
+          beforeState: {
+            fields: fields.map((f) => ({
+              fieldKey: f.fieldKey,
+              value: maskForDisplay(requireEligibleField(f.fieldKey), f.previousValue),
+            })),
+          },
+          afterState: {
+            fields: fields.map((f) => ({
+              fieldKey: f.fieldKey,
+              value: maskForDisplay(requireEligibleField(f.fieldKey), f.requestedValue),
+            })),
+          },
+          metadata: { employeeId: request.employeeId, appliedAt: now },
+        },
+        tx,
+      );
 
-    await recordAuditEvent({
-      actorApplicationUserId: params.actorApplicationUserId,
-      actorMembershipId: params.actorMembershipId,
-      organizationId: params.organizationId,
-      eventType: "data_change_request.applied",
-      targetType: "data_change_request",
-      targetId: String(params.requestId),
-      beforeState: {
-        fields: fields.map((f) => ({
-          fieldKey: f.fieldKey,
-          value: maskForDisplay(requireEligibleField(f.fieldKey), f.previousValue),
-        })),
-      },
-      afterState: {
-        fields: fields.map((f) => ({
-          fieldKey: f.fieldKey,
-          value: maskForDisplay(requireEligibleField(f.fieldKey), f.requestedValue),
-        })),
-      },
-      metadata: { employeeId: request.employeeId, appliedAt: now },
+      return row!;
     });
 
     return updated;

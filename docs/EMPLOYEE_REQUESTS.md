@@ -57,7 +57,7 @@ The reason is concrete: `employees` mixes three ownership classes in one row, so
 
 Transactional and idempotent. The status guard is re-asserted **inside** the transaction under `SELECT … FOR UPDATE`, so two concurrent applies cannot both pass (the second waits, then sees `applied`) and a partially applied multi-field change is not representable. A retried apply returns the same `appliedAt` and produces exactly one `applied` event.
 
-A failure is recorded as `application_failed` with its reason rather than swallowed — §29.10 forbids a request that claims to be applied when the write did not succeed.
+A failure is recorded as `application_failed` with its reason rather than swallowed — §29.10 forbids a request that claims to be applied when the write did not succeed. The `data_change_request.applied` audit row is written in the same transaction as the employee write, so no change is ever applied without its audit row: if the audit insert fails, the whole application rolls back, is recorded as `application_failed`, and can be applied again. The failure record is itself guarded on the request still being `approved` or `application_failed`, so a failed attempt that lost the race to a successful one is reported as a concurrent change (409) and does not contradict the applied record.
 
 Four instants are kept apart: `requestedAt`, `decidedAt`, `effectiveDate`, `appliedAt`. `createdAt` is none of them.
 
