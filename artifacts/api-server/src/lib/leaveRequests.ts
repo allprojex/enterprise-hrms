@@ -391,8 +391,19 @@ export async function cancelLeaveRequest(params: {
   const [updated] = await db
     .update(leaveRequestsTable)
     .set({ status: "cancelled", cancelledAt: new Date(), cancelledBy: params.actorApplicationUserId })
-    .where(eq(leaveRequestsTable.id, params.leaveRequestId))
+    // The status check is repeated in the UPDATE itself: a final HR approval
+    // landing between the read above and this write has already posted the
+    // usage ledger entry, and overwriting it to "cancelled" would leave the
+    // balance deducted for leave that no longer exists.
+    .where(
+      and(
+        eq(leaveRequestsTable.id, params.leaveRequestId),
+        eq(leaveRequestsTable.organizationId, params.organizationId),
+        inArray(leaveRequestsTable.status, ["pending", "pending_hr"]),
+      ),
+    )
     .returning();
+  if (!updated) throw new LeaveRequestNotCancellableError();
 
   // Notification extension point (Architecture Principle 8): "cancelled".
   await recordAuditEvent({

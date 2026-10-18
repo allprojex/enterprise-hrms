@@ -56247,7 +56247,7 @@ export const returnDataChangeRequest = async (organizationId: number,
 
 
 
-export const getReturnDataChangeRequestMutationOptions = <TError = ErrorType<unknown>,
+export const getReturnDataChangeRequestMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnDataChangeRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<ReturnDataChangeRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof returnDataChangeRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<ReturnDataChangeRequestInput>}, TContext> => {
 
@@ -56276,12 +56276,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ReturnDataChangeRequestMutationResult = NonNullable<Awaited<ReturnType<typeof returnDataChangeRequest>>>
     export type ReturnDataChangeRequestMutationBody = BodyType<ReturnDataChangeRequestInput>
-    export type ReturnDataChangeRequestMutationError = ErrorType<unknown>
+    export type ReturnDataChangeRequestMutationError = ErrorType<ApiError>
 
     /**
  * @summary Return a request for more information
  */
-export const useReturnDataChangeRequest = <TError = ErrorType<unknown>,
+export const useReturnDataChangeRequest = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof returnDataChangeRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<ReturnDataChangeRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof returnDataChangeRequest>>,
@@ -57240,7 +57240,7 @@ export const acknowledgeServiceRequest = async (organizationId: number,
 
 
 
-export const getAcknowledgeServiceRequestMutationOptions = <TError = ErrorType<unknown>,
+export const getAcknowledgeServiceRequestMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AcknowledgeServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof acknowledgeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AcknowledgeServiceRequestInput>}, TContext> => {
 
@@ -57269,12 +57269,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AcknowledgeServiceRequestMutationResult = NonNullable<Awaited<ReturnType<typeof acknowledgeServiceRequest>>>
     export type AcknowledgeServiceRequestMutationBody = BodyType<AcknowledgeServiceRequestInput>
-    export type AcknowledgeServiceRequestMutationError = ErrorType<unknown>
+    export type AcknowledgeServiceRequestMutationError = ErrorType<ApiError>
 
     /**
  * @summary Acknowledge receipt of a service request
  */
-export const useAcknowledgeServiceRequest = <TError = ErrorType<unknown>,
+export const useAcknowledgeServiceRequest = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acknowledgeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AcknowledgeServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof acknowledgeServiceRequest>>,
@@ -57315,7 +57315,7 @@ export const assignServiceRequest = async (organizationId: number,
 
 
 
-export const getAssignServiceRequestMutationOptions = <TError = ErrorType<unknown>,
+export const getAssignServiceRequestMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AssignServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof assignServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AssignServiceRequestInput>}, TContext> => {
 
@@ -57344,12 +57344,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AssignServiceRequestMutationResult = NonNullable<Awaited<ReturnType<typeof assignServiceRequest>>>
     export type AssignServiceRequestMutationBody = BodyType<AssignServiceRequestInput>
-    export type AssignServiceRequestMutationError = ErrorType<unknown>
+    export type AssignServiceRequestMutationError = ErrorType<ApiError>
 
     /**
  * @summary Assign a service request for fulfilment
  */
-export const useAssignServiceRequest = <TError = ErrorType<unknown>,
+export const useAssignServiceRequest = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof assignServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<AssignServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof assignServiceRequest>>,
@@ -57464,7 +57464,7 @@ export const rejectServiceRequest = async (organizationId: number,
 
 
 
-export const getRejectServiceRequestMutationOptions = <TError = ErrorType<unknown>,
+export const getRejectServiceRequestMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<RejectServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof rejectServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<RejectServiceRequestInput>}, TContext> => {
 
@@ -57493,12 +57493,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RejectServiceRequestMutationResult = NonNullable<Awaited<ReturnType<typeof rejectServiceRequest>>>
     export type RejectServiceRequestMutationBody = BodyType<RejectServiceRequestInput>
-    export type RejectServiceRequestMutationError = ErrorType<unknown>
+    export type RejectServiceRequestMutationError = ErrorType<ApiError>
 
     /**
  * @summary Reject a service request
  */
-export const useRejectServiceRequest = <TError = ErrorType<unknown>,
+export const useRejectServiceRequest = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<RejectServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof rejectServiceRequest>>,
@@ -57538,7 +57538,7 @@ export const requestServiceRequestInformation = async (organizationId: number,
 
 
 
-export const getRequestServiceRequestInformationMutationOptions = <TError = ErrorType<unknown>,
+export const getRequestServiceRequestInformationMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestServiceRequestInformation>>, TError,{organizationId: number;requestId: number;data: BodyType<RequestServiceRequestInformationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof requestServiceRequestInformation>>, TError,{organizationId: number;requestId: number;data: BodyType<RequestServiceRequestInformationInput>}, TContext> => {
 
@@ -57567,12 +57567,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RequestServiceRequestInformationMutationResult = NonNullable<Awaited<ReturnType<typeof requestServiceRequestInformation>>>
     export type RequestServiceRequestInformationMutationBody = BodyType<RequestServiceRequestInformationInput>
-    export type RequestServiceRequestInformationMutationError = ErrorType<unknown>
+    export type RequestServiceRequestInformationMutationError = ErrorType<ApiError>
 
     /**
  * @summary Ask the employee for more information
  */
-export const useRequestServiceRequestInformation = <TError = ErrorType<unknown>,
+export const useRequestServiceRequestInformation = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestServiceRequestInformation>>, TError,{organizationId: number;requestId: number;data: BodyType<RequestServiceRequestInformationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof requestServiceRequestInformation>>,
@@ -57687,7 +57687,7 @@ export const closeServiceRequest = async (organizationId: number,
 
 
 
-export const getCloseServiceRequestMutationOptions = <TError = ErrorType<unknown>,
+export const getCloseServiceRequestMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<CloseServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof closeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<CloseServiceRequestInput>}, TContext> => {
 
@@ -57716,12 +57716,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CloseServiceRequestMutationResult = NonNullable<Awaited<ReturnType<typeof closeServiceRequest>>>
     export type CloseServiceRequestMutationBody = BodyType<CloseServiceRequestInput>
-    export type CloseServiceRequestMutationError = ErrorType<unknown>
+    export type CloseServiceRequestMutationError = ErrorType<ApiError>
 
     /**
  * @summary Close a service request
  */
-export const useCloseServiceRequest = <TError = ErrorType<unknown>,
+export const useCloseServiceRequest = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof closeServiceRequest>>, TError,{organizationId: number;requestId: number;data: BodyType<CloseServiceRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof closeServiceRequest>>,
