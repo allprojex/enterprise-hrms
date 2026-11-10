@@ -6,7 +6,11 @@
  *       installationsAndBreakGlassAuthorization.test.ts's own pattern
  *       exactly for a new platform-scoped route family;
  *   (2) the pre-existing notifications routes still authenticate exactly as
- *       before, and the new dismiss route is wired and IDOR-safe.
+ *       before, and the new dismiss route is wired and IDOR-safe;
+ *   (3) P1a: every notification route answers from the active-organization
+ *       scope — a denied scope (host pinned elsewhere, tenant lookup failed)
+ *       is passed through, and no live membership means nothing to show.
+ *       The scoping SQL itself is proven live in notificationIsolationLive.
  * Engine/service business logic itself is covered by the live-Postgres
  * suites; this file is purely about the HTTP/auth wiring.
  */
@@ -24,6 +28,7 @@ const { fixtures, usersTable, sessionsTable, notificationsTable } = vi.hoisted((
       sessionRows: [] as { session: Record<string, unknown>; user: Record<string, unknown> }[],
       jobRows: [] as Record<string, unknown>[],
       notificationRows: [] as Record<string, unknown>[],
+      scope: { kind: "organization", organizationId: 10, membership: { id: 1 } } as Record<string, unknown>,
     },
     usersTable: mockTableInner("users", ["id"]),
     sessionsTable: mockTableInner("sessions", ["token", "userId", "expiresAt"]),
@@ -80,6 +85,10 @@ vi.mock("@workspace/db", () => ({
   },
 }));
 
+vi.mock("../lib/activeOrganizationScope", () => ({
+  resolveActiveOrganizationScope: async () => fixtures.scope,
+}));
+
 vi.mock("drizzle-orm", () => ({
   eq: () => "eq",
   and: () => "and",
@@ -105,6 +114,7 @@ beforeEach(() => {
   fixtures.sessionRows = [];
   fixtures.jobRows = [];
   fixtures.notificationRows = [];
+  fixtures.scope = { kind: "organization", organizationId: 10, membership: { id: 1 } };
 });
 
 describe("scheduled jobs — platform authority gate", () => {
@@ -151,7 +161,7 @@ describe("notifications — existing auth model unchanged, new dismiss route wir
 
   it("lists an authenticated user's own notifications", async () => {
     sessionFor("employee", 7);
-    fixtures.notificationRows = [{ id: 1, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: null }];
+    fixtures.notificationRows = [{ id: 1, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: 10 }];
     const res = await request(app).get("/api/notifications").set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
@@ -166,9 +176,53 @@ describe("notifications — existing auth model unchanged, new dismiss route wir
 
   it("dismiss succeeds for the caller's own notification", async () => {
     sessionFor("employee", 7);
-    fixtures.notificationRows = [{ id: 5, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: null, dismissedAt: null }];
+    fixtures.notificationRows = [{ id: 5, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: 10, dismissedAt: null }];
     const res = await request(app).patch("/api/notifications/5/dismiss").set("Authorization", "Bearer valid-token");
     expect(res.status).toBe(200);
     expect(res.body.dismissedAt).toBeTruthy();
+  });
+});
+
+describe("notifications — active-organization scope (P1a)", () => {
+  const routes: [string, string][] = [
+    ["get", "/api/notifications"],
+    ["get", "/api/notifications/unread-count"],
+    ["post", "/api/notifications/read-all"],
+    ["patch", "/api/notifications/5/read"],
+    ["patch", "/api/notifications/5/dismiss"],
+  ];
+
+  it("passes a denied scope through on every route (403 host mismatch, 503 tenant lookup failure)", async () => {
+    sessionFor("employee", 7);
+    fixtures.notificationRows = [{ id: 5, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: 10 }];
+    for (const status of [403, 503] as const) {
+      fixtures.scope = { kind: "denied", status, error: "denied" };
+      for (const [method, path] of routes) {
+        const res = await (request(app) as any)[method](path).set("Authorization", "Bearer valid-token");
+        expect(res.status, `${method} ${path}`).toBe(status);
+      }
+    }
+  });
+
+  it("a caller with no live membership sees nothing and can change nothing", async () => {
+    sessionFor("employee", 7);
+    fixtures.notificationRows = [{ id: 5, userId: 7, title: "t", message: "m", type: "info", read: false, createdAt: new Date(), organizationId: 10 }];
+    fixtures.scope = { kind: "none" };
+    const auth = (r: any) => r.set("Authorization", "Bearer valid-token");
+    expect((await auth(request(app).get("/api/notifications"))).body).toEqual([]);
+    expect((await auth(request(app).get("/api/notifications/unread-count"))).body).toEqual({ unreadCount: 0 });
+    expect((await auth(request(app).patch("/api/notifications/5/read"))).status).toBe(404);
+    expect((await auth(request(app).patch("/api/notifications/5/dismiss"))).status).toBe(404);
+    expect((await auth(request(app).post("/api/notifications/read-all"))).status).toBe(200);
+  });
+
+  it("refuses an organizationId other than the active one, and malformed paging, before touching the database", async () => {
+    sessionFor("employee", 7);
+    const auth = (r: any) => r.set("Authorization", "Bearer valid-token");
+    expect((await auth(request(app).get("/api/notifications?organizationId=11"))).status).toBe(403);
+    expect((await auth(request(app).get("/api/notifications?organizationId=10"))).status).toBe(200);
+    for (const q of ["limit=0", "limit=101", "before=abc", "before=0"]) {
+      expect((await auth(request(app).get(`/api/notifications?${q}`))).status, q).toBe(400);
+    }
   });
 });

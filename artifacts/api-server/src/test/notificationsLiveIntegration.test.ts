@@ -178,16 +178,16 @@ describeLive("WS-6 notifications — live integration", () => {
 
   it("§59: Org B cannot list Org A's notifications, and vice versa", async () => {
     await notifications.notifyUser({ recipient: { kind: "user", userId: userInOrgA }, organizationId: orgA, title: "A-only", message: "x" });
-    const listedForA = await notifications.listNotificationsForUser(userInOrgA, { organizationId: orgA });
-    const listedForAWrongOrg = await notifications.listNotificationsForUser(userInOrgA, { organizationId: orgB });
+    const listedForA = await notifications.listNotificationsForUser(userInOrgA, orgA);
+    const listedForAWrongOrg = await notifications.listNotificationsForUser(userInOrgA, orgB);
     expect(listedForA.some((n: any) => n.title === "A-only")).toBe(true);
     expect(listedForAWrongOrg.some((n: any) => n.title === "A-only")).toBe(false);
   });
 
   it("§36: dismissNotification is IDOR-safe — a different user's id never resolves", async () => {
     const [created] = await notifications.notifyUser({ recipient: { kind: "user", userId: userInOrgA }, organizationId: orgA, title: "Dismiss test", message: "x" });
-    await expect(notifications.dismissNotification(userInOrgB, created.id)).rejects.toThrow(notifications.NotificationNotFoundError);
-    const dismissed = await notifications.dismissNotification(userInOrgA, created.id);
+    await expect(notifications.dismissNotification(userInOrgB, orgA, created.id)).rejects.toThrow(notifications.NotificationNotFoundError);
+    const dismissed = await notifications.dismissNotification(userInOrgA, orgA, created.id);
     expect(dismissed.dismissedAt).not.toBeNull();
   });
 
@@ -195,7 +195,7 @@ describeLive("WS-6 notifications — live integration", () => {
     const [created] = await notifications.notifyUser({ recipient: { kind: "user", userId: userInOrgA }, organizationId: orgA, title: "Expiring", message: "x" });
     await db.update(schema.notificationsTable).set({ expiresAt: new Date(Date.now() - 60_000) }).where(eq(schema.notificationsTable.id, created.id));
 
-    const listed = await notifications.listNotificationsForUser(userInOrgA, { organizationId: orgA });
+    const listed = await notifications.listNotificationsForUser(userInOrgA, orgA);
     expect(listed.some((n: any) => n.id === created.id)).toBe(false);
 
     const stillExists = await db.select().from(schema.notificationsTable).where(eq(schema.notificationsTable.id, created.id));
