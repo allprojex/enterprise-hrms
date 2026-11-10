@@ -72,7 +72,8 @@ import {
   getGetMeQueryKey,
   useGetMyEmployee,
   getGetMyEmployeeQueryKey,
-  useListNotifications,
+  useGetUnreadNotificationCount,
+  getGetUnreadNotificationCountQueryKey,
   getListNotificationsQueryKey,
   useListMyOrganizations,
   useListOrganizationModules,
@@ -183,6 +184,9 @@ function groupSlug(label: string): string {
  */
 /** VR-02B — the two independent Vehicle Request submission grants. */
 const VEHICLE_REQUEST_SUBMISSION_PERMISSIONS = ['vehicle_request.write.own', 'vehicle_request.write.department'] as const;
+
+/** How often the header bell re-reads the unread count while the tab is visible. */
+const UNREAD_NOTIFICATION_POLL_MS = 60_000;
 
 const MODULE_BY_HREF: Record<string, string> = {
   '/self-service': 'employee_self_service',
@@ -411,8 +415,17 @@ export function AppShell({ children }: AppShellProps) {
     error: userError,
   } = useGetMe({ query: { queryKey: getGetMeQueryKey() } });
 
-  const { data: notifications } = useListNotifications(undefined, {
-    query: { queryKey: getListNotificationsQueryKey() },
+  // The bell asks the server for the count rather than counting a list:
+  // the list is paged, and the count is scoped to the active organization.
+  // Polled once a minute while the tab is visible, and refreshed whenever the
+  // app regains focus (overriding the app-wide refetchOnWindowFocus: false).
+  const { data: unread } = useGetUnreadNotificationCount({
+    query: {
+      queryKey: getGetUnreadNotificationCountQueryKey(),
+      refetchInterval: UNREAD_NOTIFICATION_POLL_MS,
+      refetchIntervalInBackground: false,
+      refetchOnWindowFocus: true,
+    },
   });
 
   const { data: myOrganizations } = useListMyOrganizations({
@@ -474,7 +487,7 @@ export function AppShell({ children }: AppShellProps) {
     });
   };
 
-  const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
+  const unreadCount = unread?.unreadCount ?? 0;
   const activeOrganizationId = user?.activeOrganizationId ?? user?.organizationId;
   const currentOrg = myOrganizations?.find((m) => m.organizationId === activeOrganizationId);
   // Multi-Organization Tenant Infrastructure: a caller with only one
@@ -560,6 +573,10 @@ export function AppShell({ children }: AppShellProps) {
           // the previous organization's dashboard figures until an
           // unrelated remount.
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          // Notifications are scoped to the active organization the same
+          // way, with parameterless keys, so they need the same treatment.
+          queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
           toast({ title: `Switched to ${organization.organizationName}` });
         },
         onError: () => {

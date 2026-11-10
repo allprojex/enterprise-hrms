@@ -9661,11 +9661,18 @@ export const ReactivatePositionResponse = zod.object({
 
 
 /**
- * Returns notifications for the current user. `organizationId` is an optional narrowing filter added in WS-6 — omitted, this returns every notification for the caller exactly as before.
+ * One page of the current user's notifications in their active organization (pinned to the tenant host), newest first by (createdAt, id). Dismissed and expired notifications are excluded. Page with `before`: pass the id of the last notification already shown. A short page means there are no more. A caller with no live membership gets an empty list.
  * @summary List notifications
  */
+export const listNotificationsQueryLimitMax = 100;
+
+
+
+
 export const ListNotificationsQueryParams = zod.object({
-  "organizationId": zod.coerce.number().optional()
+  "organizationId": zod.coerce.number().optional().describe('Optional assertion only. Naming any organization other than the caller\'s active one is refused with 403, never honoured.'),
+  "limit": zod.coerce.number().min(1).max(listNotificationsQueryLimitMax).optional().describe('Page size, 1 to 100. Defaults to 50.'),
+  "before": zod.coerce.number().min(1).optional().describe('Keyset cursor: the id of the last notification on the previous page. An id the caller does not own in this organization yields an empty page.')
 })
 
 export const ListNotificationsResponseItem = zod.object({
@@ -9685,7 +9692,20 @@ export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem
 
 
 /**
- * Mark a specific notification as read
+ * The unread badge for the current user in their active organization, under exactly the list's visibility rule (not dismissed, not expired). Zero for a caller with no live membership.
+ * @summary Unread notification count
+ */
+export const getUnreadNotificationCountResponseUnreadCountMin = 0;
+
+
+
+export const GetUnreadNotificationCountResponse = zod.object({
+  "unreadCount": zod.number().min(getUnreadNotificationCountResponseUnreadCountMin)
+})
+
+
+/**
+ * Mark one of the current user's notifications in their active organization as read. Any other id is a 404.
  * @summary Mark notification as read
  */
 export const MarkNotificationReadParams = zod.object({
@@ -9708,7 +9728,7 @@ export const MarkNotificationReadResponse = zod.object({
 
 
 /**
- * Mark all notifications for the current user as read
+ * Mark every notification the current user has in their active organization as read. Other organizations are untouched.
  * @summary Mark all notifications as read
  */
 export const MarkAllNotificationsReadResponse = zod.object({
@@ -9717,7 +9737,7 @@ export const MarkAllNotificationsReadResponse = zod.object({
 
 
 /**
- * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id, so no id resolves to another user's notification.
+ * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id and active organization, so no id resolves to another user's notification or to one in another organization.
  * @summary Dismiss a notification
  */
 export const DismissNotificationParams = zod.object({

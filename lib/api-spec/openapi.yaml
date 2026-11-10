@@ -11255,14 +11255,36 @@ paths:
       tags: [notifications]
       summary: List notifications
       description: >-
-        Returns notifications for the current user. `organizationId` is an
-        optional narrowing filter added in WS-6 — omitted, this returns
-        every notification for the caller exactly as before.
+        One page of the current user's notifications in their active
+        organization (pinned to the tenant host), newest first by
+        (createdAt, id). Dismissed and expired notifications are excluded.
+        Page with `before`: pass the id of the last notification already
+        shown. A short page means there are no more. A caller with no live
+        membership gets an empty list.
       parameters:
         - name: organizationId
           in: query
+          description: >-
+            Optional assertion only. Naming any organization other than the
+            caller's active one is refused with 403, never honoured.
           schema:
             type: integer
+        - name: limit
+          in: query
+          description: Page size, 1 to 100. Defaults to 50.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: before
+          in: query
+          description: >-
+            Keyset cursor: the id of the last notification on the previous
+            page. An id the caller does not own in this organization yields
+            an empty page.
+          schema:
+            type: integer
+            minimum: 1
       responses:
         "200":
           description: List of notifications
@@ -11272,13 +11294,52 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Notification"
+        "400":
+          description: Malformed limit, before or organizationId
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: >-
+            organizationId names another organization, or the tenant host is
+            pinned to a different organization than the caller's active one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /notifications/unread-count:
+    get:
+      operationId: getUnreadNotificationCount
+      tags: [notifications]
+      summary: Unread notification count
+      description: >-
+        The unread badge for the current user in their active organization,
+        under exactly the list's visibility rule (not dismissed, not
+        expired). Zero for a caller with no live membership.
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadNotificationCount"
+        "403":
+          description: The tenant host is pinned to a different organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /notifications/{id}/read:
     patch:
       operationId: markNotificationRead
       tags: [notifications]
       summary: Mark notification as read
-      description: Mark a specific notification as read
+      description: >-
+        Mark one of the current user's notifications in their active
+        organization as read. Any other id is a 404.
       parameters:
         - name: id
           in: path
@@ -11292,6 +11353,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Notification"
+        "403":
+          description: The tenant host is pinned to a different organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Not found
           content:
@@ -11304,7 +11371,9 @@ paths:
       operationId: markAllNotificationsRead
       tags: [notifications]
       summary: Mark all notifications as read
-      description: Mark all notifications for the current user as read
+      description: >-
+        Mark every notification the current user has in their active
+        organization as read. Other organizations are untouched.
       responses:
         "200":
           description: All notifications marked as read
@@ -11312,6 +11381,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+        "403":
+          description: The tenant host is pinned to a different organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
 
   /notifications/{id}/dismiss:
     patch:
@@ -11320,8 +11395,8 @@ paths:
       summary: Dismiss a notification
       description: >-
         WS-6. IDOR-safe by construction — the lookup always includes the
-        caller's own user id, so no id resolves to another user's
-        notification.
+        caller's own user id and active organization, so no id resolves to
+        another user's notification or to one in another organization.
       parameters:
         - name: id
           in: path
@@ -11335,6 +11410,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Notification"
+        "403":
+          description: The tenant host is pinned to a different organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
         "404":
           description: Not found
           content:
@@ -39935,6 +40016,14 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    UnreadNotificationCount:
+      type: object
+      required: [unreadCount]
+      properties:
+        unreadCount:
+          type: integer
+          minimum: 0
 
     DashboardSummary:
       type: object

@@ -7277,6 +7277,11 @@ export interface Notification {
   dismissedAt?: string | null;
 }
 
+export interface UnreadNotificationCount {
+  /** @minimum 0 */
+  unreadCount: number;
+}
+
 /**
  * Which population the figures cover (WWM Employee Access Remediation, 2026-09-07). `organization` when the caller holds leave_request.manage; otherwise `own_and_reports` — the caller's own record plus live direct reports, so an ordinary employee sees only their own leave. Lets the dashboard label the section honestly.
  */
@@ -14614,7 +14619,21 @@ leaveTypeId?: number;
 };
 
 export type ListNotificationsParams = {
+/**
+ * Optional assertion only. Naming any organization other than the caller's active one is refused with 403, never honoured.
+ */
 organizationId?: number;
+/**
+ * Page size, 1 to 100. Defaults to 50.
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Keyset cursor: the id of the last notification on the previous page. An id the caller does not own in this organization yields an empty page.
+ * @minimum 1
+ */
+before?: number;
 };
 
 export type ListScheduledJobsParams = {

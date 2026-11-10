@@ -738,6 +738,7 @@ import type {
   TenantContext,
   TenantIdentity,
   TransferEmployeeInput,
+  UnreadNotificationCount,
   UpdateAssetConditionInput,
   UpdateAssetInput,
   UpdateAssetMaintenanceInput,
@@ -23242,7 +23243,7 @@ export const getListNotificationsUrl = (params?: ListNotificationsParams,) => {
 }
 
 /**
- * Returns notifications for the current user. `organizationId` is an optional narrowing filter added in WS-6 — omitted, this returns every notification for the caller exactly as before.
+ * One page of the current user's notifications in their active organization (pinned to the tenant host), newest first by (createdAt, id). Dismissed and expired notifications are excluded. Page with `before`: pass the id of the last notification already shown. A short page means there are no more. A caller with no live membership gets an empty list.
  * @summary List notifications
  */
 export const listNotifications = async (params?: ListNotificationsParams, options?: RequestInit): Promise<Notification[]> => {
@@ -23267,7 +23268,7 @@ export const getListNotificationsQueryKey = (params?: ListNotificationsParams,) 
     }
 
 
-export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<ApiError>>(params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -23286,19 +23287,97 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listNotifications>>>
-export type ListNotificationsQueryError = ErrorType<unknown>
+export type ListNotificationsQueryError = ErrorType<ApiError>
 
 
 /**
  * @summary List notifications
  */
 
-export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<ApiError>>(
  params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getListNotificationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUnreadNotificationCountUrl = () => {
+
+
+
+
+  return `/api/notifications/unread-count`
+}
+
+/**
+ * The unread badge for the current user in their active organization, under exactly the list's visibility rule (not dismissed, not expired). Zero for a caller with no live membership.
+ * @summary Unread notification count
+ */
+export const getUnreadNotificationCount = async ( options?: RequestInit): Promise<UnreadNotificationCount> => {
+
+  return customFetch<UnreadNotificationCount>(getGetUnreadNotificationCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnreadNotificationCountQueryKey = () => {
+    return [
+    `/api/notifications/unread-count`
+    ] as const;
+    }
+
+
+export const getGetUnreadNotificationCountQueryOptions = <TData = Awaited<ReturnType<typeof getUnreadNotificationCount>>, TError = ErrorType<ApiError>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnreadNotificationCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnreadNotificationCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnreadNotificationCount>>> = ({ signal }) => getUnreadNotificationCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnreadNotificationCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUnreadNotificationCountQueryResult = NonNullable<Awaited<ReturnType<typeof getUnreadNotificationCount>>>
+export type GetUnreadNotificationCountQueryError = ErrorType<ApiError>
+
+
+/**
+ * @summary Unread notification count
+ */
+
+export function useGetUnreadNotificationCount<TData = Awaited<ReturnType<typeof getUnreadNotificationCount>>, TError = ErrorType<ApiError>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnreadNotificationCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUnreadNotificationCountQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -23320,7 +23399,7 @@ export const getMarkNotificationReadUrl = (id: number,) => {
 }
 
 /**
- * Mark a specific notification as read
+ * Mark one of the current user's notifications in their active organization as read. Any other id is a 404.
  * @summary Mark notification as read
  */
 export const markNotificationRead = async (id: number, options?: RequestInit): Promise<Notification> => {
@@ -23392,7 +23471,7 @@ export const getMarkAllNotificationsReadUrl = () => {
 }
 
 /**
- * Mark all notifications for the current user as read
+ * Mark every notification the current user has in their active organization as read. Other organizations are untouched.
  * @summary Mark all notifications as read
  */
 export const markAllNotificationsRead = async ( options?: RequestInit): Promise<MessageResponse> => {
@@ -23410,7 +23489,7 @@ export const markAllNotificationsRead = async ( options?: RequestInit): Promise<
 
 
 
-export const getMarkAllNotificationsReadMutationOptions = <TError = ErrorType<unknown>,
+export const getMarkAllNotificationsReadMutationOptions = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext> => {
 
@@ -23439,12 +23518,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type MarkAllNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markAllNotificationsRead>>>
 
-    export type MarkAllNotificationsReadMutationError = ErrorType<unknown>
+    export type MarkAllNotificationsReadMutationError = ErrorType<ApiError>
 
     /**
  * @summary Mark all notifications as read
  */
-export const useMarkAllNotificationsRead = <TError = ErrorType<unknown>,
+export const useMarkAllNotificationsRead = <TError = ErrorType<ApiError>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markAllNotificationsRead>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof markAllNotificationsRead>>,
@@ -23464,7 +23543,7 @@ export const getDismissNotificationUrl = (id: number,) => {
 }
 
 /**
- * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id, so no id resolves to another user's notification.
+ * WS-6. IDOR-safe by construction — the lookup always includes the caller's own user id and active organization, so no id resolves to another user's notification or to one in another organization.
  * @summary Dismiss a notification
  */
 export const dismissNotification = async (id: number, options?: RequestInit): Promise<Notification> => {
