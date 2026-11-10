@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'wouter';
 import { Bell, CheckCheck, Loader2, Info, CheckCircle, AlertTriangle, AlertCircle, X, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -5,24 +6,69 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  useListNotifications,
+  listNotifications,
   getListNotificationsQueryKey,
+  useGetUnreadNotificationCount,
+  getGetUnreadNotificationCountQueryKey,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
   useDismissNotification,
 } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Notification } from '@workspace/api-client-react';
 
+/** Page size for the notification centre; the server caps any request at 100. */
+const NOTIFICATION_PAGE_SIZE = 50;
+
+/**
+ * The centre's own cache entry: pages of the active organization's
+ * notifications, newest first. Under the list's key prefix, so anything that
+ * invalidates notifications refreshes it too.
+ */
+const notificationCentreQueryKey = () => [...getListNotificationsQueryKey(), 'centre'] as const;
+
+type Pages = InfiniteData<Notification[], number | undefined>;
+
 export default function Notifications() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  
-  const { data: notifications, isLoading } = useListNotifications(undefined, {
-    query: { queryKey: getListNotificationsQueryKey() }
+
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: notificationCentreQueryKey(),
+    queryFn: ({ pageParam, signal }) =>
+      listNotifications({ limit: NOTIFICATION_PAGE_SIZE, ...(pageParam ? { before: pageParam } : {}) }, { signal }),
+    initialPageParam: undefined as number | undefined,
+    // Keyset paging: the next page starts after the oldest row already shown.
+    // A short page means there is nothing older.
+    getNextPageParam: (lastPage) =>
+      lastPage.length < NOTIFICATION_PAGE_SIZE ? undefined : lastPage[lastPage.length - 1].id,
   });
+  // A dismissed row is hidden here rather than removed from the cached pages:
+  // getNextPageParam reads the pages, so removing one would shorten a full
+  // page and hide "Load older" while older rows remain. The server accepts a
+  // dismissed row as the cursor, and the next refetch drops it anyway.
+  const [dismissedIds, setDismissedIds] = useState<ReadonlySet<number>>(() => new Set());
+  const notifications = data?.pages.flat().filter((n) => !dismissedIds.has(n.id)) ?? [];
+
+  // The same cache entry as the header bell, so the two never disagree.
+  const { data: unread } = useGetUnreadNotificationCount({
+    query: { queryKey: getGetUnreadNotificationCountQueryKey() },
+  });
+
+  const updatePages = (update: (rows: Notification[]) => Notification[]) =>
+    queryClient.setQueryData<Pages>(notificationCentreQueryKey(), (old) =>
+      old ? { ...old, pages: old.pages.map(update) } : old,
+    );
+  const refreshUnreadCount = () =>
+    queryClient.invalidateQueries({ queryKey: getGetUnreadNotificationCountQueryKey() });
 
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
@@ -33,7 +79,8 @@ export default function Notifications() {
       { id },
       {
         onSuccess: () => {
-          queryClient.setQueryData(getListNotificationsQueryKey(), (old: Notification[] | undefined) => old?.filter((n) => n.id !== id));
+          setDismissedIds((prev) => new Set(prev).add(id));
+          refreshUnreadCount();
         },
         onError: (error) => {
           toast({
@@ -51,10 +98,8 @@ export default function Notifications() {
       { id },
       {
         onSuccess: (updatedNotification) => {
-          queryClient.setQueryData(getListNotificationsQueryKey(), (old: Notification[] | undefined) => {
-            if (!old) return old;
-            return old.map(n => n.id === id ? updatedNotification : n);
-          });
+          updatePages((rows) => rows.map((n) => (n.id === id ? updatedNotification : n)));
+          refreshUnreadCount();
         },
         onError: (error) => {
           toast({
@@ -71,6 +116,7 @@ export default function Notifications() {
     markAllReadMutation.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListNotificationsQueryKey() });
+        refreshUnreadCount();
         toast({
           title: 'All notifications marked as read',
           description: 'Your notification list has been cleared.',
@@ -86,7 +132,8 @@ export default function Notifications() {
     });
   };
 
-  const unreadCount = notifications?.filter(n => !n.read).length || 0;
+  // The server's count covers every page, not only the ones loaded so far.
+  const unreadCount = unread?.unreadCount ?? 0;
 
   const getTypeIcon = (type: Notification['type']) => {
     switch (type) {
@@ -172,7 +219,7 @@ export default function Notifications() {
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
-      ) : !notifications || notifications.length === 0 ? (
+      ) : notifications.length === 0 && !hasNextPage ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
@@ -197,7 +244,7 @@ export default function Notifications() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ delay: i * 0.05 }}
+                  transition={{ delay: Math.min(i, 10) * 0.05 }}
                 >
                   <Card
                     className={`transition-all hover:shadow-md ${!notification.read ? 'border-l-4 border-l-primary bg-muted/20' : ''}`}
@@ -270,6 +317,25 @@ export default function Notifications() {
               );
             })}
           </AnimatePresence>
+          {hasNextPage && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                data-testid="button-load-older-notifications"
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  'Load older notifications'
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -148,7 +148,7 @@ An administrator can manually re-queue a terminally failed job (`retryFailedJob`
 
 **Decision: extend the pre-existing `notifications` table rather than build a new one**, for the reason in §1 above — it already had working routes and a working frontend, and had simply never been written to.
 
-New, additive columns (all nullable, all backward-compatible): `organizationId`, `sourceReferenceType`/`sourceReferenceId`, `sourceJobId` (FK to `scheduled_jobs`, `ON DELETE SET NULL`), `actionPath`, `dismissedAt`, `expiresAt`. The six original columns (`id`, `userId`, `title`, `message`, `type`, `read`, `createdAt`) are untouched — every pre-existing route and the existing frontend keep working exactly as before, including the original ascending sort order (deliberately preserved, not "improved" to newest-first, to avoid silently changing existing display behavior).
+New, additive columns (all nullable, all backward-compatible): `organizationId`, `sourceReferenceType`/`sourceReferenceId`, `sourceJobId` (FK to `scheduled_jobs`, `ON DELETE SET NULL`), `actionPath`, `dismissedAt`, `expiresAt`. The six original columns (`id`, `userId`, `title`, `message`, `type`, `read`, `createdAt`) are untouched — every pre-existing route and the existing frontend keep working exactly as before, including the original ascending sort order (deliberately preserved, not "improved" to newest-first, to avoid silently changing existing display behavior). **P1a superseded the ordering and the scope:** the list is now newest first, paged, and confined to the active organization (§13a).
 
 `notifyUser()` is this table's first writer.
 
@@ -170,11 +170,55 @@ New, additive columns (all nullable, all backward-compatible): `organizationId`,
 
 This is what makes "notification existence itself can leak information" (§19) actually closed: a notification is only ever created for someone with a real, live relationship to the organization it concerns.
 
+**P1a tightened two things.** "Active" is now `lib/membership.ts`'s `activeAndUnexpired()`, the same predicate sign-in and every org-scoped route use, rather than `status = 'active'` alone. Before this, a membership past its `expiresAt` kept receiving notifications under every kind. And `employee` and `manager_of_employee` now pin the *membership* their login link points at to the target organization, not only the employee row. `reportingManagerId` is a plain id and a link's membership is not constrained to the employee's organization, so neither guaranteed it by reference alone.
+
 ---
 
 ## 13. Organization isolation
 
 Proven live: a job/notification created for Org A is never listable, claimable, or notifiable as belonging to Org B; a user in Org B cannot be resolved as a recipient in Org A's context even by exact user id; Org B cannot list Org A's notifications.
+
+---
+
+## 13a. Organization-scoped notification centre (P1a)
+
+Before P1a, the notification routes were scoped to the *user* only. A person with memberships in two organizations saw both organizations' notifications on either tenant host, and "mark all as read" marked both. `organizationId` was an optional filter the client could omit or set to anything.
+
+**Every notification route now acts in exactly one organization.** That is the caller's active organization, resolved by `lib/activeOrganizationScope.ts`, which follows `routes/me.ts`'s `requireActiveOrganizationMembership`:
+
+1. **Resolve the active organization.** Use the session's active organization if that membership is still live, else the legacy home organization, else any other live membership.
+2. **Fail closed on lookup failure.** A tenant-host lookup that failed outright returns 503.
+3. **Pin to the tenant host.** A host pinned to a different organization returns 403.
+4. **Re-verify the membership.** It must be active and unexpired.
+
+A caller with no live membership anywhere gets an empty list and a zero count. They also can't change anything: id routes 404 and read-all is a no-op. There is no tenant to scope to, and showing nothing reveals nothing.
+
+| Route | Behaviour |
+|---|---|
+| `GET /notifications` | One page, newest first by `(createdAt, id)`. `limit` 1–100 (default 50). `before=<id>` is a keyset cursor: the id of the last row already shown. The cursor row is looked up under the same user and organization, so a cursor naming anyone else's row, or one in another organization, yields an empty page and never confirms that the id exists. `organizationId` is still accepted, but only as an assertion: any organization other than the active one is 403, never honoured. |
+| `GET /notifications/unread-count` | `{ unreadCount }` under exactly the list's visibility rule: own rows, this organization, not dismissed, not expired. The two can never disagree. |
+| `PATCH /notifications/:id/read`, `/dismiss` | `WHERE id AND userId AND organizationId`. The caller's own row in another organization is the same 404 as someone else's row. |
+| `POST /notifications/read-all` | The active organization only. |
+
+**The response stays an array.** An open tab still running the previous bundle calls `.filter` on the list. A paged envelope would have crashed its app shell between deploy and refresh. A short page signals the end, so no envelope is needed.
+
+**Organization-less notifications** are never returned by these routes. None exist in Production, and `notifyUser` cannot create one because its `organizationId` is required. Owner decision D9 rules out the alternative of showing them on every tenant host. Platform-level notifications will get an explicit scope of their own with separate access and delivery rules in P1b.
+
+**Frontend.** The header bell reads the server count rather than counting a list. It polls every 60 seconds while the tab is visible, and refreshes when the app regains focus. The notification centre pages with "Load older notifications". A dismissed row is hidden in place rather than removed from the cached pages, so a full page stays full and "Load older" survives a dismissal. Mark-read, dismiss and read-all refresh the shared count. An organization switch invalidates both the list and the count, because neither key carries the organization: the scope is server-side, exactly like `GET /dashboard/summary`.
+
+**Proven live** in `notificationIsolationLive.test.ts` (17 tests, `NOTIFICATIONS_LIVE_DATABASE_URL`) for one person with live memberships in two organizations. It covers:
+
+- host pinning on every route, including a session whose active organization was revoked and fell back to another one;
+- the fail-closed 503 and the organization assertion;
+- read-all scope and cross-organization read/dismiss;
+- paging across identical timestamps, foreign cursors, and dismissed or expired cursor rows (the centre pages from them);
+- count/list agreement;
+- expired memberships under every recipient kind, and cross-tenant employee and manager links;
+- out-of-range ids, which are a 400 rather than a Postgres error.
+
+`activeOrganizationScope.test.ts` pins the scope's decision table without a database, including a membership revoked between resolution and the re-check. All 20 targeted mutations of the scoping code are caught.
+
+**Revocation mid-request.** Nothing here is transactional. A membership revoked after the re-check but before the query lets that request read, mark read or dismiss the caller's **own** rows in that organization, which they could read a moment earlier. Nothing belonging to another user or organization is reachable, and the next request is scoped elsewhere. `requireMembership` and every org-scoped route share the same window.
 
 ---
 
@@ -191,7 +235,7 @@ Audited: manual admin cancel/reschedule/retry of a job — **never** routine sch
 - **No generic "execute job" or "create arbitrary job" endpoint exists anywhere.** Domain modules create jobs through their own server-side calls to `scheduleJob()`; a `jobType` a client could invent has no handler and fails safely. Proven live/via route test: `POST /platform/scheduled-jobs` (a hypothetical generic-create route) is not registered at all — 404.
 - The platform admin surface (`/platform/scheduled-jobs*`) is reserved to `super_admin` via `requireSuperAdmin`, mirroring `installations.ts`'s exact precedent — no `requireMembership`, since this is platform-wide operational data, not an organization resource.
 - **Break-glass remains read-only** (WS-4's own boundary, unchanged): nothing in WS-6 lets a break-glass grant schedule a mutating job. The scheduler's own service functions require an authenticated actor and are only ever called from server-side domain code or the super_admin-gated admin routes — never from a break-glass-elevated read path.
-- `dismissNotification`/the notification list routes are IDOR-safe by construction: every lookup includes the caller's own `userId` in the `WHERE` clause, so no id — however guessed — resolves to another user's row.
+- `dismissNotification`/the notification list routes are IDOR-safe by construction: every lookup includes the caller's own `userId` and, since P1a, the active organization in the `WHERE` clause, so no id — however guessed — resolves to another user's row or to the caller's own row in another tenant.
 
 ---
 
@@ -258,3 +302,8 @@ None of these is implemented by WS-6. A synthetic, disposable proof of the WS-5 
 2. **No per-organization scoped admin view of jobs/notifications** — only the platform `super_admin` surface exists. The brief allowed for "and perhaps tightly scoped organization administration for that org's notification status" as optional; deferred to keep this foundation narrow.
 3. **OS signal delivery (`SIGTERM`/`SIGINT`) is not exercised by an automated test** — it is Node's own responsibility on the Linux containers this platform actually deploys to, and is not reliably testable on the Windows environment this workstream was authored in. The shutdown *logic* itself (`createWorkerRuntime`'s `shutdown()`) is fully unit-tested, and is the exact code path a real signal triggers.
 4. **`reminder.notify` has no "digest"/batching mode** — each call produces one notification per resolved recipient. A future workflow that wants to batch multiple reminders into one message would build that composition itself; WS-6 does not provide it.
+5. **`GET /dashboard/summary`'s `unreadNotifications` is still counted across every organization** and includes dismissed and expired rows. No frontend reads it: the bell uses `GET /notifications/unread-count` since P1a. It was left alone because `routes/users.ts` has uncommitted edits in a concurrent session next to that exact code. It should become `countUnreadNotifications(userId, activeOrganizationId)` once that work lands. Tracked as issue #42.
+6. **Notification dedup is still a select-then-insert on `sourceJobId`.** It has no unique index, so two concurrent re-executions of one job could both insert. P1b adds the unique indexes alongside the event outbox, after checking Production for existing duplicates (zero as of 2026-10-18). The race cannot cross organizations. Every caller that passes `sourceJobId` takes `organizationId` from the job row itself; reclaiming a job never changes its organization. Each execution resolves recipients independently against that organization with `activeAndUnexpired()`. The worst case is a duplicate row in the same organization for the same recipient, who was eligible at insert time.
+7. **`routes/me.ts`'s `requireActiveOrganizationMembership`** duplicates the resolution in `lib/activeOrganizationScope.ts`. It should be refactored to use the shared function once the concurrent session's edits to `me.ts` land. Both share one quirk worth fixing in that refactor. When the session's organization is not live, the fallback picks the legacy home organization or any other live membership, not the tenant host's own organization. A user with a live membership in the host's organization can therefore get 403 there. It fails closed, never open, but the header bell's 60-second poll will keep logging those 403s.
+8. **The list does not re-check each row's permission.** A user who loses a permission still sees the text of notifications delivered before. Opening one is still enforced by the target route itself. The dispatch-time re-check (owner decision D4) belongs to the P1b outbox.
+9. **No `(user_id, organization_id, created_at, id)` index.** Only `user_id, read` and `organization_id` exist. That is adequate at current volumes, and P1a is deliberately migration-free. Add the index with P1b's migration.

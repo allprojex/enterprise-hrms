@@ -16,6 +16,7 @@ import { AppShell } from '@/components/layout/app-shell';
 
 const switchMutateMock = vi.fn();
 const invalidateQueriesMock = vi.fn();
+const unreadCountMock = vi.fn((_options?: unknown) => ({ data: { unreadCount: 0 } }));
 
 // Administration navigation permission gating (2026-09-07): effective
 // permission keys per membership, mirroring the seeded role templates.
@@ -111,7 +112,8 @@ vi.mock('@/lib/auth', async () => {
 vi.mock('@workspace/api-client-react', () => ({
   useGetMe: () => useGetMeMock(),
   getGetMeQueryKey: () => ['getMe'],
-  useListNotifications: () => ({ data: [] }),
+  useGetUnreadNotificationCount: (options?: unknown) => unreadCountMock(options),
+  getGetUnreadNotificationCountQueryKey: () => ['unreadCount'],
   getListNotificationsQueryKey: () => ['notifications'],
   useListMyOrganizations: () => useListMyOrganizationsMock(),
   getListMyOrganizationsQueryKey: () => ['myOrganizations'],
@@ -196,6 +198,10 @@ describe('AppShell organisation switcher', () => {
     // organizations kept seeing the previous organization's dashboard
     // figures (discovered live during WWM Presentation Readiness QA).
     expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['dashboardSummary'] });
+    // P1a: notifications are scoped to the active organization with
+    // parameterless keys too, so the switch must refresh them the same way.
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['notifications'] });
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['unreadCount'] });
   });
 
   it('does not re-switch when selecting the already-active organisation', async () => {
@@ -835,5 +841,37 @@ describe('AppShell — My Vehicle Requests visibility', () => {
     actAs([...EMPLOYEE_PERMISSIONS, 'vehicle_request.write.own']);
     renderShell();
     expect(await selfServiceHrefs(userEvent.setup())).not.toContain('/my-vehicle-requests');
+  });
+});
+
+describe('AppShell — notification bell (P1a)', () => {
+  beforeEach(() => {
+    unreadCountMock.mockReset();
+    useListMyOrganizationsMock.mockReturnValue({ data: MULTI_ORG_MEMBERSHIPS });
+  });
+
+  it('shows the server-side unread count for the active organization', () => {
+    unreadCountMock.mockReturnValue({ data: { unreadCount: 4 } });
+    renderShell();
+    expect(screen.getByRole('button', { name: 'Notifications — 4 unread' })).toBeInTheDocument();
+  });
+
+  it('shows no unread marker when the count is zero or not yet loaded', () => {
+    unreadCountMock.mockReturnValue({ data: undefined } as never);
+    renderShell();
+    expect(screen.getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
+  it('polls once a minute while visible and refreshes when the app regains focus', () => {
+    unreadCountMock.mockReturnValue({ data: { unreadCount: 0 } });
+    renderShell();
+    expect(unreadCountMock).toHaveBeenCalledWith({
+      query: expect.objectContaining({
+        queryKey: ['unreadCount'],
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: true,
+      }),
+    });
   });
 });

@@ -21,7 +21,7 @@
  * real, live relationship to the organization it concerns, not merely
  * because a domain module thinks they should see it).
  */
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import {
   db,
   notificationsTable,
@@ -35,6 +35,7 @@ import {
   type Notification,
 } from "@workspace/db";
 import { roleOwnedByMembershipOrganization } from "./permissions";
+import { activeAndUnexpired } from "./membership";
 
 export type RecipientSpec =
   | { kind: "user"; userId: number }
@@ -80,7 +81,7 @@ async function activeMembershipUserId(userId: number, organizationId: number, cl
       and(
         eq(organizationMembershipsTable.applicationUserId, userId),
         eq(organizationMembershipsTable.organizationId, organizationId),
-        eq(organizationMembershipsTable.status, "active"),
+        activeAndUnexpired(),
       ),
     )
     .limit(1);
@@ -89,8 +90,15 @@ async function activeMembershipUserId(userId: number, organizationId: number, cl
 
 /**
  * Resolves a `RecipientSpec` to a list of user ids, each independently
- * verified to hold an active membership in `organizationId` at resolution
- * time — the authoritative-relationship check §18 requires. A spec that
+ * verified to hold an active, unexpired membership in `organizationId` at
+ * resolution time — the authoritative-relationship check §18 requires.
+ * "Active" is lib/membership.ts's activeAndUnexpired(), the same predicate
+ * sign-in and every org-scoped route use, so a membership past its expiry
+ * stops receiving notifications exactly when it stops being able to act on
+ * them. Every kind also pins the recipient's membership to `organizationId`
+ * itself, never only the employee row, so an employee link that points at
+ * another organization's membership can never carry a notification across
+ * tenants. A spec that
  * resolves to nobody with a valid membership returns an empty list rather
  * than throwing, except `user`/`membership`/`employee` (a single, named
  * target the caller explicitly asked for), where an unauthorized or
@@ -116,7 +124,7 @@ export async function resolveRecipients(
           and(
             eq(organizationMembershipsTable.id, spec.membershipId),
             eq(organizationMembershipsTable.organizationId, organizationId),
-            eq(organizationMembershipsTable.status, "active"),
+            activeAndUnexpired(),
           ),
         )
         .limit(1);
@@ -134,7 +142,8 @@ export async function resolveRecipients(
           and(
             eq(employeeUserLinksTable.employeeId, spec.employeeId),
             eq(employeesTable.organizationId, organizationId),
-            eq(organizationMembershipsTable.status, "active"),
+            eq(organizationMembershipsTable.organizationId, organizationId),
+            activeAndUnexpired(),
           ),
         )
         .limit(1);
@@ -154,11 +163,22 @@ export async function resolveRecipients(
         .limit(1);
       if (!employee?.reportingManagerId) return [];
 
+      // Both the manager's employee row and the membership their login link
+      // points at must belong to this organization: reportingManagerId is a
+      // plain id, so neither is guaranteed by the reference alone.
       const [link] = await client
         .select({ userId: employeeUserLinksTable.applicationUserId })
         .from(employeeUserLinksTable)
+        .innerJoin(employeesTable, eq(employeesTable.id, employeeUserLinksTable.employeeId))
         .innerJoin(organizationMembershipsTable, eq(organizationMembershipsTable.id, employeeUserLinksTable.organizationMembershipId))
-        .where(and(eq(employeeUserLinksTable.employeeId, employee.reportingManagerId), eq(organizationMembershipsTable.status, "active")))
+        .where(
+          and(
+            eq(employeeUserLinksTable.employeeId, employee.reportingManagerId),
+            eq(employeesTable.organizationId, organizationId),
+            eq(organizationMembershipsTable.organizationId, organizationId),
+            activeAndUnexpired(),
+          ),
+        )
         .limit(1);
       return link ? [{ userId: link.userId }] : [];
     }
@@ -174,7 +194,7 @@ export async function resolveRecipients(
         .where(
           and(
             eq(organizationMembershipsTable.organizationId, organizationId),
-            eq(organizationMembershipsTable.status, "active"),
+            activeAndUnexpired(),
             // A role another organization owns never makes a member a holder.
             roleOwnedByMembershipOrganization(),
             eq(permissionsTable.key, spec.permissionKey),
@@ -248,38 +268,84 @@ export async function notifyUser(params: NotifyUserParams, client: NotificationQ
   return created;
 }
 
-export interface ListNotificationsFilters {
-  organizationId?: number;
+/** Page-size bounds for the notification centre. */
+export const NOTIFICATION_PAGE_DEFAULT = 50;
+export const NOTIFICATION_PAGE_MAX = 100;
+
+export interface ListNotificationsOptions {
   unreadOnly?: boolean;
+  /** Page size, clamped to 1..NOTIFICATION_PAGE_MAX. Defaults to NOTIFICATION_PAGE_DEFAULT. */
+  limit?: number;
+  /**
+   * Keyset cursor: the id of the last notification on the previous page.
+   * Only rows strictly older than it, in (createdAt, id) order, are
+   * returned. The cursor row is looked up under the same user and
+   * organization as the page itself, so a cursor naming somebody else's
+   * notification, or one from another organization, matches nothing and
+   * yields an empty page. It never reveals whether that id exists.
+   */
+  before?: number;
 }
 
 /**
- * Additive to the pre-existing list behavior: with no filters, returns
- * every notification for the user exactly as the original route always
- * has, in the same ascending-by-createdAt order that route always used —
- * `organizationId` is an optional narrowing filter, never a requirement,
- * and the sort order is deliberately preserved rather than "improved" to
- * newest-first, since that would silently change the existing frontend's
- * display order for every caller that doesn't ask for anything new.
+ * Everything a notification centre may show: the caller's own rows in
+ * exactly one organization, neither dismissed nor expired. An expired or
+ * dismissed notification is excluded without ever being deleted: the row
+ * remains for history, and the id-addressed operations below can still
+ * find it.
+ *
+ * `organizationId` is required. A notification whose organization is null
+ * (none exist today, and notifyUser cannot create one) is therefore never
+ * returned by a tenant-scoped query. Platform-level notifications get an
+ * explicit scope of their own (P1b) rather than appearing on every tenant
+ * host.
  */
-export async function listNotificationsForUser(userId: number, filters: ListNotificationsFilters = {}): Promise<Notification[]> {
-  const conditions = [
+function visibleTo(userId: number, organizationId: number) {
+  return and(
     eq(notificationsTable.userId, userId),
-    // An expired or dismissed notification is excluded from ordinary
-    // listing without ever being deleted — the row remains for audit/
-    // history purposes and dismissNotification's own IDOR-safe lookup can
-    // still find it by id.
+    eq(notificationsTable.organizationId, organizationId),
     or(isNull(notificationsTable.expiresAt), sql`${notificationsTable.expiresAt} > now()`)!,
     isNull(notificationsTable.dismissedAt),
-  ];
-  if (filters.organizationId !== undefined) conditions.push(eq(notificationsTable.organizationId, filters.organizationId));
-  if (filters.unreadOnly) conditions.push(eq(notificationsTable.read, false));
+  )!;
+}
+
+/**
+ * One page of the caller's notifications in one organization, newest first.
+ * Ordered by (createdAt, id) descending so rows sharing a timestamp still
+ * page deterministically.
+ */
+export async function listNotificationsForUser(
+  userId: number,
+  organizationId: number,
+  options: ListNotificationsOptions = {},
+): Promise<Notification[]> {
+  const limit = Math.min(Math.max(Math.trunc(options.limit ?? NOTIFICATION_PAGE_DEFAULT), 1), NOTIFICATION_PAGE_MAX);
+  const conditions = [visibleTo(userId, organizationId)];
+  if (options.unreadOnly) conditions.push(eq(notificationsTable.read, false));
+  if (options.before !== undefined) {
+    conditions.push(
+      sql`(${notificationsTable.createdAt}, ${notificationsTable.id}) < (
+        select c.created_at, c.id from notifications c
+        where c.id = ${options.before} and c.user_id = ${userId} and c.organization_id = ${organizationId}
+      )`,
+    );
+  }
 
   return db
     .select()
     .from(notificationsTable)
     .where(and(...conditions))
-    .orderBy(notificationsTable.createdAt);
+    .orderBy(desc(notificationsTable.createdAt), desc(notificationsTable.id))
+    .limit(limit);
+}
+
+/** The unread badge: the same visibility rule as the list, so the two can never disagree. */
+export async function countUnreadNotifications(userId: number, organizationId: number): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(notificationsTable)
+    .where(and(visibleTo(userId, organizationId), eq(notificationsTable.read, false)));
+  return row?.n ?? 0;
 }
 
 export class NotificationNotFoundError extends Error {
@@ -289,12 +355,52 @@ export class NotificationNotFoundError extends Error {
   }
 }
 
-/** IDOR-safe by construction: the WHERE clause always includes the caller's own userId, so no id ever resolves to another user's row (§36). */
-export async function dismissNotification(userId: number, notificationId: number): Promise<Notification> {
+/**
+ * The id-addressed operations below are IDOR-safe by construction (§36):
+ * every WHERE clause includes the caller's own userId AND the active
+ * organization, so no id, however guessed, resolves to another user's row
+ * or to the caller's own row in a different tenant. A miss is always the
+ * same 404, whichever of the two it was.
+ */
+function ownedBy(userId: number, organizationId: number, notificationId: number) {
+  return and(
+    eq(notificationsTable.id, notificationId),
+    eq(notificationsTable.userId, userId),
+    eq(notificationsTable.organizationId, organizationId),
+  );
+}
+
+export async function markNotificationRead(userId: number, organizationId: number, notificationId: number): Promise<Notification> {
+  const [row] = await db
+    .update(notificationsTable)
+    .set({ read: true })
+    .where(ownedBy(userId, organizationId, notificationId))
+    .returning();
+  if (!row) throw new NotificationNotFoundError();
+  return row;
+}
+
+/** Marks every unread notification the caller has in this organization only. Returns how many changed. */
+export async function markAllNotificationsRead(userId: number, organizationId: number): Promise<number> {
+  const rows = await db
+    .update(notificationsTable)
+    .set({ read: true })
+    .where(
+      and(
+        eq(notificationsTable.userId, userId),
+        eq(notificationsTable.organizationId, organizationId),
+        eq(notificationsTable.read, false),
+      ),
+    )
+    .returning({ id: notificationsTable.id });
+  return rows.length;
+}
+
+export async function dismissNotification(userId: number, organizationId: number, notificationId: number): Promise<Notification> {
   const [row] = await db
     .update(notificationsTable)
     .set({ dismissedAt: new Date() })
-    .where(and(eq(notificationsTable.id, notificationId), eq(notificationsTable.userId, userId)))
+    .where(ownedBy(userId, organizationId, notificationId))
     .returning();
   if (!row) throw new NotificationNotFoundError();
   return row;
