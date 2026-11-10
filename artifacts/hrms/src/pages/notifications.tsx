@@ -56,7 +56,7 @@ export default function Notifications() {
   // page and hide "Load older" while older rows remain. The server accepts a
   // dismissed row as the cursor, and the next refetch drops it anyway.
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<number>>(() => new Set());
-  const notifications = data?.pages.flat().filter((n) => !dismissedIds.has(n.id));
+  const notifications = data?.pages.flat().filter((n) => !dismissedIds.has(n.id)) ?? [];
 
   // The same cache entry as the header bell, so the two never disagree.
   const { data: unread } = useGetUnreadNotificationCount({
@@ -219,7 +219,7 @@ export default function Notifications() {
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
-      ) : !notifications || notifications.length === 0 ? (
+      ) : notifications.length === 0 && !hasNextPage ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">

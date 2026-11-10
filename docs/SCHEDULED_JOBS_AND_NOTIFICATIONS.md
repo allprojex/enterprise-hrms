@@ -206,7 +206,19 @@ A caller with no live membership anywhere gets an empty list and a zero count. T
 
 **Frontend.** The header bell reads the server count rather than counting a list. It polls every 60 seconds while the tab is visible, and refreshes when the app regains focus. The notification centre pages with "Load older notifications". A dismissed row is hidden in place rather than removed from the cached pages, so a full page stays full and "Load older" survives a dismissal. Mark-read, dismiss and read-all refresh the shared count. An organization switch invalidates both the list and the count, because neither key carries the organization: the scope is server-side, exactly like `GET /dashboard/summary`.
 
-**Proven live** in `notificationIsolationLive.test.ts` (15 tests, `NOTIFICATIONS_LIVE_DATABASE_URL`) for one person with live memberships in two organizations. It covers host pinning on every route, the fail-closed 503, the organization assertion, read-all scope, cross-organization read/dismiss, paging across identical timestamps, foreign cursors, count/list agreement, expired memberships under every recipient kind, and cross-tenant employee and manager links. Of 17 targeted mutations of the scoping code, 16 are caught. The survivor drops `activeOrganizationScope`'s membership re-check. That mutant is equivalent outside a revoke-mid-request race, because `resolveActiveOrganizationId` only returns an organization whose membership it has just verified.
+**Proven live** in `notificationIsolationLive.test.ts` (17 tests, `NOTIFICATIONS_LIVE_DATABASE_URL`) for one person with live memberships in two organizations. It covers:
+
+- host pinning on every route, including a session whose active organization was revoked and fell back to another one;
+- the fail-closed 503 and the organization assertion;
+- read-all scope and cross-organization read/dismiss;
+- paging across identical timestamps, foreign cursors, and dismissed or expired cursor rows (the centre pages from them);
+- count/list agreement;
+- expired memberships under every recipient kind, and cross-tenant employee and manager links;
+- out-of-range ids, which are a 400 rather than a Postgres error.
+
+`activeOrganizationScope.test.ts` pins the scope's decision table without a database, including a membership revoked between resolution and the re-check. All 20 targeted mutations of the scoping code are caught.
+
+**Revocation mid-request.** Nothing here is transactional. A membership revoked after the re-check but before the query lets that request read, mark read or dismiss the caller's **own** rows in that organization, which they could read a moment earlier. Nothing belonging to another user or organization is reachable, and the next request is scoped elsewhere. `requireMembership` and every org-scoped route share the same window.
 
 ---
 
@@ -290,6 +302,6 @@ None of these is implemented by WS-6. A synthetic, disposable proof of the WS-5 
 2. **No per-organization scoped admin view of jobs/notifications** — only the platform `super_admin` surface exists. The brief allowed for "and perhaps tightly scoped organization administration for that org's notification status" as optional; deferred to keep this foundation narrow.
 3. **OS signal delivery (`SIGTERM`/`SIGINT`) is not exercised by an automated test** — it is Node's own responsibility on the Linux containers this platform actually deploys to, and is not reliably testable on the Windows environment this workstream was authored in. The shutdown *logic* itself (`createWorkerRuntime`'s `shutdown()`) is fully unit-tested, and is the exact code path a real signal triggers.
 4. **`reminder.notify` has no "digest"/batching mode** — each call produces one notification per resolved recipient. A future workflow that wants to batch multiple reminders into one message would build that composition itself; WS-6 does not provide it.
-5. **`GET /dashboard/summary`'s `unreadNotifications` is still counted across every organization** and includes dismissed and expired rows. No frontend reads it: the bell uses `GET /notifications/unread-count` since P1a. It was left alone because `routes/users.ts` has uncommitted edits in a concurrent session next to that exact code. It should become `countUnreadNotifications(userId, activeOrganizationId)` once that work lands.
-6. **Notification dedup is still a select-then-insert on `sourceJobId`.** It has no unique index, so two concurrent re-executions of one job could both insert. P1b adds the unique indexes alongside the event outbox, after checking Production for existing duplicates (zero as of 2026-10-18).
+5. **`GET /dashboard/summary`'s `unreadNotifications` is still counted across every organization** and includes dismissed and expired rows. No frontend reads it: the bell uses `GET /notifications/unread-count` since P1a. It was left alone because `routes/users.ts` has uncommitted edits in a concurrent session next to that exact code. It should become `countUnreadNotifications(userId, activeOrganizationId)` once that work lands. Tracked as issue #42.
+6. **Notification dedup is still a select-then-insert on `sourceJobId`.** It has no unique index, so two concurrent re-executions of one job could both insert. P1b adds the unique indexes alongside the event outbox, after checking Production for existing duplicates (zero as of 2026-10-18). The race cannot cross organizations. Every caller that passes `sourceJobId` takes `organizationId` from the job row itself; reclaiming a job never changes its organization. Each execution resolves recipients independently against that organization with `activeAndUnexpired()`. The worst case is a duplicate row in the same organization for the same recipient, who was eligible at insert time.
 7. **`routes/me.ts`'s `requireActiveOrganizationMembership`** duplicates the resolution in `lib/activeOrganizationScope.ts`. It should be refactored to use the shared function once the concurrent session's edits to `me.ts` land.

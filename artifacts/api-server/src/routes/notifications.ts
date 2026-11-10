@@ -51,12 +51,19 @@ async function scopeOrRespond(req: MembershipRequest, res: Response): Promise<nu
   return scope.kind === "organization" ? scope.organizationId : null;
 }
 
-/** A positive integer query parameter, `undefined` when absent, or `null` when present but malformed. */
+/** Postgres `integer` (int4) ceiling: every id these routes take is an int4 column. */
+const INT4_MAX = 2_147_483_647;
+
+/**
+ * A positive integer parameter, `undefined` when absent, or `null` when
+ * present but malformed or beyond int4, so an oversized id is a 400 rather
+ * than a Postgres "out of range" 500.
+ */
 function positiveIntParam(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || !/^[1-9]\d{0,9}$/.test(value)) return null;
   const n = Number(value);
-  return Number.isSafeInteger(n) ? n : null;
+  return n <= INT4_MAX ? n : null;
 }
 
 function idParam(req: MembershipRequest): number | null {

@@ -237,9 +237,32 @@ describeLive("P1a notification isolation (live)", () => {
 
     it("rejects malformed paging parameters", async () => {
       const token = await session(dual.userId, orgA);
-      for (const q of ["limit=0", "limit=101", "limit=abc", "before=-1", "before=1.5", "organizationId=x"]) {
+      for (const q of ["limit=0", "limit=101", "limit=abc", "before=-1", "before=1.5", "organizationId=x", "before=2147483648", "before=9999999999"]) {
         expect((await call("get", `/api/notifications?${q}`, token, hostA)).status, q).toBe(400);
       }
+      // Ids beyond Postgres int4 are a 400, never an "out of range" 500.
+      expect((await call("patch", "/api/notifications/3000000000/read", token, hostA)).status).toBe(400);
+      expect((await call("patch", "/api/notifications/3000000000/dismiss", token, hostA)).status).toBe(400);
+      expect((await call("get", "/api/notifications?before=2147483647", token, hostA)).status).toBe(200);
+    });
+
+    it("pins the host to the organization actually resolved, not the session's stale one", async () => {
+      // The session still names A, but the A membership was revoked, so
+      // resolution falls back to the person's live membership in B.
+      const mover = await makeUser(orgA);
+      await makeMembership(mover, orgA, { status: "revoked" });
+      await makeMembership(mover, orgB);
+      await insertNotification(mover, orgB, "b-only");
+      const token = await session(mover, orgA);
+
+      for (const path of ["/api/notifications", "/api/notifications/unread-count"]) {
+        expect((await call("get", path, token, hostA)).status, path).toBe(403);
+      }
+      expect((await call("post", "/api/notifications/read-all", token, hostA)).status).toBe(403);
+
+      const onB = await call("get", "/api/notifications", token, hostB);
+      expect(onB.status).toBe(200);
+      expect(onB.body.map((n: any) => n.title)).toEqual(["b-only"]);
     });
   });
 
@@ -282,6 +305,21 @@ describeLive("P1a notification isolation (live)", () => {
       expect(await notifications.listNotificationsForUser(pager, orgA, { before: foreign.id })).toEqual([]);
       expect(await notifications.listNotificationsForUser(pager, orgA, { before: inOtherOrg.id })).toEqual([]);
       expect(await notifications.listNotificationsForUser(pager, orgA, { before: 2_000_000_000 })).toEqual([]);
+    });
+
+    it("a dismissed or expired cursor row still pages: the centre hides dismissed rows in place and pages from them", async () => {
+      const reader = await makeUser(orgA);
+      await makeMembership(reader, orgA);
+      const base = Date.now() - 600_000;
+      const older = await insertNotification(reader, orgA, "older", { createdAt: new Date(base) });
+      const dismissed = await insertNotification(reader, orgA, "dismissed-cursor", { createdAt: new Date(base + 1000), dismissedAt: new Date() });
+      const expired = await insertNotification(reader, orgA, "expired-cursor", {
+        createdAt: new Date(base + 2000),
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+
+      expect((await notifications.listNotificationsForUser(reader, orgA, { before: dismissed.id })).map((n: any) => n.id)).toEqual([older.id]);
+      expect((await notifications.listNotificationsForUser(reader, orgA, { before: expired.id })).map((n: any) => n.id)).toEqual([older.id]);
     });
 
     it("clamps the page size to the maximum", async () => {

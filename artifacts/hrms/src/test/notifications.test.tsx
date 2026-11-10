@@ -161,6 +161,22 @@ describe('Notifications page — P1a paging and server count', () => {
     expect(listNotifications.mock.calls[1][0]).toEqual({ limit: 50, before: 451 });
   });
 
+  it('dismissing every loaded row keeps "Load older" instead of the empty state while older rows remain', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, i) => row(500 - i));
+    listNotifications.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([row(7)]);
+    renderPage();
+    await screen.findByTestId('button-dismiss-500');
+    for (const n of firstPage) {
+      fireEvent.click(screen.getByTestId(`button-dismiss-${n.id}`));
+      const [, handlers] = dismissMutate.mock.calls[dismissMutate.mock.calls.length - 1];
+      handlers.onSuccess();
+    }
+
+    expect(screen.queryByText('No notifications')).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId('button-load-older-notifications'));
+    expect(await screen.findByText('Notification 7', {}, { timeout: 5000 })).toBeInTheDocument();
+  });
+
   it('mark all as read refreshes both the list and the unread count', async () => {
     const { invalidate } = renderPage();
     fireEvent.click(await screen.findByTestId('button-mark-all-read'));
