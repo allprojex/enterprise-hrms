@@ -34,9 +34,15 @@ function mod(key: string, enabled = true, requiredModuleKeys: string[] = []): Or
 
 const ALL_MODULES = ['leave', 'attendance', 'performance', 'learning', 'recruitment', 'asset_management', 'office_inventory', 'employee_self_service'].map((k) => mod(k));
 
+// Mirrors the real HR templates: every one that holds a *.reports.read key also
+// holds the matching organization-wide *.manage key (checked against
+// roles-permissions-definitions for hr, hr_manager, hr_administrator).
 const HR_PERMISSIONS = [
   'employee.read',
   'leave_request.approve',
+  'leave_request.manage',
+  'learning.manage',
+  'asset_management.manage',
   'attendance.manage',
   'form.read',
   'personnel_file.read',
@@ -120,9 +126,117 @@ describe('resolveWorkspaceCards', () => {
   });
 
   it('places Reports before self-service when Office Inventory is not shown', () => {
-    const cards = resolveWorkspaceCards({ modules: ALL_MODULES, permissions: ['asset_management.reports.read'] });
+    const cards = resolveWorkspaceCards({
+      modules: ALL_MODULES,
+      permissions: ['asset_management.reports.read'],
+      relationships: { hasDirectReports: true },
+    });
     expect(cards.map((c) => c.key)).toEqual(['assets', 'reports', 'self_service']);
     expect(cards.find((c) => c.key === 'reports')!.href).toBe('/asset-reports');
+  });
+});
+
+describe('resolveWorkspaceCards — relationship-aware cards per persona', () => {
+  // The real ordinary-employee grant set after the 2026-09-22 correction, plus
+  // WWM's inventory self-service keys: attempt-only (leave_request.approve,
+  // office_inventory.approve) and team-scoped (*.reports.read) keys included.
+  const EMPLOYEE = [
+    'organization.read',
+    'employee.read',
+    'branch.read',
+    'department.read',
+    'position.read',
+    'leave_type.read',
+    'public_holiday.read',
+    'leave_request.read.own',
+    'leave_request.write.own',
+    'leave_request.approve',
+    'interview.read',
+    'scorecard.submit',
+    'attendance.read.own',
+    'attendance.clock.own',
+    'performance.read.own',
+    'performance.write.own',
+    'performance.review.write',
+    'performance.reports.read',
+    'learning.read.own',
+    'learning.write.own',
+    'learning.review.write',
+    'learning.reports.read',
+    'asset_management.read.own',
+    'asset_management.write.own',
+    'asset_management.reports.read',
+    'office_inventory.request',
+    'office_inventory.approve',
+  ];
+  const keys = (relationships: Parameters<typeof resolveWorkspaceCards>[0]['relationships'], permissions = EMPLOYEE) =>
+    resolveWorkspaceCards({ modules: ALL_MODULES, permissions, relationships }).map((c) => c.key);
+
+  it('an ordinary employee sees no manager, approver or HR card — only the directory and self-service', () => {
+    expect(keys({})).toEqual(['employees', 'self_service']);
+    expect(keys(undefined)).toEqual(['employees', 'self_service']);
+    expect(keys({ isDepartmentHead: false, hasDirectReports: false, isInventoryApprovalDelegate: false })).toEqual(['employees', 'self_service']);
+  });
+
+  it('a department head sees leave approvals, team views, the inventory approval surface and team reports', () => {
+    expect(keys({ isDepartmentHead: true })).toEqual(['employees', 'leave', 'learning', 'assets', 'office_inventory', 'reports', 'self_service']);
+  });
+
+  it('a reporting manager (no department) sees team views and reports, but not leave or inventory approvals', () => {
+    expect(keys({ hasDirectReports: true })).toEqual(['employees', 'learning', 'assets', 'reports', 'self_service']);
+  });
+
+  it('an inventory approval delegate sees the inventory approval surface only', () => {
+    expect(keys({ isInventoryApprovalDelegate: true })).toEqual(['employees', 'office_inventory', 'self_service']);
+  });
+
+  it('HR sees every organization-wide card without needing any relationship', () => {
+    expect(keys({}, HR_PERMISSIONS)).toEqual([
+      'employees',
+      'leave',
+      'attendance',
+      'forms',
+      'personnel_files',
+      'performance',
+      'learning',
+      'recruitment',
+      'assets',
+      'office_inventory',
+      'reports',
+      'self_service',
+    ]);
+  });
+
+  it('a relationship without the matching key opens nothing', () => {
+    const cards = resolveWorkspaceCards({
+      modules: ALL_MODULES,
+      permissions: ['employee.read'],
+      relationships: { isDepartmentHead: true, hasDirectReports: true, isInventoryApprovalDelegate: true },
+    });
+    expect(cards.map((c) => c.key)).toEqual(['employees', 'self_service']);
+  });
+});
+
+describe('canOpenDestination — relationship-gated keys fail closed', () => {
+  const dest = {
+    href: '/leave-approvals',
+    moduleKey: 'leave',
+    anyPermission: ['leave_request.manage'],
+    relationshipGated: { anyPermission: ['leave_request.approve'], anyRelationship: ['isDepartmentHead' as const] },
+  };
+
+  it('the attempt-only key alone does not open it', () => {
+    expect(canOpenDestination(dest, ALL_MODULES, ['leave_request.approve'])).toBe(false);
+    expect(canOpenDestination(dest, ALL_MODULES, ['leave_request.approve'], {})).toBe(false);
+  });
+
+  it('the attempt-only key opens it with the relationship; the organization-wide key opens it alone', () => {
+    expect(canOpenDestination(dest, ALL_MODULES, ['leave_request.approve'], { isDepartmentHead: true })).toBe(true);
+    expect(canOpenDestination(dest, ALL_MODULES, ['leave_request.manage'])).toBe(true);
+  });
+
+  it('a disabled module still wins over any relationship', () => {
+    expect(canOpenDestination(dest, [mod('leave', false)], ['leave_request.manage'], { isDepartmentHead: true })).toBe(false);
   });
 });
 

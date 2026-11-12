@@ -67,14 +67,17 @@ describe("seed definitions", () => {
 });
 
 describe("migration 0082 — committed files", () => {
-  it("is the next journal entry after 0081, later in time, with no 0083", () => {
+  it("is the next journal entry after 0081, later in time, and appears exactly once", () => {
     const tags = JOURNAL.entries.map((e) => e.tag);
     const i81 = tags.indexOf("0081_empty_prodigy");
     expect(tags[i81 + 1]).toBe(TAG);
     expect(JOURNAL.entries[i81 + 1]!.idx).toBe(82);
     expect(JOURNAL.entries[i81 + 1]!.when).toBeGreaterThan(JOURNAL.entries[i81]!.when);
-    expect(tags.at(-1)).toBe(TAG);
-    expect(tags.some((t) => t.startsWith("0083"))).toBe(false);
+    expect(tags.filter((t) => t.startsWith("0082"))).toEqual([TAG]);
+    // Later migrations may follow, but only ever later in time.
+    for (const later of JOURNAL.entries.slice(i81 + 2)) {
+      expect(later.when).toBeGreaterThan(JOURNAL.entries[i81 + 1]!.when);
+    }
   });
 
   it("follows the SQL-only precedent: no snapshot, like 0036", () => {

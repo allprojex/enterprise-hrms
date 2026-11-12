@@ -571,11 +571,11 @@ describe("GET /api/dashboard/summary — assetMetrics/inventoryMetrics/totalEmpl
     expect(res.body.assetMetrics).toBeNull();
   });
 
-  it("assetMetrics is populated when the caller holds asset_management.reports.read and the module is enabled", async () => {
+  it("assetMetrics is populated when the caller holds organization-wide asset authority and the module is enabled", async () => {
     mockSession();
     mockActiveMembership();
     mockModuleEnabled("asset_management", true);
-    mockPermissions("asset_management.reports.read");
+    mockPermissions("asset_management.manage");
     fixtures.assetRows = [
       { id: 1, organizationId: ORG_ID, status: "assigned" },
       { id: 2, organizationId: ORG_ID, status: "retired" },
@@ -587,11 +587,27 @@ describe("GET /api/dashboard/summary — assetMetrics/inventoryMetrics/totalEmpl
     expect(res.body.assetMetrics).toEqual({ activeAssets: 1 });
   });
 
+  it("assetMetrics is null for asset_management.reports.read alone — every employee holds it, and the count is organization-wide", async () => {
+    // Security correction (2026-09-22): the reports key opens reports narrowed
+    // to the caller's own and direct-report records, so it must not unlock an
+    // organization-wide aggregate.
+    mockSession();
+    mockActiveMembership();
+    mockModuleEnabled("asset_management", true);
+    mockPermissions("asset_management.reports.read");
+    fixtures.assetRows = [{ id: 1, organizationId: ORG_ID, status: "assigned" }];
+
+    const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.assetMetrics).toBeNull();
+  });
+
   it("assetMetrics is null when the caller holds the permission but the module is disabled", async () => {
     mockSession();
     mockActiveMembership();
     mockModuleEnabled("asset_management", false);
-    mockPermissions("asset_management.reports.read");
+    mockPermissions("asset_management.manage");
     fixtures.assetRows = [{ id: 1, organizationId: ORG_ID, status: "assigned" }];
 
     const res = await request(app).get("/api/dashboard/summary").set("Authorization", "Bearer valid-token");
