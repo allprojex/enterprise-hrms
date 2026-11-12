@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { getRemoveEmployeeProfilePictureUrl, getRemoveMyEmployeeProfilePictureUrl } from '@workspace/api-client-react';
 import { getStoredToken } from '@/lib/auth';
 
-async function fetchObjectUrl(url: string): Promise<string | null> {
+async function fetchObjectUrl(url: string, cache?: RequestCache): Promise<string | null> {
   const token = getStoredToken();
   try {
-    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {}, cache });
     if (!res.ok) return null;
     const blob = await res.blob();
     return URL.createObjectURL(blob);
@@ -60,7 +60,10 @@ export function useMyProfilePhoto(hasPicture: boolean) {
     let cancelled = false;
 
     (async () => {
-      const url = await fetchObjectUrl(getRemoveMyEmployeeProfilePictureUrl());
+      // The /me URL is the same for every user, so bypass the HTTP cache:
+      // browsers still holding a copy cached under the old max-age=300
+      // header would otherwise show the previous user's photo.
+      const url = await fetchObjectUrl(getRemoveMyEmployeeProfilePictureUrl(), 'no-store');
       if (cancelled || !url) return;
       objectUrl = url;
       setSrc(url);

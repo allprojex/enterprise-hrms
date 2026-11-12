@@ -351,7 +351,11 @@ router.get(
     }
 
     res.set("Content-Type", "image/jpeg");
-    res.set("Cache-Control", "private, max-age=300");
+    // no-store, never max-age: this URL is identical for every caller (the
+    // subject comes from the Bearer token), so a cached copy is served to
+    // the NEXT user who signs in on the same browser — their avatar shows
+    // the previous user's photo.
+    res.set("Cache-Control", "private, no-store");
     res.send(buffer);
   },
 );

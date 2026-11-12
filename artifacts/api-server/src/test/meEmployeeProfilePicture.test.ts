@@ -394,6 +394,14 @@ describe("GET /api/me/employee/profile-picture", () => {
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toContain("image/jpeg");
   });
+
+  it("is never cacheable — the URL is shared by every user, so a cached copy would show the previous user's photo", async () => {
+    mockLinkedEmployee("avatars/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.jpg");
+    const res = await request(app).get("/api/me/employee/profile-picture").set("Authorization", `Bearer ${REAL_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toContain("no-store");
+    expect(res.headers["cache-control"]).not.toContain("max-age");
+  });
 });
 
 describe("DELETE /api/me/employee/profile-picture", () => {
